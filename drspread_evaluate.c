@@ -9,31 +9,44 @@
 // This implementation seems wonky. It doesn't seem
 // right to parse as part of eval.
 static
-int 
-evaluate_s(SpreadContext*, const char* txt, size_t length, double* outval);
-
-static
-int
+EvaluateResult
 evaluate(SpreadContext* ctx, intptr_t row, intptr_t col, double* outval){
-    size_t len = 0;
-    const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
-    int err = evaluate_s(ctx, txt, len, outval);
-    return err;
-}
-
-static
-int 
-evaluate_s(SpreadContext* ctx, const char* txt, size_t length, double* outval){
-    Expression *root = parse(ctx, txt, length);
-    if(!root) return 1;
-    Expression *e = evaluate_expr(ctx, root);
-    if(!e) return 1;
-    switch(e->kind){
-        case EXPR_NUMBER:
-            *outval = ((Number*)e)->value;
-            return 0;
-        default:
-            return 1;
+    CellKind kind = ctx->ops.query_cell_kind(ctx->ops.ctx, row, col);
+    switch(kind){
+        case CELL_EMPTY:
+            return EV_NULL;
+        case CELL_OTHER:
+            return EV_STRING;
+        case CELL_NUMBER:
+            *outval = ctx->ops.cell_number(ctx->ops.ctx, row, col);
+            return EV_NUMBER;
+        case CELL_FORMULA:{
+            size_t len = 0;
+            const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
+            Expression *root = parse(ctx, txt, len);
+            if(!root) return EV_ERROR;
+            Expression *e = evaluate_expr(ctx, root);
+            if(!e) return EV_ERROR;
+            switch(e->kind){
+                case EXPR_ERROR:
+                    return EV_ERROR;
+                case EXPR_NUMBER:
+                    *outval = ((Number*)e)->value;
+                    return EV_NUMBER;
+                case EXPR_FUNCTION_CALL:
+                    return EV_ERROR;
+                case EXPR_RANGE0D:
+                    return EV_RANGE;
+                case EXPR_RANGE1D_COLUMN:
+                    return EV_RANGE;
+                case EXPR_GROUP:
+                    return EV_ERROR;
+                case EXPR_BINARY:
+                    return EV_ERROR;
+                case EXPR_UNARY:
+                    return EV_ERROR;
+            }
+        }
     }
 }
 
@@ -52,8 +65,8 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
         case EXPR_RANGE0D:{
             double num;
             Range0D* rng = (Range0D*)expr;
-            int err = evaluate(ctx, rng->row, rng->col, &num);
-            if(err) return Error(ctx, "");
+            EvaluateResult er = evaluate(ctx, rng->row, rng->col, &num);
+            if(er != EV_NUMBER) return Error(ctx, "");
             Number* n = expr_alloc(ctx, EXPR_NUMBER);
             n->value = num;
             return &n->e;
@@ -103,6 +116,8 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
         }
         case EXPR_GROUP:{
             Group* g = (Group*)expr;
+            // TODO: check if this tail calls.
+            // Otherwise we need a goto to the top.
             return evaluate_expr(ctx, g->expr);
         };
     };

@@ -43,22 +43,11 @@ FORMULAFUNC(drsp_sum){
     double sum = 0;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
-        CellKind kind = ctx->ops.query_cell_kind(ctx->ops.ctx, row, col);
-        switch(kind){
-            case EMPTY:
-            case OTHER:
-                continue;
-            case NUMBER:{
-                double val = ctx->ops.cell_number(ctx->ops.ctx, row, col);
-                sum += val;
-            }continue;
-            case FORMULA:{
-                double val;
-                int err = evaluate(ctx, row, col, &val);
-                if(err) return Error(ctx, "");
-                sum += val;
-            }continue;
-        }
+        double val;
+        EvaluateResult er = evaluate(ctx, row, col, &val);
+        if(er == EV_ERROR) return Error(ctx, "");
+        if(er != EV_NUMBER) continue;
+        sum += val;
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     n->value = sum;
@@ -79,24 +68,12 @@ FORMULAFUNC(drsp_avg){
     double count = 0.;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
-        CellKind kind = ctx->ops.query_cell_kind(ctx->ops.ctx, row, col);
-        switch(kind){
-            case EMPTY:
-            case OTHER:
-                continue;
-            case NUMBER:{
-                double val = ctx->ops.cell_number(ctx->ops.ctx, row, col);
-                sum += val;
-                count += 1.0;
-            }continue;
-            case FORMULA:{
-                double val;
-                int err = evaluate(ctx, row, col, &val);
-                if(err) return Error(ctx, "");
-                sum += val;
-                count += 1.0;
-            }continue;
-        }
+        double val;
+        EvaluateResult er = evaluate(ctx, row, col, &val);
+        if(er == EV_ERROR) return Error(ctx, "");
+        if(er != EV_NUMBER) continue;
+        sum += val;
+        count += 1.0;
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     n->value = sum/count;

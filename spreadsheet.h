@@ -79,7 +79,7 @@ display_number(void* ctx, intptr_t row, intptr_t col, double val){
     if(row < 0 || row >= sheet->rows) return 1;
     struct Row* ro = &sheet->display[row];
     if(col < 0 || col >= ro->n) return 1;
-    return asprintf((char**)&ro->data[col], "%lld", (long long)round(val)) < 0;
+    return asprintf((char**)&ro->data[col], "%+16lld", (long long)round(val)) < 0;
 }
 
 static
@@ -119,24 +119,24 @@ static
 CellKind
 cell_kind(void* ctx, intptr_t row, intptr_t col){
     SpreadSheet* sheet = ctx;
-    if(row < 0 || row >= sheet->rows) return EMPTY;
+    if(row < 0 || row >= sheet->rows) return CELL_EMPTY;
     struct Row* ro = &sheet->cells[row];
-    if(col < 0 || col >= ro->n) return EMPTY;
+    if(col < 0 || col >= ro->n) return CELL_EMPTY;
     const char* txt = ro->data[col];
-    if(!txt) return EMPTY;
+    if(!txt) return CELL_EMPTY;
     while(*txt == ' ') txt++;
-    if(strlen(txt) == 0) return EMPTY;
-    if(txt[0] == '=') return FORMULA;
+    if(strlen(txt) == 0) return CELL_EMPTY;
+    if(txt[0] == '=') return CELL_FORMULA;
     switch(txt[0]){
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wgnu-case-range"
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wgnu-case-range"
         case '0' ... '9':
-#pragma clang diagnostic pop
+        #pragma clang diagnostic pop
         case '-':
         case '.':
-            return NUMBER;
+            return CELL_NUMBER;
         default:
-            return OTHER;
+            return CELL_OTHER;
     }
 }
 
@@ -176,7 +176,7 @@ write_display(SpreadSheet* sheet, FILE* out){
     for(intptr_t row = 0; row < sheet->rows; row++){
         const struct Row* ro = &sheet->display[row];
         for(int col = 0; col < ro->n; col++){
-            fprintf(out, " %8s%s", ro->data[col], col==ro->n-1?"":" |");
+            fprintf(out, " %16s%s", ro->data[col], col==ro->n-1?"":" |");
         }
         fputc('\n', out);
     }

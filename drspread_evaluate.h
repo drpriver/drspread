@@ -15,8 +15,18 @@ static
 Expression*_Nullable
 evaluate_expr(SpreadContext*, Expression*);
 
+enum EvaluateResult {
+    EV_ERROR = 0,
+    EV_NULL,
+    EV_STRING,
+    EV_RANGE,
+    EV_NUMBER,
+};
+typedef enum EvaluateResult EvaluateResult;
+
 static
-int evaluate(SpreadContext*, intptr_t row, intptr_t col, double* outval);
+EvaluateResult
+evaluate(SpreadContext*, intptr_t row, intptr_t col, double* outval);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

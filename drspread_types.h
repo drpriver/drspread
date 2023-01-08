@@ -3,9 +3,6 @@
 #include "drspread.h"
 #include "buff_allocator.h"
 #include "stringview.h"
-#if 0
-#include "debugging.h"
-#endif
 
 #ifdef __clang__
 #pragma clang assume_nonnull begin
@@ -147,7 +144,11 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
 }
 
 #if 0
-#define Error(ctx, mess) bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR)
+#pragma clang assume_nonnull end
+#include "debugging.h"
+#pragma clang assume_nonnull begin
+#define Error(ctx, mess) bt(), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR)
+// #define Error(ctx, mess) bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR)
 #else
 #define Error(ctx, mess) expr_alloc(ctx, EXPR_ERROR)
 #endif

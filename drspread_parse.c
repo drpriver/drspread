@@ -32,6 +32,7 @@ parse(SpreadContext* ctx, const char* txt, size_t length){
     while(sv.length && sv.text[0] == '=')
         sv.text++, sv.length--;
     lstrip(&sv);
+    // printf("'%s'\n", sv.text);
     Expression* root = parse_comparison(ctx, &sv);
     if(!root || root->kind == EXPR_ERROR) return root;
     lstrip(&sv);

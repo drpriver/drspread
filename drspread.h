@@ -12,10 +12,10 @@
 #endif
 
 enum CellKind {
-    EMPTY = 0, // Empty Cell
-    NUMBER = 1,
-    FORMULA = 2,
-    OTHER = 3,
+    CELL_EMPTY = 0, // Empty Cell
+    CELL_NUMBER = 1,
+    CELL_FORMULA = 2,
+    CELL_OTHER = 3,
 };
 typedef enum CellKind CellKind;
 

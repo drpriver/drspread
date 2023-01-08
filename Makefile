@@ -7,7 +7,7 @@ Documentation: ; mkdir -p $@
 DEPFILES:=$(wildcard Depends/*.dep)
 include $(DEPFILES)
 
-Bin/drspread: drspread.c Makefile | Bin Depends
+Bin/drspread: drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep -Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -g -fsanitize=nullability,address,undefined -O0
 .PHONY: clean
 clean:
