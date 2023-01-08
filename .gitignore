@@ -1,4 +1,7 @@
 Bin
+Depends
+Objs
+TestResults
 *.o
 *.dylib
 *.so
@@ -6,3 +9,6 @@ Bin
 *.lib
 *.a
 *.wasm
+Documentation
+*.csv
+.vimrc
