@@ -2,6 +2,7 @@
 #define DRSPREAD_PARSE_C
 #include "drspread_parse.h"
 #include "drspread_formula_funcs.h"
+#include "parse_numbers.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -203,9 +204,10 @@ PARSEFUNC(parse_terminal){
         #pragma clang diagnostic ignored "-Wgnu-case-range"
         case 'a' ... 'z':
         case 'A' ... 'Z':
-            return parse_func_call(ctx, sv);
-        case '0' ... '9':
         #pragma clang diagnostic pop
+            return parse_func_call(ctx, sv);
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
         case '.':
             return parse_number(ctx, sv);
         case '(':
@@ -272,7 +274,11 @@ PARSEFUNC(parse_range){
     if(begin == end)
         row0 = 0;
     else{
-        row0 = atoi(begin);
+        StringView num = {end-begin, begin};
+        num = stripped(num);
+        Int32Result ir = parse_int32(num.text, num.length);
+        if(ir.errored) return Error(ctx, "");
+        row0 = ir.result;
         if(row0) row0--;
     }
     char c = sv->text[0];
@@ -295,7 +301,11 @@ PARSEFUNC(parse_range){
     if(begin == end)
         row1 = -1;
     else{
-        row1 = atoi(begin);
+        StringView num = {end-begin, begin};
+        num = stripped(num);
+        Int32Result ir = parse_int32(num.text, num.length);
+        if(ir.errored) return Error(ctx, "");
+        row1 = ir.result;
         if(row1) row1--;
     }
     Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
@@ -313,10 +323,10 @@ PARSEFUNC(parse_number){
         char c = sv->text[0];
         switch(c){
             case '.':
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Wgnu-case-range"
-            case '0' ... '9':
-            #pragma clang diagnostic pop
+            case 'e':
+            case 'E':
+            case '0': case '1': case '2': case '3': case '4':
+            case '5': case '6': case '7': case '8': case '9':
                 end++, sv->length--, sv->text++;
                 continue;
             default:
@@ -327,7 +337,9 @@ PARSEFUNC(parse_number){
     if(begin == end) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    n->value = strtod(begin, NULL);
+    DoubleResult dr = parse_double(begin, end-begin);
+    if(dr.errored) return Error(ctx, "");
+    n->value = dr.result;
     return &n->e;
 }
 

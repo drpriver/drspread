@@ -88,8 +88,10 @@ drsp_evaluate_formulas(const SheetOps* ops){
     int nerrs = 0;
     _Alignas(intptr_t) char buff[10000];
     intptr_t ncols = 1, nrows = 1;
-    int err = ops->dims(ops->ctx, &ncols, &nrows);
-    (void)err;
+    if(ops->dims){
+        int err = ops->dims(ops->ctx, &ncols, &nrows);
+        (void)err;
+    }
     SpreadContext ctx = {
         .ops=*ops,
         .a={buff, buff, buff+sizeof buff},
@@ -124,10 +126,12 @@ drsp_evaluate_formulas(const SheetOps* ops){
 
 int
 drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* outval){
-    _Alignas(intptr_t) char buff[2000];
+    _Alignas(intptr_t) char buff[4000];
     intptr_t ncols = 1, nrows = 1;
-    int err = ops->dims(ops->ctx, &ncols, &nrows);
-    (void)err;
+    if(ops->dims){
+        int err = ops->dims(ops->ctx, &ncols, &nrows);
+        (void)err;
+    }
     SpreadContext ctx = {
         .ops=*ops,
         .a={buff, buff, buff+sizeof buff},

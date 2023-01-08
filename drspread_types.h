@@ -33,7 +33,7 @@ enum ExpressionKind: intptr_t {
     EXPR_STRING,
     EXPR_NULL,
 };
-enum {
+enum : intptr_t{
     CACHE_UNSET=EXPR_NULL+1,
     CACHE_IN_PROGRESS,
 };

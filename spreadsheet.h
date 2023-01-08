@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include "drspread.h"
+#include "stringview.h"
+#include "parse_numbers.h"
 
 #ifdef __clang__
 #pragma clang assume_nonnull begin
@@ -147,11 +149,15 @@ get_dims(void* ctx, intptr_t* ncols, intptr_t* nrows){
 static
 double
 cell_number(void* ctx, intptr_t row, intptr_t col){
+    printf("%s: row,col: %zd,%zd\n", __func__, row, col);
     SpreadSheet* sheet = ctx;
     if(row < 0 || row >= sheet->rows) return 0;
     struct Row* ro = &sheet->cells[row];
     if(col < 0 || col >= ro->n) return 0;
-    return strtod(ro->data[col], NULL);
+    StringView s = {strlen(ro->data[col]), ro->data[col]};
+    s = stripped(s);
+    DoubleResult dr = parse_double(s.text, s.length);
+    return dr.result;
 }
 
 static
@@ -166,17 +172,8 @@ cell_kind(void* ctx, intptr_t row, intptr_t col){
     while(*txt == ' ') txt++;
     if(strlen(txt) == 0) return CELL_EMPTY;
     if(txt[0] == '=') return CELL_FORMULA;
-    switch(txt[0]){
-        #pragma clang diagnostic push
-        #pragma clang diagnostic ignored "-Wgnu-case-range"
-        case '0' ... '9':
-        #pragma clang diagnostic pop
-        case '-':
-        case '.':
-            return CELL_NUMBER;
-        default:
-            return CELL_OTHER;
-    }
+    if(!parse_double(txt, strlen(txt)).errored) return CELL_NUMBER;
+    return CELL_OTHER;
 }
 
 
@@ -243,7 +240,7 @@ write_display(SpreadSheet* sheet, FILE* out){
         const struct Row* ro = &sheet->display[row];
         fprintf(out, "%3zd | ", row+1);
         for(int col = 0; col < ro->n; col++){
-            fprintf(out, " %4s%s", ro->data[col], col==ro->n-1?"":" |");
+            fprintf(out, " %4s%s", ro->data[col], " |");
         }
         fputc('\n', out);
     }
