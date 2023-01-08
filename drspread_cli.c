@@ -1,7 +1,7 @@
-#include <stdio.h>
 #include "spreadsheet.h"
 #include "drspread.h"
 #include "get_input.h"
+#include <stdio.h>
 int
 main(int argc, char** argv){
     if(argc < 2) return 1;
@@ -45,7 +45,8 @@ main(int argc, char** argv){
         gi_load_history(&gi, "spread.history");
         for(;;){
             ssize_t len = gi_get_input(&gi);
-            puts("\r");
+            fputs("\r", stdout);
+            fflush(stdout);
             if(len < 0) break;
             char* line = gi.buff;
             if(len == 1 && *line == 'q') break;

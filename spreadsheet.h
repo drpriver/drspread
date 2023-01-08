@@ -1,5 +1,8 @@
 #ifndef SPREADSHEET_H
 #define SPREADSHEET_H
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
