@@ -3,7 +3,6 @@
 
 #include "drspread_evaluate.h"
 #include "drspread_parse.h"
-#include "spreadsheet.h"
 #include "stringview.h"
 #include "drspread_types.h"
 #include "drspread.h"
@@ -88,31 +87,69 @@ drsp_evaluate_formulas(const SheetOps* ops){
     intptr_t row=-1, col=-1;
     int nerrs = 0;
     _Alignas(intptr_t) char buff[10000];
+    intptr_t ncols = 1, nrows = 1;
+    int err = ops->dims(ops->ctx, &ncols, &nrows);
+    (void)err;
     SpreadContext ctx = {
-        *ops, {buff, buff, buff+sizeof buff},
+        .ops=*ops,
+        .a={buff, buff, buff+sizeof buff},
+        .cache={.ncols=ncols, .nrows=nrows},
+        .null={EXPR_NULL},
+        .error={EXPR_ERROR},
     };
+    ctx.cache.vals = buff_alloc(&ctx.a, ncols*nrows*sizeof *ctx.cache.vals);
+    if(!ctx.cache.vals) ctx.cache = (SpreadCache){0};
+    for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
+        ctx.cache.vals[i].kind = CACHE_UNSET;
+    char* chk = ctx.a.cursor;
     while(ctx.ops.next_cell(ctx.ops.ctx, &row, &col) == 0){
-        double val;
-        EvaluateResult er = evaluate(&ctx, row, col, &val);
-        ctx.a.cursor = ctx.a.data;
-        if(er == EV_ERROR){
-            nerrs++;
-            ctx.ops.set_display_error(ctx.ops.ctx, row, col, "error", 5);
+        Expression* e = evaluate(&ctx, row, col);
+        ctx.a.cursor = chk;
+        if(e){
+            switch(e->kind){
+                case EXPR_NUMBER:
+                    ctx.ops.set_display_number(ctx.ops.ctx, row, col, ((Number*)e)->value);
+                    continue;
+                case EXPR_STRING:
+                    ctx.ops.set_display_string(ctx.ops.ctx, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                    continue;
+                default: break;
+            }
         }
-        else if(er == EV_NUMBER)
-            ctx.ops.set_display_number(ctx.ops.ctx, row, col, val);
+        nerrs++;
+        ctx.ops.set_display_error(ctx.ops.ctx, row, col, "error", 5);
     }
     return nerrs;
 }
 
 int
 drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* outval){
-    _Alignas(intptr_t) char buff[4000];
+    _Alignas(intptr_t) char buff[2000];
+    intptr_t ncols = 1, nrows = 1;
+    int err = ops->dims(ops->ctx, &ncols, &nrows);
+    (void)err;
     SpreadContext ctx = {
-        *ops, {buff, buff, buff+sizeof buff},
+        .ops=*ops,
+        .a={buff, buff, buff+sizeof buff},
+        .cache={.ncols=ncols, .nrows=nrows},
+        .null={EXPR_NULL},
+        .error={EXPR_ERROR},
     };
-    EvaluateResult er = evaluate_string(&ctx, txt, len, outval);
-    return er != EV_NUMBER;
+    ctx.cache.vals = buff_alloc(&ctx.a, ncols*nrows*sizeof *ctx.cache.vals);
+    if(!ctx.cache.vals) ctx.cache = (SpreadCache){0};
+    for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
+        ctx.cache.vals[i].kind = CACHE_UNSET;
+    // printf("%zd\n", ctx.a.cursor - buff);
+    Expression* e = evaluate_string(&ctx, txt, len);
+    // printf("%zd\n", ctx.a.cursor - buff);
+    if(e && e->kind == EXPR_NUMBER){
+        *outval = ((Number*)e)->value;
+        return 0;
+    }
+    if(!e){
+        // puts("oom");
+    }
+    return 1;
 }
 
 

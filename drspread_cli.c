@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "spreadsheet.h"
 #include "drspread.h"
+#include "get_input.h"
 int
 main(int argc, char** argv){
     if(argc < 2) return 1;
@@ -13,11 +14,13 @@ main(int argc, char** argv){
         .cell_txt=&txt,
         .set_display_number=&display_number,
         .set_display_error=&display_error,
+        .set_display_string=&display_string,
         .name_to_col_idx=&get_name_to_col_idx,
         .query_cell_kind=&cell_kind,
         .cell_number=&cell_number,
         .row_width=&get_row_width,
         .col_height=&get_col_height,
+        .dims=&get_dims,
     };
     if(argc > 2){
         for(int i = 2; i < argc; i++){
@@ -32,11 +35,29 @@ main(int argc, char** argv){
     }
     else {
         int nerr = drsp_evaluate_formulas(&ops);
-        printf("nerr: %d\n", nerr);
+        (void)nerr;
+        // printf("nerr: %d\n", nerr);
         write_display(&sheet, stdout);
+        GetInputCtx gi = {
+            .prompt.text = "> ",
+            .prompt.length = 2,
+        };
+        gi_load_history(&gi, "spread.history");
+        for(;;){
+            ssize_t len = gi_get_input(&gi);
+            puts("\r");
+            if(len < 0) break;
+            char* line = gi.buff;
+            if(len == 1 && *line == 'q') break;
+            gi_add_line_to_history_len(&gi, line, len);
+            double val;
+            int err = drsp_evaluate_string(&ops, line, len, &val);
+            if(err) puts("err");
+            else printf("%.1f\n", val);
+        }
+        gi_dump_history(&gi, "spread.history");
     }
-    // for(;;){
-    // }
     return 0;
 }
 #include "drspread.c"
+#include "get_input.c"

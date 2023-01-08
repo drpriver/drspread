@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <math.h>
 #include <assert.h>
 #include "drspread.h"
 
@@ -34,6 +33,7 @@ struct SpreadSheet {
     struct Row* cells;
     struct Row* display;
     intptr_t rows;
+    intptr_t maxcols;
 };
 
 static
@@ -79,7 +79,7 @@ display_number(void* ctx, intptr_t row, intptr_t col, double val){
     if(row < 0 || row >= sheet->rows) return 1;
     struct Row* ro = &sheet->display[row];
     if(col < 0 || col >= ro->n) return 1;
-    return asprintf((char**)&ro->data[col], "%+16lld", (long long)round(val)) < 0;
+    return asprintf((char**)&ro->data[col], "%-.0f", __builtin_round(val)) < 0;
 }
 
 static
@@ -92,6 +92,16 @@ display_error(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t le
     (void)mess;
     (void)len;
     ro->data[col] = sheet->cells[row].data[col];
+    return 0;
+}
+static
+int
+display_string(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t len){
+    SpreadSheet* sheet = ctx;
+    if(row < 0 || row >= sheet->rows) return 1;
+    struct Row* ro = &sheet->display[row];
+    if(col < 0 || col >= ro->n) return 1;
+    asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
     return 0;
 }
 
@@ -120,6 +130,15 @@ get_col_height(void* ctx, intptr_t col){
     (void)col;
     SpreadSheet* sheet = ctx;
     return sheet->rows;
+}
+
+static
+int
+get_dims(void* ctx, intptr_t* ncols, intptr_t* nrows){
+    SpreadSheet* sheet = ctx;
+    *ncols = sheet->maxcols;
+    *nrows = sheet->rows;
+    return 0;
 }
 
 static
@@ -163,6 +182,7 @@ int
 read_csv(SpreadSheet* sheet, const char* filename){
     FILE* fp = fopen(filename, "rb");
     if(!fp) return 1;
+    int max_cols = 0;
     for(;;){
         char* line = NULL;
         size_t quant = 0;
@@ -178,11 +198,13 @@ read_csv(SpreadSheet* sheet, const char* filename){
             row_push(&ro, token);
             row_push(&disp, "");
         }
+        if(ro.n > max_cols) max_cols = ro.n;
         ++sheet->rows;
         sheet->cells = realloc(sheet->cells, sizeof(*sheet->cells)*sheet->rows);
         sheet->cells[sheet->rows-1] = ro;
         sheet->display = realloc(sheet->display, sizeof(*sheet->display)*sheet->rows);
         sheet->display[sheet->rows-1] = disp;
+        sheet->maxcols = max_cols;
     }
     return 0;
 }
@@ -190,10 +212,35 @@ read_csv(SpreadSheet* sheet, const char* filename){
 static
 int
 write_display(SpreadSheet* sheet, FILE* out){
+    intptr_t C = 0;
+    int lens[12] = {4,4,4,4,4,4,4,4,4,4,4,4};
     for(intptr_t row = 0; row < sheet->rows; row++){
         const struct Row* ro = &sheet->display[row];
+        if(ro->n > C) C = ro->n;
+        for(int i = 0; i < ro->n && i < 12; i++){
+            int len = strlen(ro->data[i]);
+            if(lens[i] < len) lens[i] = len;
+        }
+    }
+    fprintf(out, "    | ");
+    if(C > 12) C = 12;
+    for(intptr_t i = 0; i < C; i++){
+        fprintf(out, " %-*c |", lens[i], (int)(i + 'a'));
+    }
+    fputc('\n', out);
+    fprintf(out, "----|-");
+    for(intptr_t i = 0; i < C; i++){
+        for(int j = 0; j < lens[i]+2; j++){
+            fputc('-', out);
+        }
+        fputc('|', out);
+    }
+    fputc('\n', out);
+    for(intptr_t row = 0; row < sheet->rows; row++){
+        const struct Row* ro = &sheet->display[row];
+        fprintf(out, "%3zd | ", row+1);
         for(int col = 0; col < ro->n; col++){
-            fprintf(out, " %16s%s", ro->data[col], col==ro->n-1?"":" |");
+            fprintf(out, " %4s%s", ro->data[col], col==ro->n-1?"":" |");
         }
         fputc('\n', out);
     }

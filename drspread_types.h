@@ -13,10 +13,12 @@
 #endif
 
 
-typedef struct SpreadContext SpreadContext;
-struct SpreadContext {
-    const SheetOps ops;
-    BuffAllocator a;
+typedef struct CacheVal CacheVal;
+
+typedef struct SpreadCache SpreadCache;
+struct SpreadCache {
+    intptr_t ncols, nrows;
+    CacheVal* vals;
 };
 
 enum ExpressionKind: intptr_t {
@@ -28,8 +30,29 @@ enum ExpressionKind: intptr_t {
     EXPR_GROUP,
     EXPR_BINARY,
     EXPR_UNARY,
+    EXPR_STRING,
+    EXPR_NULL,
+};
+enum {
+    CACHE_UNSET=EXPR_NULL+1,
+    CACHE_IN_PROGRESS,
 };
 typedef enum ExpressionKind ExpressionKind;
+
+typedef struct Expression Expression;
+struct Expression {
+    _Alignas(intptr_t) ExpressionKind kind;
+};
+
+typedef struct SpreadContext SpreadContext;
+struct SpreadContext {
+    const SheetOps ops;
+    BuffAllocator a;
+    SpreadCache cache;
+    Expression null;
+    Expression error;
+};
+
 
 enum BinaryKind: intptr_t {
     BIN_ADD,
@@ -52,11 +75,6 @@ enum UnaryKind: intptr_t {
 };
 
 typedef enum UnaryKind UnaryKind;
-
-typedef struct Expression Expression;
-struct Expression {
-    _Alignas(intptr_t) ExpressionKind kind;
-};
 
 typedef struct Number Number;
 struct Number {
@@ -106,13 +124,19 @@ struct Unary {
     Expression* expr;
 };
 
+typedef struct String String;
+struct String {
+    Expression e;
+    StringView sv;
+};
+
 static inline
 void*_Nullable
 expr_alloc(SpreadContext* ctx, ExpressionKind kind){
     size_t sz;
     switch(kind){
         case EXPR_ERROR:
-            sz = sizeof(Expression);
+            return &ctx->error;
             break;
         case EXPR_NUMBER:
             sz = sizeof(Number);
@@ -134,6 +158,12 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
             break;
         case EXPR_UNARY:
             sz = sizeof(Unary);
+            break;
+        case EXPR_STRING:
+            sz = sizeof(String);
+            break;
+        case EXPR_NULL:
+            return &ctx->null;
             break;
         default: __builtin_trap();
     }
@@ -158,6 +188,24 @@ struct FuncInfo {
     StringView name;
     FormulaFunc* func;
 };
+
+struct CacheVal {
+    union {
+        intptr_t kind;
+        Expression e;
+        Number n;
+        String s;
+    };
+};
+static inline
+CacheVal*_Nullable
+get_cached_val(const SpreadCache* cache, intptr_t row, intptr_t col){
+    if(row < 0 || col < 0 || col >= cache->ncols || row >= cache->nrows) return NULL;
+    intptr_t idx = col*cache->nrows + row;
+    return &cache->vals[idx];
+}
+
+
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

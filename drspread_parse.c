@@ -22,6 +22,7 @@ static PARSEFUNC(parse_terminal);
 static PARSEFUNC(parse_number);
 static PARSEFUNC(parse_group);
 static PARSEFUNC(parse_range);
+static PARSEFUNC(parse_string);
 static PARSEFUNC(parse_func_call);
 
 static
@@ -209,9 +210,30 @@ PARSEFUNC(parse_terminal){
             return parse_number(ctx, sv);
         case '(':
             return parse_group(ctx, sv);
+        case '\'':
+        case '"':
+            return parse_string(ctx, sv);
         default:
             return Error(ctx, "");
     }
+}
+
+static
+PARSEFUNC(parse_string){
+    assert(sv->length && (sv->text[0] == '"' || sv->text[0] == '\''));
+    char terminator = sv->text[0];
+    sv->length--, sv->text++;
+    const char* begin = sv->text;
+    while(sv->length && sv->text[0] != terminator){
+        sv->length--, sv->text++;
+    }
+    const char* end = sv->text;
+    if(!sv->length) return Error(ctx, "");
+    String* s = expr_alloc(ctx, EXPR_STRING);
+    s->sv.text = begin;
+    s->sv.length = end - begin;
+    sv->length--, sv->text++;
+    return &s->e;
 }
 
 static
@@ -344,7 +366,7 @@ PARSEFUNC(parse_func_call){
         }
     }
     if(!func) return Error(ctx, "");
-    enum {argmax=2};
+    enum {argmax=4};
     Expression** argv = buff_alloc(&ctx->a, argmax * sizeof *argv);
     int argc;
     for(argc = 0; argc < argmax; argc++){

@@ -29,8 +29,10 @@ struct SheetOps {
     const char*_Nullable (*_Nonnull cell_txt)(void* ctx, intptr_t row, intptr_t col, size_t* len);
     intptr_t (*col_height)(void* ctx, intptr_t col);
     intptr_t (*row_width)(void* ctx, intptr_t row);
+    int (*dims)(void* ctx, intptr_t* ncols, intptr_t* nrows);
     int (*set_display_number)(void* ctx, intptr_t row, intptr_t col, double value);
     int (*set_display_error)(void* ctx, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
+    int (*set_display_string)(void* ctx, intptr_t row, intptr_t col, const char*, size_t);
     int (*next_cell)(void* ctx, intptr_t* row, intptr_t* col);
     intptr_t(*name_to_col_idx)(void* ctx, const char*, size_t);
 };

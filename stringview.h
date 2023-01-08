@@ -1,6 +1,7 @@
 #ifndef STRINGVIEW_H
 #define STRINGVIEW_H
 #include <stddef.h>
+#include <string.h>
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
@@ -10,6 +11,13 @@ struct StringView {
     size_t length;
     const char* text;
 };
+
+static inline
+_Bool
+sv_equals(StringView a, StringView b){
+    if(a.length != b.length) return 0;
+    return memcmp(a.text, b.text, a.length) == 0;
+}
 
 static inline
 void
@@ -60,6 +68,14 @@ lstripc(StringView* sv){
                 return;
         }
     }
+}
+
+static inline
+StringView
+stripped(StringView sv){
+    lstrip(&sv);
+    rstrip(&sv);
+    return sv;
 }
 
 
