@@ -50,6 +50,35 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col, double* outval){
     }
 }
 
+// This is for a repl
+static
+EvaluateResult
+evaluate_string(SpreadContext* ctx, const char* txt, size_t len, double* outval){
+    Expression *root = parse(ctx, txt, len);
+    if(!root) return EV_ERROR;
+    Expression *e = evaluate_expr(ctx, root);
+    if(!e) return EV_ERROR;
+    switch(e->kind){
+        case EXPR_ERROR:
+            return EV_ERROR;
+        case EXPR_NUMBER:
+            *outval = ((Number*)e)->value;
+            return EV_NUMBER;
+        case EXPR_FUNCTION_CALL:
+            return EV_ERROR;
+        case EXPR_RANGE0D:
+            return EV_RANGE;
+        case EXPR_RANGE1D_COLUMN:
+            return EV_RANGE;
+        case EXPR_GROUP:
+            return EV_ERROR;
+        case EXPR_BINARY:
+            return EV_ERROR;
+        case EXPR_UNARY:
+            return EV_ERROR;
+    }
+}
+
 static
 Expression*_Nullable
 evaluate_expr(SpreadContext* ctx, Expression* expr){
@@ -68,6 +97,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
             EvaluateResult er = evaluate(ctx, rng->row, rng->col, &num);
             if(er != EV_NUMBER) return Error(ctx, "");
             Number* n = expr_alloc(ctx, EXPR_NUMBER);
+            if(!n) return NULL;
             n->value = num;
             return &n->e;
         }
@@ -106,6 +136,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
             if(u->op == UN_PLUS) return u->expr;
             double d = ((Number*)v)->value;
             Number* r = (Number*)expr_alloc(ctx, EXPR_NUMBER);
+            if(!r) return NULL;
             switch(u->op){
                 case UN_NEG: r->value = -d; break;
                 case UN_NOT: r->value = !d; break;

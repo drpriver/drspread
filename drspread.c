@@ -105,6 +105,16 @@ drsp_evaluate_formulas(const SheetOps* ops){
     return nerrs;
 }
 
+int
+drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* outval){
+    _Alignas(intptr_t) char buff[4000];
+    SpreadContext ctx = {
+        *ops, {buff, buff, buff+sizeof buff},
+    };
+    EvaluateResult er = evaluate_string(&ctx, txt, len, outval);
+    return er != EV_NUMBER;
+}
+
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

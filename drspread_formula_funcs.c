@@ -13,14 +13,14 @@
 
 static inline
 int
-get_rng1dcol(Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend){
+get_range1dcol(SpreadContext*ctx, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend){
     if(arg->kind != EXPR_RANGE1D_COLUMN)
         return 1;
     Range1DColumn* rng = (Range1DColumn*)arg;
     intptr_t start = rng->row_start;
-    if(start < 0) return 1; // TODO: python style negative indexing
+    if(start < 0) start += ctx->ops.col_height(ctx->ops.ctx, rng->col);
     intptr_t end = rng->row_end;
-    if(end < 0) return 1; // TODO: python style negative indexing
+    if(end < 0) end += ctx->ops.col_height(ctx->ops.ctx, rng->col);
     if(end < start){
         intptr_t tmp = end;
         end = start;
@@ -38,7 +38,7 @@ FORMULAFUNC(drsp_sum){
     Expression* arg = evaluate_expr(ctx, argv[0]);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     intptr_t col, start, end;
-    if(get_rng1dcol(arg, &col, &start, &end) != 0)
+    if(get_range1dcol(ctx, arg, &col, &start, &end) != 0)
         return Error(ctx, "");
     double sum = 0;
     // NOTE: inclusive range
@@ -50,6 +50,7 @@ FORMULAFUNC(drsp_sum){
         sum += val;
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = sum;
     return &n->e;
 }
@@ -62,7 +63,7 @@ FORMULAFUNC(drsp_avg){
     if(arg->kind != EXPR_RANGE1D_COLUMN)
         return Error(ctx, "");
     intptr_t col, start, end;
-    if(get_rng1dcol(arg, &col, &start, &end) != 0)
+    if(get_range1dcol(ctx, arg, &col, &start, &end) != 0)
         return Error(ctx, "");
     double sum = 0.;
     double count = 0.;
@@ -76,24 +77,27 @@ FORMULAFUNC(drsp_avg){
         count += 1.0;
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = sum/count;
     return &n->e;
 }
 static
 FORMULAFUNC(drsp_min){
+    (void)ctx;
     (void)argc; (void)argv;
-    return Error(ctx, __func__);
+    return Error(ctx, "unimplemented");
 }
 
 static
 FORMULAFUNC(drsp_max){
+    (void)ctx;
     (void)argc; (void)argv;
-    return Error(ctx, __func__);
+    return Error(ctx, "unimplemented");
 }
 
 static
 FORMULAFUNC(drsp_mod){
-    if(argc != 1) return Error(ctx, __func__);
+    if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, argv[0]);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_NUMBER)
@@ -101,53 +105,58 @@ FORMULAFUNC(drsp_mod){
     double score = ((Number*)arg)->value;
     double mod = floor((score - 10)/2);
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = mod;
     return &n->e;
 }
 
 static
 FORMULAFUNC(drsp_floor){
-    if(argc != 1) return Error(ctx, __func__);
+    if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, argv[0]);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_NUMBER)
         return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = floor(((Number*)arg)->value);
     return &n->e;
 }
 
 static
 FORMULAFUNC(drsp_ceil){
-    if(argc != 1) return Error(ctx, __func__);
+    if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, argv[0]);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_NUMBER)
         return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = ceil(((Number*)arg)->value);
     return &n->e;
 }
 
 static
 FORMULAFUNC(drsp_trunc){
-    if(argc != 1) return Error(ctx, __func__);
+    if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, argv[0]);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_NUMBER)
         return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = trunc(((Number*)arg)->value);
     return &n->e;
 }
 static
 FORMULAFUNC(drsp_round){
-    if(argc != 1) return Error(ctx, __func__);
+    if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, argv[0]);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_NUMBER)
         return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = round(((Number*)arg)->value);
     return &n->e;
 }

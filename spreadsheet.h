@@ -106,6 +106,23 @@ get_name_to_col_idx(void* ctx, const char* name, size_t length){
 }
 
 static
+intptr_t
+get_row_width(void* ctx, intptr_t row){
+    SpreadSheet* sheet = ctx;
+    if(row < 0 || row >= sheet->rows) return 0;
+    struct Row* ro = &sheet->display[row];
+    return ro->n;
+}
+
+static
+intptr_t
+get_col_height(void* ctx, intptr_t col){
+    (void)col;
+    SpreadSheet* sheet = ctx;
+    return sheet->rows;
+}
+
+static
 double
 cell_number(void* ctx, intptr_t row, intptr_t col){
     SpreadSheet* sheet = ctx;

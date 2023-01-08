@@ -35,8 +35,11 @@ struct SheetOps {
     intptr_t(*name_to_col_idx)(void* ctx, const char*, size_t);
 };
 
-int 
+int
 drsp_evaluate_formulas(const SheetOps* ops);
+
+int
+drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* outval);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

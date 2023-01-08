@@ -184,6 +184,7 @@ PARSEFUNC(parse_unary){
         }
         if(!handled){
             Unary* u = expr_alloc(ctx, EXPR_UNARY);
+            if(!u) return NULL;
             u->op = op;
             u->expr = e;
             e = &u->e;
@@ -222,13 +223,21 @@ PARSEFUNC(parse_range){
     if(!sv->length) return Error(ctx, "");
     const char* begin = sv->text;
     const char* end = begin;
-    while(sv->length && sv->text[0] != ','){
+    while(sv->length && sv->text[0] != ',' && sv->text[0] != ']'){
         end++, sv->length--, sv->text++;
     }
     if(begin == end) return Error(ctx, "");
     if(!sv->length) return Error(ctx, "");
     col = ctx->ops.name_to_col_idx(ctx->ops.ctx, begin, end-begin);
-    // TODO: column names
+    if(sv->text[0] == ']'){
+        sv->length--, sv->text++;
+        Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        if(!r) return NULL;
+        r->col = col;
+        r->row_start = 0;
+        r->row_end = -1;
+        return &r->e;
+    }
     // TODO: real integer parsing
     sv->length--, sv->text++;
     lstrip(sv);
@@ -237,9 +246,13 @@ PARSEFUNC(parse_range){
     while(sv->length && sv->text[0] != ']' && sv->text[0] != ':'){
         end++, sv->length--, sv->text++;
     }
-    if(begin == end) return Error(ctx, "");
     if(!sv->length) return Error(ctx, "");
-    row0 = atoi(begin);
+    if(begin == end)
+        row0 = 0;
+    else{
+        row0 = atoi(begin);
+        if(row0) row0--;
+    }
     char c = sv->text[0];
     sv->text++, sv->length--;
     if(c == ']'){
@@ -255,10 +268,14 @@ PARSEFUNC(parse_range){
     while(sv->length && sv->text[0] != ']'){
         end++, sv->length--, sv->text++;
     }
-    if(begin == end) return Error(ctx, "");
     if(!sv->length) return Error(ctx, "");
     sv->text++, sv->length--;
-    row1 = atoi(begin);
+    if(begin == end)
+        row1 = -1;
+    else{
+        row1 = atoi(begin);
+        if(row1) row1--;
+    }
     Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
     if(!r) return NULL;
     r->col = col;
@@ -287,6 +304,7 @@ PARSEFUNC(parse_number){
     }
     if(begin == end) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = strtod(begin, NULL);
     return &n->e;
 }
@@ -342,6 +360,7 @@ PARSEFUNC(parse_func_call){
         return Error(ctx, "");
     sv->length--, sv->text++;
     FunctionCall* fc = expr_alloc(ctx, EXPR_FUNCTION_CALL);
+    if(!fc) return NULL;
     fc->func = func;
     fc->argc = argc;
     fc->argv = argv;

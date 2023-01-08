@@ -28,6 +28,10 @@ static
 EvaluateResult
 evaluate(SpreadContext*, intptr_t row, intptr_t col, double* outval);
 
+static
+EvaluateResult
+evaluate_string(SpreadContext* ctx, const char* txt, size_t len, double* outval);
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif
