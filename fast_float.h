@@ -178,8 +178,13 @@ fast_float_from_chars_float(const char *first, const char *last, float *value, e
 #include <float.h>
 #endif
 
+#ifdef __wasm__
+#define NAN __builtin_nan("")
+#define HUGE_VAL __builtin_huge_val()
+#else
 // NAN, HUGE_VAL
 #include <math.h>
+#endif
 
 // bool
 #include <stdbool.h>
@@ -208,7 +213,8 @@ fast_float_from_chars_float(const char *first, const char *last, float *value, e
 #define FASTFLOAT_64BIT
 #elif(defined(__i386) || defined(__i386__) || defined(_M_IX86) \
          || defined(__arm__) || defined(_M_ARM) \
-         || defined(__MINGW32__))
+         || defined(__MINGW32__)) \
+         || defined(__wasm__)
 #define FASTFLOAT_32BIT
 #else
     // Need to check incrementally, since SIZE_MAX is a size_t, avoid overflow.
@@ -240,6 +246,7 @@ fast_float_from_chars_float(const char *first, const char *last, float *value, e
 #include <machine/endian.h>
 #elif defined(sun) || defined(__sun)
 #include <sys/byteorder.h>
+#elif defined(__wasm__)
 #else
 #include <endian.h>
 #endif
