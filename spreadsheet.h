@@ -149,7 +149,7 @@ get_dims(void* ctx, intptr_t* ncols, intptr_t* nrows){
 static
 double
 cell_number(void* ctx, intptr_t row, intptr_t col){
-    printf("%s: row,col: %zd,%zd\n", __func__, row, col);
+    // printf("%s: row,col: %zd,%zd\n", __func__, row, col);
     SpreadSheet* sheet = ctx;
     if(row < 0 || row >= sheet->rows) return 0;
     struct Row* ro = &sheet->cells[row];
@@ -170,9 +170,11 @@ cell_kind(void* ctx, intptr_t row, intptr_t col){
     const char* txt = ro->data[col];
     if(!txt) return CELL_EMPTY;
     while(*txt == ' ') txt++;
-    if(strlen(txt) == 0) return CELL_EMPTY;
-    if(txt[0] == '=') return CELL_FORMULA;
-    if(!parse_double(txt, strlen(txt)).errored) return CELL_NUMBER;
+    StringView s = {strlen(txt), txt};
+    s = stripped(s);
+    if(s.length == 0) return CELL_EMPTY;
+    if(s.text[0] == '=') return CELL_FORMULA;
+    if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
     return CELL_OTHER;
 }
 
