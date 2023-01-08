@@ -17,6 +17,6 @@ clean:
 	rm -rf Depends
 .DEFAULT_GOAL:=Bin/drspread
 
-WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -O3 -ffreestanding -nostdinc -isystem Wasm -iquote .
+WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -O3 -ffreestanding -nostdinc -isystem Wasm
 Bin/drspread.wasm: drspread.c | Bin Depends
-	clang $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep -Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -g -O3 $(WASMCFLAGS)
+	clang $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep -Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -iquote. $(WASMCFLAGS)
