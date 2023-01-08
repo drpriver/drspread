@@ -19,4 +19,4 @@ clean:
 
 WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -O3 -ffreestanding -nostdinc -isystem Wasm -iquote .
 Bin/drspread.wasm: drspread.c | Bin Depends
-	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep -Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -g -O3 $(WASMCFLAGS)
+	clang $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep -Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -g -O3 $(WASMCFLAGS)
