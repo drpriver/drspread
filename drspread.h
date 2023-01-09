@@ -14,7 +14,7 @@
 #endif
 #endif
 
-enum CellKind {
+enum CellKind: intptr_t {
     CELL_EMPTY = 0, // Empty Cell
     CELL_NUMBER = 1,
     CELL_FORMULA = 2,

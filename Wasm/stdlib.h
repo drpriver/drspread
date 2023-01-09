@@ -9,6 +9,9 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignore "-Wnullability-completeness"
 #endif
+
+// This project doesn't need a qsort.
+#if 0
 #define alloca __builtin_alloca
 typedef int comparator(const void*, const void*);
 
@@ -378,6 +381,7 @@ void
 qsort(void* base, size_t nel, size_t width, int(*compar)(const void*, const void*)){
     array_sort(base, nel, compar, width);
     }
+#endif
 
 #ifdef __clang__
 #pragma clang diagnostic pop

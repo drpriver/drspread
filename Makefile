@@ -18,5 +18,6 @@ clean:
 .DEFAULT_GOAL:=Bin/drspread
 
 WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -O3 -ffreestanding -nostdinc -isystem Wasm
-Bin/drspread.wasm: drspread.c | Bin Depends
+Bin/drspread.wasm: drspread_wasm.c | Bin Depends Makefile
 	clang $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep -Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -iquote. $(WASMCFLAGS)
+include $(wildcard misc.mak)
