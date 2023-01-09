@@ -27,7 +27,7 @@ const char*
 js_cell_text(void* ctx, intptr_t row, intptr_t col, size_t* len){
     PString* p = sheet_cell_text((intptr_t)ctx, row, col);
     *len = p->length;
-    return p->text;
+    return (char*)p->text;
 }
 
 extern
@@ -135,6 +135,6 @@ sheet_evaluate_string(intptr_t id, PString* p){
     double result = __builtin_nan("");
     SheetOps ops = op_base;
     ops.ctx = (void*)id;
-    drsp_evaluate_string(&ops, p->text, p->length, &result);
+    drsp_evaluate_string(&ops, (char*)p->text, p->length, &result);
     return result;
 }
