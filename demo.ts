@@ -75,9 +75,9 @@ function name_to_col_idx(i:number, s:string):number{
     return column_names.indexOf(s.toLowerCase());
 }
 
-function next_cell(i:number, pr:number, pc:number):[number, number]{
+function next_cell(id:number, i:number, pr:number, pc:number):[number, number]{
     if(i >= to_iterate.length)
-        return [4294967295, 4294967295];
+        return [-1, -1];
     return to_iterate[i];
 }
 

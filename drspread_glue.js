@@ -59,6 +59,8 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
                 const [r, c] = sheet_next_cell_(id, i, prev_row, prev_col);
                 if (r == 4294967295 && c == 4294967295)
                     return 1;
+                if (r == -1 && c == -1)
+                    return 1;
                 write4(prow, r);
                 write4(pcol, c);
                 return 0;

@@ -65,9 +65,9 @@ function display_error(i, row, col) {
 function name_to_col_idx(i, s) {
     return column_names.indexOf(s.toLowerCase());
 }
-function next_cell(i, pr, pc) {
+function next_cell(id, i, pr, pc) {
     if (i >= to_iterate.length)
-        return [4294967295, 4294967295];
+        return [-1, -1];
     return to_iterate[i];
 }
 function dims(i) {
