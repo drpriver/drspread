@@ -1,0 +1,86 @@
+::raw
+  <input type=file id=filepicker>
+::script #import
+  drspread_glue.js
+::css
+  :root {
+    color-scheme: light dark; /* both supported */
+  }
+  table {
+    border-collapse: collapse;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  }
+  td {
+    border: 1px solid rgba(0,0,0,0.2);
+    padding: 0px 12px;
+  }
+  th {
+    font-weight: bold;
+  }
+  th {
+    border-bottom: 2px solid black;
+    text-transform: capitalize;
+  }
+  @media (prefers-color-scheme: dark) {
+    th {
+      border-bottom: 2px solid white;
+    }
+    td {
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    html {
+      background-color: rgb(44, 44, 44);
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    html {
+      background-color: white;
+    }
+  }
+  td.error {
+    color: red;
+    font-size: 125%;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  td.error:before {
+    content:"#";
+  }
+  td.error:after {
+    content:"!";
+  }
+  td:first-child{
+    text-align: right;
+    font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+  }
+  input {
+    font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+  }
+  /*endcss*/
+::script #id(data)
+::js
+  const csv = FileSystem.load_file('vault.csv');
+  const lines = csv.split('\n');
+  const result = [];
+  for(const line of lines){
+    const row = [];
+    for(let cell of line.split('|')){
+      cell = cell.trim();
+      if(cell.length && !isNaN(cell))
+        cell = +cell;
+      row.push(cell);
+    }
+    for(let c of row){
+      if(c){
+        result.push(row);
+        break;
+      }
+    }
+    // result.push(row);
+  }
+  const js = JSON.stringify(result);
+  // console.log(js);
+  const s = ctx.select_nodes({id:'data'})[0]
+  s.add_child('let cells = ' + js +';');
+::script #import
+  demo.js

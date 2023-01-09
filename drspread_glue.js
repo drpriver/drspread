@@ -72,14 +72,20 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         },
     };
     function evaluate_formulas(id) {
+        const now = window.performance.now();
         reset_memory();
         sheet_evaluate_formulas(id);
         reset_memory();
+        const after = window.performance.now();
+        console.log('evaluate_formulas', after - now);
     }
     function evaluate_string(id, s) {
+        const now = window.performance.now();
         reset_memory();
         const result = sheet_evaluate_string(id, js_string_to_wasm(s));
         reset_memory();
+        const after = window.performance.now();
+        console.log('evaluate_string', after - now);
         return result;
     }
     return fetch(wasm_path)
@@ -96,6 +102,6 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         reset_memory = exports.reset_memory;
         sheet_evaluate_formulas = exports.sheet_evaluate_formulas;
         sheet_evaluate_string = exports.sheet_evaluate_string;
-        return { evaluate_formulas, evaluate_string };
+        return { evaluate_formulas, evaluate_string, exports };
     });
 }

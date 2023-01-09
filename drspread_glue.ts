@@ -20,6 +20,7 @@ function drspread(
 ):Promise<{
     evaluate_formulas: (id: number) => void; 
     evaluate_string: (id: number, s: string) => number; 
+    exports: WebAssembly.Exports;
 }>
 {
 
@@ -97,15 +98,21 @@ const imports = {
 };
 
 function evaluate_formulas(id:number){
+    const now = window.performance.now();
     reset_memory();
     sheet_evaluate_formulas(id);
     reset_memory();
+    const after = window.performance.now();
+    console.log('evaluate_formulas', after-now);
 }
 
 function evaluate_string(id:number, s:string):number{
+    const now = window.performance.now();
     reset_memory();
     const result = sheet_evaluate_string(id, js_string_to_wasm(s));
     reset_memory();
+    const after = window.performance.now();
+    console.log('evaluate_string', after-now);
     return result;
 }
 
@@ -123,6 +130,6 @@ return fetch(wasm_path)
         reset_memory = exports.reset_memory as any;
         sheet_evaluate_formulas = exports.sheet_evaluate_formulas as any;
         sheet_evaluate_string = exports.sheet_evaluate_string as any;
-        return {evaluate_formulas, evaluate_string};
+        return {evaluate_formulas, evaluate_string, exports};
     });
 }
