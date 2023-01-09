@@ -118,6 +118,7 @@ function make_elems() {
     pre = document.createElement('pre');
     document.body.appendChild(pre);
     const input = document.createElement('input');
+    input.spellcheck = false;
     document.body.appendChild(input);
     input.onkeydown = function (e) {
         if (e.key == 'Enter') {
