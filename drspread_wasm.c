@@ -15,7 +15,7 @@ extern double sheet_cell_number(intptr_t, intptr_t, intptr_t);
 static
 double
 js_cell_number(void* ctx, intptr_t row, intptr_t col){
-    return sheet_cell_kind((intptr_t)ctx, row, col);
+    return sheet_cell_number((intptr_t)ctx, row, col);
 }
 
 extern

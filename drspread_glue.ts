@@ -1,6 +1,12 @@
+const enum CellKind {
+    CELL_EMPTY = 0, // Empty Cell
+    CELL_NUMBER = 1,
+    CELL_FORMULA = 2,
+    CELL_OTHER = 3,
+}
 function drspread(
     wasm_path:string,
-    sheet_cell_kind:(id:number, row:number, col:number)=>number,
+    sheet_cell_kind:(id:number, row:number, col:number)=>CellKind,
     sheet_cell_number:(id:number, row:number, col:number)=>number,
     sheet_cell_text_:(id:number, row:number, col:number) => string,
     sheet_col_height:(id:number, col:number)=>number,
@@ -53,6 +59,7 @@ function read4(p:number):number{
 }
 const imports = {
     env:{
+        round: Math.round,
         sheet_cell_kind,
         sheet_cell_number,
         sheet_cell_text:function(id:number, row:number, col:number):number{
@@ -74,7 +81,7 @@ const imports = {
             const prev_row = read4(prow);
             const prev_col = read4(pcol);
             const [r, c] = sheet_next_cell_(id, prev_row, prev_col);
-            if(r < 0 && c < 0)
+            if(r ==4294967295 && c == 4294967295)
                 return 1;
             write4(prow, r);
             write4(pcol, c);
