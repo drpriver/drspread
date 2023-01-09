@@ -91,12 +91,12 @@ js_name_to_col_idx(void* ctx, const char* name, size_t len){
 }
 
 extern
-intptr_t sheet_next_cell(intptr_t, intptr_t, intptr_t);
+intptr_t sheet_next_cell(intptr_t, intptr_t, intptr_t, intptr_t);
 
 static
 int
-js_next_cell(void* ctx, intptr_t* row, intptr_t* col){
-    return sheet_next_cell((intptr_t)ctx, (intptr_t)row, (intptr_t)col);
+js_next_cell(void* ctx, intptr_t i, intptr_t* row, intptr_t* col){
+    return sheet_next_cell((intptr_t)ctx, i, (intptr_t)row, (intptr_t)col);
 }
 
 extern

@@ -76,18 +76,9 @@ function name_to_col_idx(i:number, s:string):number{
 }
 
 function next_cell(i:number, pr:number, pc:number):[number, number]{
-    let found_it = false;
-    if(!to_iterate.length)
+    if(i >= to_iterate.length)
         return [4294967295, 4294967295];
-    if(pr == 4294967295 && pc == 4294967295)
-        return to_iterate[0];
-    for(const [r, c] of to_iterate){
-        if(found_it)
-            return [r, c];
-        if(r == pr && c == pc)
-            found_it = true;
-    }
-    return [4294967295, 4294967295];
+    return to_iterate[i];
 }
 
 function dims(i:number):[number, number]{
@@ -204,7 +195,7 @@ declare function drspread(
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
     sheet_set_display_error:(id:number, row:number, col:number)=>void,
     sheet_name_to_col_idx_:(id:number, s:string) => number,
-    sheet_next_cell_:(id:number, prev_row:number, prev_col:number)=>[number, number],
+    sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
 ):Promise<{
     evaluate_formulas: (id: number) => void; 

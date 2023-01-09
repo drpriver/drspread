@@ -66,18 +66,9 @@ function name_to_col_idx(i, s) {
     return column_names.indexOf(s.toLowerCase());
 }
 function next_cell(i, pr, pc) {
-    let found_it = false;
-    if (!to_iterate.length)
+    if (i >= to_iterate.length)
         return [4294967295, 4294967295];
-    if (pr == 4294967295 && pc == 4294967295)
-        return to_iterate[0];
-    for (const [r, c] of to_iterate) {
-        if (found_it)
-            return [r, c];
-        if (r == pr && c == pc)
-            found_it = true;
-    }
-    return [4294967295, 4294967295];
+    return to_iterate[i];
 }
 function dims(i) {
     return [cells[0].length, cells.length];

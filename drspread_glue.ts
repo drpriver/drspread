@@ -15,7 +15,7 @@ function drspread(
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
     sheet_set_display_error:(id:number, row:number, col:number)=>void,
     sheet_name_to_col_idx_:(id:number, s:string) => number,
-    sheet_next_cell_:(id:number, prev_row:number, prev_col:number)=>[number, number],
+    sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
 ):Promise<{
     evaluate_formulas: (id: number) => void; 
@@ -78,10 +78,10 @@ const imports = {
             const s = wasm_string_to_js(p, len);
             return sheet_name_to_col_idx_(id, s);
         },
-        sheet_next_cell:function(id:number, prow:number, pcol:number):number{
+        sheet_next_cell:function(id:number, i:number, prow:number, pcol:number):number{
             const prev_row = read4(prow);
             const prev_col = read4(pcol);
-            const [r, c] = sheet_next_cell_(id, prev_row, prev_col);
+            const [r, c] = sheet_next_cell_(id, i, prev_row, prev_col);
             if(r ==4294967295 && c == 4294967295)
                 return 1;
             write4(prow, r);

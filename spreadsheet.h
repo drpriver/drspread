@@ -42,7 +42,8 @@ struct SpreadSheet {
 };
 
 static
-int next(void* ctx, intptr_t* row, intptr_t* col){
+int next(void* ctx, intptr_t i, intptr_t* row, intptr_t* col){
+    (void)i;
     SpreadSheet* sheet = ctx;
     intptr_t r = *row;
     intptr_t c = *col;

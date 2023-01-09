@@ -104,7 +104,7 @@ drsp_evaluate_formulas(const SheetOps* ops){
     for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
         ctx.cache.vals[i].kind = CACHE_UNSET;
     char* chk = ctx.a.cursor;
-    while(ctx.ops.next_cell(ctx.ops.ctx, &row, &col) == 0){
+    for(intptr_t i = 0; ctx.ops.next_cell(ctx.ops.ctx, i, &row, &col) == 0; i++){
         Expression* e = evaluate(&ctx, row, col);
         ctx.a.cursor = chk;
         if(e){

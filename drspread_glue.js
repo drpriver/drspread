@@ -53,10 +53,10 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
                 const s = wasm_string_to_js(p, len);
                 return sheet_name_to_col_idx_(id, s);
             },
-            sheet_next_cell: function (id, prow, pcol) {
+            sheet_next_cell: function (id, i, prow, pcol) {
                 const prev_row = read4(prow);
                 const prev_col = read4(pcol);
-                const [r, c] = sheet_next_cell_(id, prev_row, prev_col);
+                const [r, c] = sheet_next_cell_(id, i, prev_row, prev_col);
                 if (r == 4294967295 && c == 4294967295)
                     return 1;
                 write4(prow, r);
