@@ -31,7 +31,8 @@ Bin/TestDrSpread: TestDrSpread.c | Bin Depends
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@
-
+.PHONY: all
+all: TestResults/TestDrSpread Bin/TestDrSpread
+.DEFAULT_GOAL:=all
 
 include $(wildcard misc.mak)
-
