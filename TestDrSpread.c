@@ -7,6 +7,7 @@ static TestFunc TestSpreadsheet2;
 static TestFunc TestBinOps;
 static TestFunc TestUnOps;
 static TestFunc TestFuncs;
+static TestFunc TestMod;
 
 int main(int argc, char** argv){
     RegisterTest(TestSpreadsheet1);
@@ -14,6 +15,7 @@ int main(int argc, char** argv){
     RegisterTest(TestBinOps);
     RegisterTest(TestUnOps);
     RegisterTest(TestFuncs);
+    RegisterTest(TestMod);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -77,8 +79,8 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
                 TEST_stats.failures++;
                   TestReport("Test condition failed");
                   TestReport("row %zu, col %d", i, j);
-                  TestReport("'%s%s%s' %s!=%s '%s%s%s'", 
-                          _test_color_green, lhs, _test_color_reset, 
+                  TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                          _test_color_green, lhs, _test_color_reset,
                           _test_color_red, _test_color_reset,
                           _test_color_green, rhs, _test_color_reset);
             }
@@ -91,7 +93,7 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
 
 
 TestFunction(TestSpreadsheet1){
-    const char* input = 
+    const char* input =
         "=sum([c])                     | Axe         | 10\n"
         "=find('Food', [b])            | Torch       | 1\n"
         "=tlu('Plate Armor', [b], [c]) | Plate Armor | 50\n"
@@ -108,7 +110,7 @@ TestFunction(TestSpreadsheet1){
 }
 
 TestFunction(TestSpreadsheet2){
-    const char* input = 
+    const char* input =
         // a          |     b          |    c            |  d
         "=[b,1]       | 2              | 3               | =[d, 3]\n"
         "=[a,1]+[b,1] | = [a,2]+2      | =[a,2]          | 4\n"
@@ -128,7 +130,7 @@ TestFunction(TestSpreadsheet2){
 }
 
 TestFunction(TestBinOps){
-    const char* input = 
+    const char* input =
         "=1+1   | =1-1    | =4/2       | =3*4 \n"
         "=2 = 1 | =2 == 1 | =2 != 1\n"
         "=1 < 2 | =1 > 2  | =1 >= 1    | =1 <= 2\n"
@@ -142,7 +144,7 @@ TestFunction(TestBinOps){
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
 TestFunction(TestUnOps){
-    const char* input = 
+    const char* input =
         "=!1      | =-2    | =+2\n"
         "=!!1     | =-!1   | =+!2\n"
         "=!!!1    | =-!!1  | =+!!2\n"
@@ -161,7 +163,7 @@ TestFunction(TestUnOps){
 }
 
 TestFunction(TestFuncs){
-    const char* input = 
+    const char* input =
         "=sum([b])          | -1.5\n"
         "=avg([b])          | 3.5\n"
         "=min([b])          | 44      | hello\n"
@@ -174,6 +176,26 @@ TestFunction(TestFuncs){
         "=round([b,1])      | \n"
         "=tlu(44, [b], [c]) | \n"
         "=find(44, [b]) | \n"
+        "\n"
+        "=ceil(-12.1)\n"
+        "=floor(-12.1)\n"
+        "=round(-12.1)\n"
+        "=trunc(-12.1)\n"
+        "\n"
+        "=ceil(-12.9)\n"
+        "=floor(-12.9)\n"
+        "=round(-12.9)\n"
+        "=trunc(-12.9)\n"
+        "\n"
+        "=ceil(12.1)\n"
+        "=floor(12.1)\n"
+        "=round(12.1)\n"
+        "=trunc(12.1)\n"
+        "\n"
+        "=ceil(12.9)\n"
+        "=floor(12.9)\n"
+        "=round(12.9)\n"
+        "=trunc(12.9)\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -189,6 +211,71 @@ TestFunction(TestFuncs){
         ROW("hello", ""),
         // NOTE: find returns an OFFSET, not an index
         ROW("2", ""),
+        ROW(""),
+        ROW("-12"),
+        ROW("-13"),
+        ROW("-12"),
+        ROW("-12"),
+        ROW(""),
+        ROW("-12"),
+        ROW("-13"),
+        ROW("-13"),
+        ROW("-12"),
+        ROW(""),
+        ROW("13"),
+        ROW("12"),
+        ROW("12"),
+        ROW("12"),
+        ROW(""),
+        ROW("13"),
+        ROW("12"),
+        ROW("13"),
+        ROW("12"),
+        ROW(""),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+}
+
+TestFunction(TestMod){
+    const char* input =
+        "=mod(3)\n"
+        "=mod(4)\n"
+        "=mod(5)\n"
+        "=mod(6)\n"
+        "=mod(7)\n"
+        "=mod(8)\n"
+        "=mod(9)\n"
+        "=mod(10)\n"
+        "=mod(11)\n"
+        "=mod(12)\n"
+        "=mod(13)\n"
+        "=mod(14)\n"
+        "=mod(15)\n"
+        "=mod(16)\n"
+        "=mod(17)\n"
+        "=mod(18)\n"
+        "=mod(19)\n"
+        "=mod(20)\n"
+    ;
+    struct Row expected[] = {
+        ROW("-4"),
+        ROW("-3"),
+        ROW("-3"),
+        ROW("-2"),
+        ROW("-2"),
+        ROW("-1"),
+        ROW("-1"),
+        ROW("0"),
+        ROW("0"),
+        ROW("1"),
+        ROW("1"),
+        ROW("2"),
+        ROW("2"),
+        ROW("3"),
+        ROW("3"),
+        ROW("4"),
+        ROW("4"),
+        ROW("5"),
         ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);

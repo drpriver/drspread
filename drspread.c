@@ -51,36 +51,8 @@
 //   function call
 //   number
 //   range
+//   'string', "string"
 //   (group)
-
-// Tokens:
-//   identifiers
-//   numbers
-//   lparen
-//   rparen
-//   plus
-//   minus
-//   slash
-//   star
-//   lsquare
-//   rsquare
-//   colon
-
-// [a, 0]            - scalar (0d range)
-// [a, :], [a, ]     - 1d range (column)
-// [0, :], [a, ]     - 1d range (column)
-// [a], [0]          - 1d range (column)
-// [a:a, :], [a:a, ] - 2d range
-
-// sum([a, 0])
-// sum([a,:]) //
-// sum([a,])
-// sum([a:a,])
-// sum([a:a,:])
-// max(a[:])
-// max(a)
-// sum(a[:] * b[:])
-// max(a[:]) + a[:]
 
 int
 drsp_evaluate_formulas(const SheetOps* ops){
