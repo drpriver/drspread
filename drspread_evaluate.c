@@ -2,6 +2,7 @@
 #define DRSPREAD_EVALUATE_C
 #include "drspread_evaluate.h"
 #include "drspread_parse.h"
+#include "parse_numbers.h"
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
@@ -28,7 +29,14 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
         cached->kind = CACHE_IN_PROGRESS;
     }
     // printf("Evaluate %zd, %zd\n", row, col);
-    CellKind kind = ctx->ops.query_cell_kind(ctx->ops.ctx, row, col);
+    CellKind kind = CELL_UNKNOWN;
+    if(ctx->ops.query_cell_kind)
+        kind = ctx->ops.query_cell_kind(ctx->ops.ctx, row, col);
+    if(kind == CELL_UNKNOWN){
+        size_t len = 0;
+        const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
+        kind = classify_cell(txt, len);
+    }
     switch(kind){
         case CELL_EMPTY:
             if(cached){
@@ -41,14 +49,12 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
             const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
             if(cached){
                 cached->e.kind = EXPR_STRING;
-                cached->s.sv.text = txt;
-                cached->s.sv.length = len;
+                cached->s.sv = stripped2(txt, len);
                 return &cached->e;
             }
             String* s = expr_alloc(ctx, EXPR_STRING);
             if(!s) return NULL;
-            s->sv.text = txt;
-            s->sv.length = len;
+            s->sv = stripped2(txt, len);
             return &s->e;
         }
         case CELL_NUMBER:{
@@ -66,8 +72,18 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
         case CELL_FORMULA:{
             size_t len = 0;
             const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
+            char* chk = ctx->a.cursor;
             Expression *root = parse(ctx, txt, len);
-            if(!root || root->kind == EXPR_ERROR) return root;
+            if(!root || root->kind == EXPR_ERROR)
+                ctx->a.cursor = chk;
+            if(!root) return NULL;
+            if(root->kind == EXPR_ERROR) {
+                if(cached){
+                    cached->kind = EXPR_ERROR;
+                    return &cached->e;
+                }
+                return root;
+            }
             Expression *e = evaluate_expr(ctx, root);
             if(!e) return e;
             if(cached){
@@ -92,6 +108,8 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
             }
             return e;
         }
+        case CELL_UNKNOWN:
+            __builtin_trap();
     }
 }
 

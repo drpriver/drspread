@@ -19,6 +19,7 @@ enum CellKind: intptr_t {
     CELL_NUMBER = 1,
     CELL_FORMULA = 2,
     CELL_OTHER = 3,
+    CELL_UNKNOWN = 4, // caller doesn't know what this is, but can provide a string
 };
 typedef enum CellKind CellKind;
 
@@ -27,7 +28,7 @@ typedef struct SheetOps SheetOps;
 // Callbacks
 struct SheetOps {
     void* ctx;
-    CellKind (*query_cell_kind)(void* ctx, intptr_t row, intptr_t col);
+    CellKind (*_Nullable query_cell_kind)(void* ctx, intptr_t row, intptr_t col);
     double (*cell_number)(void* ctx, intptr_t row, intptr_t col);
     const char*_Nullable (*_Nonnull cell_txt)(void* ctx, intptr_t row, intptr_t col, size_t* len);
     intptr_t (*col_height)(void* ctx, intptr_t col);

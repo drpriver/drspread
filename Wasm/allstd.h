@@ -28,9 +28,12 @@ typedef long ptrdiff_t;
 typedef unsigned long uintptr_t;
 typedef long intptr_t;
 #define UINTPTR_MAX 0xFFFFFFFF
+_Static_assert(UINTPTR_MAX == (uintptr_t)-1, "");
 #define INT32_MAX 2147483647
 #define UINT32_MAX 4294967295u
+_Static_assert(UINT32_MAX == (uint32_t)-1, "");
 #define UINT64_MAX 18446744073709551615llu
+_Static_assert(UINT64_MAX == (uint64_t)-1, "");
 
 #define INT32_MIN  (-INT32_MAX-1)
 _Static_assert(sizeof(int32_t) == sizeof(int), "");

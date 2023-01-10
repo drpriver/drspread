@@ -12,6 +12,10 @@ static
 Expression*_Nullable
 parse(SpreadContext* ctx, const char* txt, size_t length);
 
+static
+CellKind
+classify_cell(const char* txt, size_t length);
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

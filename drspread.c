@@ -115,6 +115,9 @@ drsp_evaluate_formulas(const SheetOps* ops){
                 case EXPR_STRING:
                     ctx.ops.set_display_string(ctx.ops.ctx, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
                     continue;
+                case EXPR_NULL:
+                    ctx.ops.set_display_string(ctx.ops.ctx, row, col, "", 0);
+                    continue;
                 default: break;
             }
         }

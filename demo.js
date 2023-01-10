@@ -137,11 +137,12 @@ function show() {
             let row = display[r];
             html += '<tr>\n';
             html += '  <td>' + (r + 1) + '\n';
-            for (let c of row) {
+            for (let i = 0; i < row.length; i++) {
+                let c = row[i];
                 if (c == 'err')
-                    html += '  <td class=error>' + c + '\n';
+                    html += `  <td class=error data-row=${r} data-col=${i}>` + c + '\n';
                 else
-                    html += '  <td>' + c + '\n';
+                    html += `  <td data-row=${r} data-col=${i}>` + c + '\n';
             }
             html += '</tr>\n';
         }
@@ -159,12 +160,51 @@ function show() {
         let row = cells[r];
         html += '<tr>\n';
         html += '  <td>' + (r + 1) + '\n';
-        for (let c of row) {
-            html += '  <td>' + c + '\n';
+        for (let i = 0; i < row.length; i++) {
+            let c = row[i];
+            html += `  <td data-row=${r} data-col=${i}>` + c + '\n';
         }
         html += '</tr>\n';
     }
     raw.innerHTML = html;
+    for (const td of document.querySelectorAll('td')) {
+        if (!td.dataset.row)
+            continue;
+        if (!td.dataset.col)
+            continue;
+        td.onclick = function (e) {
+            e.stopPropagation();
+            const inp = document.createElement('input');
+            const r = +td.dataset.row;
+            const c = +td.dataset.col;
+            const txt = cells[r][c];
+            inp.value = "" + txt;
+            td.textContent = '';
+            td.appendChild(inp);
+            inp.onkeydown = function (e) {
+                e.stopPropagation();
+                switch (e.key) {
+                    case 'Enter':
+                    case 'Escape':
+                        inp.blur();
+                        e.preventDefault();
+                        return;
+                }
+            };
+            inp.onblur = function () {
+                const t = inp.value.trim();
+                inp.remove();
+                if (!t)
+                    cells[r][c] = t;
+                else
+                    cells[r][c] = !isNaN(t) ? +t : t;
+                prep();
+                ev_formulas(0);
+                show();
+            };
+            inp.focus();
+        };
+    }
 }
 drspread('/Bin/drspread.wasm', cell_kind, cell_number, cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims).then(({ evaluate_formulas, evaluate_string, exports }) => {
     ex = exports;

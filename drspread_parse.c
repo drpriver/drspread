@@ -14,6 +14,17 @@
 #endif
 #endif
 
+static
+CellKind
+classify_cell(const char* txt, size_t length){
+    StringView s = {length, txt};
+    s = stripped(s);
+    if(!s.length) return CELL_EMPTY;
+    if(s.text[0] == '=') return CELL_FORMULA;
+    if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
+    return CELL_OTHER;
+}
+
 #define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, StringView* sv)
 static PARSEFUNC(parse_comparison);
 static PARSEFUNC(parse_addplus);
@@ -143,7 +154,7 @@ PARSEFUNC(parse_unary){
     switch(c){
         case '!': op = UN_NOT; break;
         case '-': op = UN_NEG; break;
-        default: break;
+        default: return parse_terminal(ctx, sv);
     }
     if(op != -1){
         sv->text++, sv->length--;
@@ -158,7 +169,7 @@ PARSEFUNC(parse_unary){
         sv->length-=2;
         lstrip(sv);
     }
-    Expression* e = parse_terminal(ctx, sv);
+    Expression* e = parse_unary(ctx, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
     if(op != -1){
         _Bool handled = 0;

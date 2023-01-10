@@ -85,7 +85,10 @@ display_number(void* ctx, intptr_t row, intptr_t col, double val){
     if(row < 0 || row >= sheet->rows) return 1;
     struct Row* ro = &sheet->display[row];
     if(col < 0 || col >= ro->n) return 1;
-    return asprintf((char**)&ro->data[col], "%-.0f", __builtin_round(val)) < 0;
+    if((intptr_t)val == val){
+        return asprintf((char**)&ro->data[col], "%zd", (intptr_t)val) < 0;
+    }
+    return asprintf((char**)&ro->data[col], "%-.1f", val) < 0;
 }
 
 static
@@ -97,7 +100,7 @@ display_error(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t le
     if(col < 0 || col >= ro->n) return 1;
     (void)mess;
     (void)len;
-    ro->data[col] = sheet->cells[row].data[col];
+    ro->data[col] = "error";
     return 0;
 }
 static
@@ -175,6 +178,7 @@ cell_kind(void* ctx, intptr_t row, intptr_t col){
     s = stripped(s);
     if(s.length == 0) return CELL_EMPTY;
     if(s.text[0] == '=') return CELL_FORMULA;
+    return CELL_UNKNOWN;
     if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
     return CELL_OTHER;
 }
@@ -191,6 +195,34 @@ read_csv(SpreadSheet* sheet, const char* filename){
         size_t quant = 0;
         ssize_t len = getline(&line, &quant, fp);
         if(len <= -1) break;
+        struct Row ro = {0};
+        struct Row disp = {0};
+        char* token;
+        while((token = strsep(&line, "|"))){
+            size_t len = strlen(token);
+            if(len && token[len-1] == '\n')
+                token[len-1] = 0;
+            row_push(&ro, token);
+            row_push(&disp, "");
+        }
+        if(ro.n > max_cols) max_cols = ro.n;
+        ++sheet->rows;
+        sheet->cells = realloc(sheet->cells, sizeof(*sheet->cells)*sheet->rows);
+        sheet->cells[sheet->rows-1] = ro;
+        sheet->display = realloc(sheet->display, sizeof(*sheet->display)*sheet->rows);
+        sheet->display[sheet->rows-1] = disp;
+        sheet->maxcols = max_cols;
+    }
+    return 0;
+}
+
+static inline
+int
+read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
+    char* txt = strdup(srctxt);
+    char* line;
+    int max_cols = 0;
+    for(;(line=strsep(&txt, "\n"));){
         struct Row ro = {0};
         struct Row disp = {0};
         char* token;

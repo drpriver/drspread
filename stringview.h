@@ -12,6 +12,8 @@ struct StringView {
     const char* text;
 };
 
+#define SV(x) ((StringView){sizeof(x)-1, x})
+
 static inline
 _Bool
 sv_equals(StringView a, StringView b){
@@ -73,6 +75,15 @@ lstripc(StringView* sv){
 static inline
 StringView
 stripped(StringView sv){
+    lstrip(&sv);
+    rstrip(&sv);
+    return sv;
+}
+
+static inline
+StringView
+stripped2(const char* txt, size_t len){
+    StringView sv = {len, txt};
     lstrip(&sv);
     rstrip(&sv);
     return sv;

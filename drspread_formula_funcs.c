@@ -261,9 +261,7 @@ FORMULAFUNC(drsp_abs){
 static
 FORMULAFUNC(drsp_tablelookup){
     // "needle", [haystack], [values]
-    (void)ctx;
-    (void)argc; (void)argv;
-    if(argc != 3) return Error(ctx, "");
+    if(argc != 3 && argc != 4) return Error(ctx, "");
     char* chk = ctx->a.cursor;
     ExpressionKind nkind;
     union {
@@ -278,7 +276,7 @@ FORMULAFUNC(drsp_tablelookup){
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
         else
-            nval.s = stripped(((String*)needle)->sv);
+            nval.s = ((String*)needle)->sv;
         ctx->a.cursor = chk;
     }
     intptr_t offset = -1;
@@ -293,10 +291,10 @@ FORMULAFUNC(drsp_tablelookup){
         char* loopchk = ctx->a.cursor;
         for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
             Expression* e = evaluate(ctx, row, col);
-            if(!e || e->kind == EXPR_ERROR) return e;
+            if(!e) return e;
             if(e->kind != nkind) continue;
             if(nkind == EXPR_STRING){
-                if(sv_equals(nval.s, stripped(((String*)e)->sv))){
+                if(sv_equals(nval.s, ((String*)e)->sv)){
                     offset = row - start;
                     break;
                 }
@@ -309,17 +307,21 @@ FORMULAFUNC(drsp_tablelookup){
             }
         }
         ctx->a.cursor = chk;
-        if(offset < 0) return Error(ctx, "");
+        if(offset < 0) {
+            if(argc == 4)
+                return evaluate_expr(ctx, argv[3]);
+            return Error(ctx, "Didn't find needle in haystack");
+        }
     }
     {
         Expression* values = evaluate_expr(ctx, argv[2]);
         if(!values || values->kind == EXPR_ERROR) return values;
-        if(values->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "");
+        if(values->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "values must be a column range");
         intptr_t col, start, end;
         if(get_range1dcol(ctx, values, &col, &start, &end) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "invalid column range");
         ctx->a.cursor = chk;
-        if(start+offset > end) return Error(ctx, "");
+        if(start+offset > end) return Error(ctx, "out of bounds");
         return evaluate(ctx, start+offset, col);
     }
 }
@@ -328,40 +330,60 @@ static
 FORMULAFUNC(drsp_find){
     // "needle", [haystack]
     if(argc != 2) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    char* ochk = ctx->a.cursor;
-    Expression* needle = evaluate_expr(ctx, argv[0]);
-    if(!needle || needle->kind == EXPR_ERROR) return needle;
-    if(needle->kind != EXPR_NUMBER && needle->kind != EXPR_STRING) return Error(ctx, "");
-    ExpressionKind nkind = needle->kind;
-    Expression* haystack = evaluate_expr(ctx, argv[1]);
-    if(!haystack || haystack->kind == EXPR_ERROR) return haystack;
-    if(haystack->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "");
-    intptr_t col, start, end;
-    if(get_range1dcol(ctx, haystack, &col, &start, &end) != 0)
-        return Error(ctx, "");
-    char* loopchk = ctx->a.cursor;
-    for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
-        Expression* e = evaluate(ctx, row, col);
-        if(!e || e->kind == EXPR_ERROR) return e;
-        if(e->kind != nkind) continue;
-        if(nkind == EXPR_STRING){
-            if(sv_equals(((String*)needle)->sv, ((String*)e)->sv)){
-                ctx->a.cursor = ochk;
-                n->value = row - start;
-                return &n->e;
-            }
-        }
-        else if(nkind == EXPR_NUMBER){
-            if(((Number*)needle)->value == ((Number*)e)->value){
-                ctx->a.cursor = ochk;
-                n->value = row - start;
-                return &n->e;
-            }
-        }
+    char* chk = ctx->a.cursor;
+    ExpressionKind nkind;
+    union {
+        StringView s;
+        double d;
+    } nval;
+    {
+        Expression* needle = evaluate_expr(ctx, argv[0]);
+        if(!needle || needle->kind == EXPR_ERROR) return needle;
+        nkind = needle->kind;
+        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING && nkind != EXPR_NULL) return Error(ctx, "");
+        if(nkind == EXPR_NUMBER)
+            nval.d = ((Number*)needle)->value;
+        else if(nkind == EXPR_STRING)
+            nval.s = ((String*)needle)->sv;
+        ctx->a.cursor = chk;
     }
-    return Error(ctx, "");
+    intptr_t offset = -1;
+    {
+        Expression* haystack = evaluate_expr(ctx, argv[1]);
+        if(!haystack || haystack->kind == EXPR_ERROR) return haystack;
+        if(haystack->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "");
+        intptr_t col, start, end;
+        if(get_range1dcol(ctx, haystack, &col, &start, &end) != 0)
+            return Error(ctx, "");
 
+        char* loopchk = ctx->a.cursor;
+        for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
+            Expression* e = evaluate(ctx, row, col);
+            if(!e) return e;
+            if(e->kind != nkind) continue;
+            if(nkind == EXPR_NULL){
+                offset = row - start;
+                break;
+            }
+            if(nkind == EXPR_STRING){
+                if(sv_equals(nval.s, ((String*)e)->sv)){
+                    offset = row - start;
+                    break;
+                }
+            }
+            else if(nkind == EXPR_NUMBER){
+                if(nval.d == ((Number*)e)->value){
+                    offset = row - start;
+                    break;
+                }
+            }
+        }
+        ctx->a.cursor = chk;
+    }
+    if(offset < 0) return Error(ctx, "");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    n->value = offset;
+    return &n->e;
 }
 
 #ifndef SV
