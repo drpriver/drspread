@@ -44,8 +44,20 @@ struct SheetOps {
 int
 drsp_evaluate_formulas(const SheetOps* ops);
 
+typedef struct DrSpreadCellValue DrSpreadCellValue;
+struct  DrSpreadCellValue {
+    CellKind kind; // oneof CELL_EMPTY, CELL_NUMBER, CELL_OTHER
+    union {
+        double d; // CELL_NUMBER
+        struct {  // CELL_OTHER
+            size_t length;
+            const char* text;
+        } s;
+    };
+};
+
 int
-drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* outval);
+drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

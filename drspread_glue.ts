@@ -18,8 +18,8 @@ function drspread(
     sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
 ):Promise<{
-    evaluate_formulas: (id: number) => void; 
-    evaluate_string: (id: number, s: string) => number; 
+    evaluate_formulas: (id: number) => void;
+    evaluate_string: (id: number, s: string) => number|string;
     exports: WebAssembly.Exports;
 }>
 {
@@ -29,7 +29,7 @@ let exports: WebAssembly.Exports;
 let malloc: (sz:number)=>number;
 let reset_memory:()=>void;
 let sheet_evaluate_formulas:(id:number)=>void;
-let sheet_evaluate_string:(id:number, p:number)=>number;
+let sheet_evaluate_string:(id:number, p:number, p2:number)=>number;
 let mem: Uint8Array;
 let mem32: Uint32Array;
 const decoder = new TextDecoder();
@@ -57,6 +57,9 @@ function read4(p:number):number{
     p /= 4;
     p |= 0;
     return mem32[p];
+}
+function readdouble(p:number):number{
+    return (new DataView(mem.subarray(p, p+8))).getFloat64(0);
 }
 const imports = {
     env:{
@@ -108,14 +111,24 @@ function evaluate_formulas(id:number){
     console.log('evaluate_formulas', after-now);
 }
 
-function evaluate_string(id:number, s:string):number{
-    const now = window.performance.now();
+function evaluate_string(id:number, s:string):number|string{
+    // const now = window.performance.now();
     reset_memory();
-    const result = sheet_evaluate_string(id, js_string_to_wasm(s));
-    reset_memory();
-    const after = window.performance.now();
-    console.log('evaluate_string', after-now);
-    return result;
+    const p = malloc(16);
+    const err = sheet_evaluate_string(id, js_string_to_wasm(s), p);
+    if(err){
+        return "error";
+    }
+    const kind = read4(p);
+    switch(kind){
+        case 0: return "";
+        case 1: return readdouble(p+8);
+        case 2: return wasm_string_to_js(p+12, read4(p+8));
+        default: return "error";
+    }
+    // reset_memory();
+    // const after = window.performance.now();
+    // console.log('evaluate_string', after-now);
 }
 
 return fetch(wasm_path)

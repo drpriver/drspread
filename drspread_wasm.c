@@ -130,11 +130,10 @@ sheet_evaluate_formulas(intptr_t id){
     drsp_evaluate_formulas(&ops);
 }
 
-double 
-sheet_evaluate_string(intptr_t id, PString* p){
-    double result = __builtin_nan("");
+int
+sheet_evaluate_string(intptr_t id, PString* p, DrSpreadCellValue* result){
     SheetOps ops = op_base;
     ops.ctx = (void*)id;
-    drsp_evaluate_string(&ops, (char*)p->text, p->length, &result);
-    return result;
+    int err = drsp_evaluate_string(&ops, (char*)p->text, p->length, result);
+    return err;
 }

@@ -33,6 +33,9 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         p |= 0;
         return mem32[p];
     }
+    function readdouble(p) {
+        return (new DataView(mem.subarray(p, p + 8))).getFloat64(0);
+    }
     const imports = {
         env: {
             round: Math.round,
@@ -82,13 +85,19 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         console.log('evaluate_formulas', after - now);
     }
     function evaluate_string(id, s) {
-        const now = window.performance.now();
         reset_memory();
-        const result = sheet_evaluate_string(id, js_string_to_wasm(s));
-        reset_memory();
-        const after = window.performance.now();
-        console.log('evaluate_string', after - now);
-        return result;
+        const p = malloc(16);
+        const err = sheet_evaluate_string(id, js_string_to_wasm(s), p);
+        if (err) {
+            return "error";
+        }
+        const kind = read4(p);
+        switch (kind) {
+            case 0: return "";
+            case 1: return readdouble(p + 8);
+            case 2: return wasm_string_to_js(p + 12, read4(p + 8));
+            default: return "error";
+        }
     }
     return fetch(wasm_path)
         .then(response => response.arrayBuffer())

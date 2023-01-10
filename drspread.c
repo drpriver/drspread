@@ -100,7 +100,7 @@ drsp_evaluate_formulas(const SheetOps* ops){
 }
 
 int
-drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* outval){
+drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval){
     _Alignas(intptr_t) char buff[4000];
     intptr_t ncols = 1, nrows = 1;
     if(ops->dims){
@@ -120,15 +120,23 @@ drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, double* o
         ctx.cache.vals[i].kind = CACHE_UNSET;
     // printf("%zd\n", ctx.a.cursor - buff);
     Expression* e = evaluate_string(&ctx, txt, len);
-    // printf("%zd\n", ctx.a.cursor - buff);
-    if(e && e->kind == EXPR_NUMBER){
-        *outval = ((Number*)e)->value;
-        return 0;
+    if(!e) return 1;
+    switch(e->kind){
+        case EXPR_NULL:
+            outval->kind = CELL_EMPTY;
+            return 0;
+        case EXPR_NUMBER:
+            outval->kind = CELL_NUMBER;
+            outval->d = ((Number*)e)->value;
+            return 0;
+        case EXPR_STRING:
+            outval->kind = CELL_OTHER;
+            outval->s.length = ((String*)e)->sv.length;
+            outval->s.text = ((String*)e)->sv.text;
+            return 0;
+        default:
+            return 1;
     }
-    if(!e){
-        // puts("oom");
-    }
-    return 1;
 }
 
 

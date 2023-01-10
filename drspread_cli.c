@@ -24,13 +24,27 @@ main(int argc, char** argv){
     };
     if(argc > 2){
         for(int i = 2; i < argc; i++){
-            double val;
+            DrSpreadCellValue val;
             int err = drsp_evaluate_string(&ops, argv[i], strlen(argv[i]), &val);
             if(err){
                 puts("err");
             }
-            else
-                printf("%.1f\n", val);
+            else{
+                switch(val.kind){
+                    case CELL_EMPTY:
+                        printf("\n");
+                        break;
+                    case CELL_NUMBER:
+                        printf("%.1f\n", val.d);
+                        break;
+                    case CELL_OTHER:
+                        printf("'%.*s'\n", (int)val.s.length, val.s.text);
+                        break;
+                    default:
+                        printf("err\n");
+                        break;
+                }
+            }
         }
     }
     else {
@@ -51,10 +65,25 @@ main(int argc, char** argv){
             char* line = gi.buff;
             if(len == 1 && *line == 'q') break;
             gi_add_line_to_history_len(&gi, line, len);
-            double val;
+            DrSpreadCellValue val;
             int err = drsp_evaluate_string(&ops, line, len, &val);
             if(err) puts("err");
-            else printf("%.1f\n", val);
+            else {
+                switch(val.kind){
+                    case CELL_EMPTY:
+                        printf("\n");
+                        break;
+                    case CELL_NUMBER:
+                        printf("%.1f\n", val.d);
+                        break;
+                    case CELL_OTHER:
+                        printf("'%.*s'\n", (int)val.s.length, val.s.text);
+                        break;
+                    default:
+                        printf("err\n");
+                        break;
+                }
+            }
         }
         gi_dump_history(&gi, "spread.history");
     }
