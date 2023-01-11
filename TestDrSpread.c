@@ -11,6 +11,7 @@ static TestFunc TestBinOps;
 static TestFunc TestUnOps;
 static TestFunc TestFuncs;
 static TestFunc TestMod;
+static TestFunc TestBugs;
 
 int main(int argc, char** argv){
     RegisterTest(TestSpreadsheet1);
@@ -19,6 +20,7 @@ int main(int argc, char** argv){
     RegisterTest(TestUnOps);
     RegisterTest(TestFuncs);
     RegisterTest(TestMod);
+    RegisterTest(TestBugs);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -275,6 +277,20 @@ TestFunction(TestMod){
         ROW("5"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+}
+
+TestFunction(TestBugs){
+    const char* input =
+        "Plate   | 5 | Plate | =tlu([c,1], [a], [b])\n"
+        "Chain   | 3 |       | =tlu([c,2], [a], [b], 2)\n"
+        "Leather | 1 | =     | =tlu([c,3], [a], [b], 4)\n"
+    ;
+    struct Row expected[] = {
+        ROW("Plate",   "5", "Plate", "5"),
+        ROW("Chain" ,  "3", "",      "2"),
+        ROW("Leather", "1", "error", "error"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
 
 #pragma clang diagnostic pop

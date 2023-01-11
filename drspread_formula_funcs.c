@@ -47,7 +47,6 @@ _Bool evaled_is_not_scalar(Expression*_Nullable e){
         default:
             return 1;
     }
-
 }
 
 static
@@ -275,6 +274,11 @@ FORMULAFUNC(drsp_tablelookup){
         Expression* needle = evaluate_expr(ctx, argv[0]);
         if(!needle || needle->kind == EXPR_ERROR) return needle;
         nkind = needle->kind;
+        if(nkind == EXPR_NULL){
+            if(argc == 4){
+                return evaluate_expr(ctx, argv[3]);
+            }
+        }
         if(nkind != EXPR_NUMBER && nkind != EXPR_STRING) return Error(ctx, "");
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
