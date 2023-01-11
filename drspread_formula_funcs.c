@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef DRSPREAD_FORMULA_FUNCS_C
 #define DRSPREAD_FORMULA_FUNCS_C
 #include "drspread_types.h"

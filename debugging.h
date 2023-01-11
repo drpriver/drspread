@@ -1,3 +1,6 @@
+//
+// Copyright © 2022-2023, David Priver
+//
 #ifndef DEBUGGING_H
 #define DEBUGGING_H
 

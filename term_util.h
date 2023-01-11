@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver
+// Copyright © 2022-2023, David Priver
 //
 #ifndef TERM_UTIL_H
 #define TERM_UTIL_H

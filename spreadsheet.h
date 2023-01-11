@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef SPREADSHEET_H
 #define SPREADSHEET_H
 #if defined(__linux__)
@@ -21,6 +24,9 @@
 #define _Nullable
 #endif
 #endif
+
+// This code is only intended for testing and the demo cli app.
+// So it leaks memory all over the place.
 
 struct Row {
     int n;

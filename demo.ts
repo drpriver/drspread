@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 declare let cells: Array<Array<string|number>>;
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let display:Array<Array<string>> = [

@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #include "drspread.h"
 #include "spreadsheet.h"
 #include "testing.h"

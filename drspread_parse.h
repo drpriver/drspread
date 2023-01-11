@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef DRSPREAD_PARSE_H
 #define DRSPREAD_PARSE_H
 #include "drspread_types.h"

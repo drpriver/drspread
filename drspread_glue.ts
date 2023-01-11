@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 const enum CellKind {
     CELL_EMPTY = 0, // Empty Cell
     CELL_NUMBER = 1,

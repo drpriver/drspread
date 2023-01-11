@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef DRSPREAD_H
 #define DRSPREAD_H
 

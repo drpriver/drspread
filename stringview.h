@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef STRINGVIEW_H
 #define STRINGVIEW_H
 #include <stddef.h>

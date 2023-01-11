@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef DRSPREAD_EVALUATE_C
 #define DRSPREAD_EVALUATE_C
 #include "drspread_evaluate.h"

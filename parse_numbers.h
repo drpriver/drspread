@@ -1,5 +1,5 @@
 //
-// Copyright © 2022, David Priver
+// Copyright © 2022-2023, David Priver
 //
 #ifndef PARSE_NUMBERS_H
 #define PARSE_NUMBERS_H

@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #include "spreadsheet.h"
 #include "drspread.h"
 #include "get_input.h"

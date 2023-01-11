@@ -1,3 +1,6 @@
+//
+// Copyright © 2023, David Priver
+//
 #ifndef BUFF_ALLOCATOR_H
 #define BUFF_ALLOCATOR_H
 #include <stddef.h>
