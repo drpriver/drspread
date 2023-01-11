@@ -247,6 +247,8 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
         sheet->display[sheet->rows-1] = disp;
         sheet->maxcols = max_cols;
     }
+    if(sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0)
+        sheet->rows--;
     return 0;
 }
 

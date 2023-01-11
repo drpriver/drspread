@@ -35,11 +35,6 @@ _Bool
 streq(const char* a, const char* b){
     return strcmp(a,b) == 0;
 }
-#define ROW(...) (\
-        (struct Row){ \
-            arrlen(((const char*[]){__VA_ARGS__})),  \
-            ((const char*[]){__VA_ARGS__}), \
-        })
 
 
 // We just leak the spreadsheets, it's really not that much data
@@ -93,6 +88,10 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
     return TEST_stats;
 }
 
+#define ROW(...) { \
+    arrlen(((const char*[]){__VA_ARGS__})),  \
+    ((const char*[]){__VA_ARGS__}), \
+}
 
 
 TestFunction(TestSpreadsheet1){
@@ -107,7 +106,6 @@ TestFunction(TestSpreadsheet1){
         ROW( "3", "Torch",        "1"),
         ROW("50", "Plate Armor", "50"),
         ROW( "1", "Food",        "1 per potato"),
-        ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -127,7 +125,6 @@ TestFunction(TestSpreadsheet2){
         ROW("2", "-1", "3", "36"),
         ROW("4", "4",  "-16", "24"),
         ROW("12", "100", "111"),
-        ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -142,7 +139,6 @@ TestFunction(TestBinOps){
         ROW("2", "0", "2", "12"),
         ROW("0", "0", "1"),
         ROW("1", "0", "1", "1"),
-        ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -160,7 +156,6 @@ TestFunction(TestUnOps){
         ROW("0", "-1", "1"),
         ROW("0", "-1", "1"),
         ROW("error", "error", "error"),
-        ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 3);
 }
@@ -234,7 +229,6 @@ TestFunction(TestFuncs){
         ROW("12"),
         ROW("13"),
         ROW("12"),
-        ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -279,7 +273,6 @@ TestFunction(TestMod){
         ROW("4"),
         ROW("4"),
         ROW("5"),
-        ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
