@@ -136,6 +136,8 @@ sheet_evaluate_formulas(intptr_t id){
 int
 sheet_evaluate_string(intptr_t id, PString* p, DrSpreadCellValue* result){
     SheetOps ops = op_base;
+    _Static_assert(16 == sizeof *result,"");
+    _Static_assert(__builtin_offsetof(DrSpreadCellValue, d)==8, "");
     ops.ctx = (void*)id;
     int err = drsp_evaluate_string(&ops, (char*)p->text, p->length, result);
     return err;
