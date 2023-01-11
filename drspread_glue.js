@@ -8,6 +8,7 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
     let sheet_evaluate_string;
     let mem;
     let mem32;
+    let memview;
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     function wasm_string_to_js(p, len) {
@@ -16,9 +17,7 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         return text;
     }
     function write4(p, val) {
-        p /= 4;
-        p |= 0;
-        mem32[p] = val;
+        memview.setInt32(p, val, true);
     }
     function js_string_to_wasm(s) {
         const encoded = encoder.encode(s);
@@ -29,12 +28,14 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         return p;
     }
     function read4(p) {
+        return memview.getInt32(p, true);
         p /= 4;
         p |= 0;
         return mem32[p];
     }
     function readdouble(p) {
-        return (new DataView(mem.subarray(p, p + 8))).getFloat64(0);
+        const d = memview.getFloat64(p, true);
+        return d;
     }
     const imports = {
         env: {
@@ -108,6 +109,7 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         const m = exports.memory;
         m.grow(1024);
         mem = new Uint8Array(m.buffer);
+        memview = new DataView(mem.buffer);
         mem32 = new Uint32Array(m.buffer);
         malloc = exports.malloc;
         reset_memory = exports.reset_memory;

@@ -35,6 +35,7 @@ let sheet_evaluate_formulas:(id:number)=>void;
 let sheet_evaluate_string:(id:number, p:number, p2:number)=>number;
 let mem: Uint8Array;
 let mem32: Uint32Array;
+let memview: DataView;
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 function wasm_string_to_js(p:number, len:number):string{
@@ -43,9 +44,7 @@ function wasm_string_to_js(p:number, len:number):string{
     return text;
 }
 function write4(p:number, val:number):void{
-    p /= 4;
-    p |= 0;
-    mem32[p] = val;
+    memview.setInt32(p, val, true);
 }
 
 function js_string_to_wasm(s:string):number{
@@ -57,12 +56,14 @@ function js_string_to_wasm(s:string):number{
     return p;
 }
 function read4(p:number):number{
+    return memview.getInt32(p, true);
     p /= 4;
     p |= 0;
     return mem32[p];
 }
 function readdouble(p:number):number{
-    return (new DataView(mem.subarray(p, p+8))).getFloat64(0);
+    const d = memview.getFloat64(p, true);
+    return d;
 }
 const imports = {
     env:{
@@ -143,6 +144,7 @@ return fetch(wasm_path)
         const m = exports.memory as WebAssembly.Memory;
         m.grow(1024);
         mem = new Uint8Array(m.buffer);
+        memview = new DataView(mem.buffer);
         mem32 = new Uint32Array(m.buffer);
         malloc = exports.malloc as any;
         reset_memory = exports.reset_memory as any;
