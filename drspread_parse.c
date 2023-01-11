@@ -6,6 +6,7 @@
 #include "drspread_parse.h"
 #include "drspread_formula_funcs.h"
 #include "parse_numbers.h"
+#include "stringview.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -71,19 +72,14 @@ PARSEFUNC(parse_comparison){
         }
         BinaryKind op;
         switch(c){
-            case '<':
-                op = c2? BIN_LE : BIN_LT;
-                break;
-            case '>':
-                op = c2? BIN_GE : BIN_GT;
-                break;
+            case '<': op = c2? BIN_LE : BIN_LT; break;
+            case '>': op = c2? BIN_GE : BIN_GT; break;
             case '!':
                 if(!c2) return Error(ctx, "");
                 op = BIN_NE;
                 break;
-            case '=':
-                op = BIN_EQ;
-                break;
+            // Allow '=' and '=='.
+            case '=': op = BIN_EQ; break;
             default: return Error(ctx, "");
         }
         lstrip(sv);
@@ -264,9 +260,13 @@ PARSEFUNC(parse_range){
     while(sv->length && sv->text[0] != ',' && sv->text[0] != ']'){
         end++, sv->length--, sv->text++;
     }
-    if(begin == end) return Error(ctx, "");
     if(!sv->length) return Error(ctx, "");
-    col = ctx->ops.name_to_col_idx(ctx->ops.ctx, begin, end-begin);
+    StringView colname = stripped2(begin, end-begin);
+    if(!colname.length) return Error(ctx, "");
+    if(colname.length == 1 && colname.text[0] == '$')
+        col = IDX_DOLLAR;
+    else
+        col = ctx->ops.name_to_col_idx(ctx->ops.ctx, colname.text, colname.length);
     if(sv->text[0] == ']'){
         sv->length--, sv->text++;
         Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
@@ -276,7 +276,6 @@ PARSEFUNC(parse_range){
         r->row_end = -1;
         return &r->e;
     }
-    // TODO: real integer parsing
     sv->length--, sv->text++;
     lstrip(sv);
     begin = sv->text;
@@ -288,12 +287,15 @@ PARSEFUNC(parse_range){
     if(begin == end)
         row0 = 0;
     else{
-        StringView num = {end-begin, begin};
-        num = stripped(num);
-        Int32Result ir = parse_int32(num.text, num.length);
-        if(ir.errored) return Error(ctx, "");
-        row0 = ir.result;
-        if(row0) row0--;
+        StringView num = stripped2(begin, end-begin);
+        if(num.length == 1 && num.text[0] == '$')
+            row0 = IDX_DOLLAR;
+        else {
+            Int32Result ir = parse_int32(num.text, num.length);
+            if(ir.errored) return Error(ctx, "");
+            row0 = ir.result;
+            if(row0) row0--;
+        }
     }
     char c = sv->text[0];
     sv->text++, sv->length--;
@@ -315,12 +317,15 @@ PARSEFUNC(parse_range){
     if(begin == end)
         row1 = -1;
     else{
-        StringView num = {end-begin, begin};
-        num = stripped(num);
-        Int32Result ir = parse_int32(num.text, num.length);
-        if(ir.errored) return Error(ctx, "");
-        row1 = ir.result;
-        if(row1) row1--;
+        StringView num = stripped2(begin, end-begin);
+        if(num.length == 1 && num.text[0] == '$')
+            row1 = IDX_DOLLAR;
+        else {
+            Int32Result ir = parse_int32(num.text, num.length);
+            if(ir.errored) return Error(ctx, "");
+            row1 = ir.result;
+            if(row1) row1--;
+        }
     }
     Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
     if(!r) return NULL;

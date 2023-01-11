@@ -85,7 +85,7 @@ struct Number {
     double value;
 };
 typedef struct FunctionCall FunctionCall;
-#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, int argc, Expression*_Nonnull*_Nonnull argv)
+#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
 typedef FORMULAFUNC(FormulaFunc);
 struct FunctionCall {
     Expression e;
@@ -93,6 +93,8 @@ struct FunctionCall {
     int argc;
     Expression*_Nonnull*_Nonnull argv;
 };
+
+enum {IDX_DOLLAR=-2147483647-1}; // INT32_MIN
 
 typedef struct Range0D Range0D;
 struct Range0D {
@@ -141,30 +143,14 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
         case EXPR_ERROR:
             return &ctx->error;
             break;
-        case EXPR_NUMBER:
-            sz = sizeof(Number);
-            break;
-        case EXPR_FUNCTION_CALL:
-            sz = sizeof(FunctionCall);
-            break;
-        case EXPR_RANGE0D:
-            sz = sizeof(Range0D);
-            break;
-        case EXPR_RANGE1D_COLUMN:
-            sz = sizeof(Range1DColumn);
-            break;
-        case EXPR_GROUP:
-            sz = sizeof(Group);
-            break;
-        case EXPR_BINARY:
-            sz = sizeof(Binary);
-            break;
-        case EXPR_UNARY:
-            sz = sizeof(Unary);
-            break;
-        case EXPR_STRING:
-            sz = sizeof(String);
-            break;
+        case EXPR_NUMBER:         sz = sizeof(Number); break;
+        case EXPR_FUNCTION_CALL:  sz = sizeof(FunctionCall); break;
+        case EXPR_RANGE0D:        sz = sizeof(Range0D); break;
+        case EXPR_RANGE1D_COLUMN: sz = sizeof(Range1DColumn); break;
+        case EXPR_GROUP:          sz = sizeof(Group); break;
+        case EXPR_BINARY:         sz = sizeof(Binary); break;
+        case EXPR_UNARY:          sz = sizeof(Unary); break;
+        case EXPR_STRING:         sz = sizeof(String); break;
         case EXPR_NULL:
             return &ctx->null;
             break;

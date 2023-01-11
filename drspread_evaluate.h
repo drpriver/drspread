@@ -16,7 +16,7 @@
 
 static
 Expression*_Nullable
-evaluate_expr(SpreadContext*, Expression*);
+evaluate_expr(SpreadContext*, Expression*, intptr_t caller_row, intptr_t caller_col);
 
 static
 Expression*_Nullable

@@ -87,7 +87,7 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
                 }
                 return root;
             }
-            Expression *e = evaluate_expr(ctx, root);
+            Expression *e = evaluate_expr(ctx, root, row, col);
             if(!e) return e;
             if(cached){
                 if(e->kind == EXPR_NUMBER){
@@ -122,13 +122,13 @@ Expression*_Nullable
 evaluate_string(SpreadContext* ctx, const char* txt, size_t len){
     Expression *root = parse(ctx, txt, len);
     if(!root || root->kind == EXPR_ERROR) return root;
-    Expression *e = evaluate_expr(ctx, root);
+    Expression *e = evaluate_expr(ctx, root, -1, -1);
     return e;
 }
 
 static
 Expression*_Nullable
-evaluate_expr(SpreadContext* ctx, Expression* expr){
+evaluate_expr(SpreadContext* ctx, Expression* expr, intptr_t caller_row, intptr_t caller_col){
     switch(expr->kind){
         case EXPR_NULL:
         case EXPR_ERROR:
@@ -138,19 +138,23 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
             return expr;
         case EXPR_FUNCTION_CALL:{
             FunctionCall* fc = (FunctionCall*)expr;
-            return fc->func(ctx, fc->argc, fc->argv);
+            return fc->func(ctx, caller_row, caller_col, fc->argc, fc->argv);
         }
         case EXPR_RANGE0D:{
             Range0D* rng = (Range0D*)expr;
-            return evaluate(ctx, rng->row, rng->col);
+            intptr_t r = rng->row;
+            if(r == IDX_DOLLAR) r = caller_row;
+            intptr_t c = rng->col;
+            if(c == IDX_DOLLAR) c = caller_col;
+            return evaluate(ctx, r, c);
         }
         case EXPR_BINARY:{
             char* chk = ctx->a.cursor;
             Binary* b = (Binary*)expr;
-            Expression* lhs = evaluate_expr(ctx, b->lhs);
+            Expression* lhs = evaluate_expr(ctx, b->lhs, caller_row, caller_col);
             if(!lhs) return NULL;
             if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING) return NULL;
-            Expression* rhs = evaluate_expr(ctx, b->rhs);
+            Expression* rhs = evaluate_expr(ctx, b->rhs, caller_row, caller_col);
             if(!rhs) return NULL;
             if(lhs->kind == EXPR_STRING){
                 if(rhs->kind != EXPR_STRING)
@@ -200,7 +204,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
         case EXPR_UNARY:{
             char* chk = ctx->a.cursor;
             Unary* u = (Unary*)expr;
-            Expression* v = evaluate_expr(ctx, u->expr);
+            Expression* v = evaluate_expr(ctx, u->expr, caller_row, caller_col);
             if(!v) return NULL;
             if(v->kind != EXPR_NUMBER) return Error(ctx, "");
             if(u->op == UN_PLUS) return u->expr;
@@ -222,7 +226,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr){
             Group* g = (Group*)expr;
             // TODO: check if this tail calls.
             // Otherwise we need a goto to the top.
-            return evaluate_expr(ctx, g->expr);
+            return evaluate_expr(ctx, g->expr, caller_row, caller_col);
         };
     };
     return NULL;

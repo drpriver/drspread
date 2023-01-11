@@ -12,6 +12,7 @@ static TestFunc TestUnOps;
 static TestFunc TestFuncs;
 static TestFunc TestMod;
 static TestFunc TestBugs;
+static TestFunc TestBugs2;
 
 int main(int argc, char** argv){
     RegisterTest(TestSpreadsheet1);
@@ -21,6 +22,7 @@ int main(int argc, char** argv){
     RegisterTest(TestFuncs);
     RegisterTest(TestMod);
     RegisterTest(TestBugs);
+    RegisterTest(TestBugs2);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -284,6 +286,19 @@ TestFunction(TestBugs){
         "Plate   | 5 | Plate | =tlu([c,1], [a], [b])\n"
         "Chain   | 3 |       | =tlu([c,2], [a], [b], 2)\n"
         "Leather | 1 | =     | =tlu([c,3], [a], [b], 4)\n"
+    ;
+    struct Row expected[] = {
+        ROW("Plate",   "5", "Plate", "5"),
+        ROW("Chain" ,  "3", "",      "2"),
+        ROW("Leather", "1", "error", "error"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
+}
+TestFunction(TestBugs2){
+    const char* input =
+        "Plate   | 5 | Plate | =tlu([c,$], [a], [b])\n"
+        "Chain   | 3 |       | =tlu([c,$], [a], [b], 2)\n"
+        "Leather | 1 | =     | =tlu([c,$], [a], [b], 4)\n"
     ;
     struct Row expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
