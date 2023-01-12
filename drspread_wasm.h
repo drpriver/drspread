@@ -4,7 +4,7 @@
 #include "drspread.h"
 #include "Wasm/jsinter.h"
 #pragma clang assume_nonnull begin
-IMPORT intptr_t sheet_cell_kind(SheetHandle, intptr_t, intptr_t);
+IMPORT intptr_t sheet_query_cell_kind(SheetHandle, intptr_t, intptr_t);
 IMPORT double sheet_cell_number(SheetHandle, intptr_t, intptr_t);
 IMPORT PString* sheet_cell_text(SheetHandle, intptr_t, intptr_t);
 IMPORT intptr_t sheet_col_height(SheetHandle, intptr_t);

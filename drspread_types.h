@@ -57,7 +57,9 @@ struct Expression {
 
 typedef struct SpreadContext SpreadContext;
 struct SpreadContext {
+#ifndef __wasm__
     const SheetOps _ops; // don't call these directly
+#endif
     BuffAllocator a;
     SpreadCache cache;
     Expression null;
@@ -233,7 +235,7 @@ force_inline
 const char*_Nullable
 sp_cell_text(SP_ARGS, intptr_t row, intptr_t col, size_t* len){
     #ifdef __wasm__
-        PString* p = sheet_cell_text(sheet, row, col)
+        PString* p = sheet_cell_text(sheet, row, col);
         *len = p->length;
         return (char*)p->text;
     #else

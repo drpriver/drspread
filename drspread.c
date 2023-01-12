@@ -57,19 +57,30 @@
 //   'string', "string"
 //   (group)
 
+#ifdef __wasm__
+int
+drsp_evaluate_formulas(SheetHandle sheethandle){
+#else
 int
 drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
+#endif
     intptr_t row=-1, col=-1;
     int nerrs = 0;
     _Alignas(intptr_t) char buff[10000];
     intptr_t ncols = 1, nrows = 1;
     SpreadContext ctx = {
+#ifndef __wasm__
         ._ops=*ops,
+#endif
         .a={buff, buff, buff+sizeof buff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
     };
+#ifdef __wasm__
+    if(1){
+#else
     if(ops->dims){
+#endif
         int err = sp_dims(&ctx, sheethandle, &ncols, &nrows);
         (void)err;
         ctx.cache.ncols = ncols;
@@ -103,18 +114,29 @@ drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
     return nerrs;
 }
 
+#ifdef __wasm__
+int
+drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval){
+#else
 int
 drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval){
+#endif
     _Alignas(intptr_t) char buff[4000];
     intptr_t ncols = 1, nrows = 1;
     SpreadContext ctx = {
+#ifndef __wasm__
         ._ops=*ops,
+#endif
         .a={buff, buff, buff+sizeof buff},
         .cache={.ncols=ncols, .nrows=nrows},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
     };
+#ifdef __wasm__
+    if(1){
+#else
     if(ops->dims){
+#endif
         int err = sp_dims(&ctx, sheethandle, &ncols, &nrows);
         (void)err;
         ctx.cache.ncols = ncols;

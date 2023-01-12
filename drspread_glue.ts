@@ -10,7 +10,7 @@ const enum CellKind {
 }
 function drspread(
     wasm_path:string,
-    sheet_cell_kind:(id:number, row:number, col:number)=>CellKind,
+    sheet_query_cell_kind:(id:number, row:number, col:number)=>CellKind,
     sheet_cell_number:(id:number, row:number, col:number)=>number,
     sheet_cell_text_:(id:number, row:number, col:number) => string,
     sheet_col_height:(id:number, col:number)=>number,
@@ -70,7 +70,7 @@ function readdouble(p:number):number{
 const imports = {
     env:{
         round: Math.round,
-        sheet_cell_kind,
+        sheet_query_cell_kind,
         sheet_cell_number,
         sheet_cell_text:function(id:number, row:number, col:number):number{
             return js_string_to_wasm(sheet_cell_text_(id, row, col));
