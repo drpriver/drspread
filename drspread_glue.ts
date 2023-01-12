@@ -134,7 +134,7 @@ function evaluate_string(id:number, s:string):number|string{
     switch(kind){
         case CellKind.CELL_EMPTY: return "";
         case CellKind.CELL_NUMBER: return readdouble(p+8);
-        case CellKind.CELL_OTHER: return wasm_string_to_js(p+12, read4(p+8));
+        case CellKind.CELL_OTHER: return wasm_string_to_js(read4(p+12), read4(p+8));
         default: return "error";
     }
     // reset_memory();
