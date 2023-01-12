@@ -22,25 +22,6 @@ function prep() {
     }
 }
 prep();
-function cell_kind(i, row, col) {
-    let result = 0;
-    const cell = cells[row][col];
-    switch (typeof cell) {
-        case 'number':
-            result = 1;
-            break;
-        case 'string':
-            if (!cell.length)
-                result = 0;
-            else
-                result = cell[0] == '=' ? 2 : 3;
-            break;
-    }
-    return result;
-}
-function cell_number(i, row, col) {
-    return cells[row][col];
-}
 function cell_text(i, row, col) {
     return cells[row][col];
 }
@@ -206,7 +187,7 @@ function show() {
         };
     }
 }
-drspread('/Bin/drspread.wasm', cell_kind, cell_number, cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims, function (id, s) { return 0; }).then(({ evaluate_formulas, evaluate_string, exports }) => {
+drspread('/Bin/drspread.wasm', cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims, function (s) { return 0; }).then(({ evaluate_formulas, evaluate_string, exports }) => {
     ex = exports;
     ev_formulas = evaluate_formulas;
     for (let i = 0; i < 1; i++) {

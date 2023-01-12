@@ -1,13 +1,6 @@
 //
 // Copyright © 2023, David Priver
 //
-const enum CellKind {
-    CELL_EMPTY = 0, // Empty Cell
-    CELL_NUMBER = 1,
-    CELL_FORMULA = 2,
-    CELL_OTHER = 3,
-    CELL_UNKNOWN = 4,
-}
 declare let cells: Array<Array<string|number>>;
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let display:Array<Array<string>> = [
@@ -33,26 +26,6 @@ function prep():void{
     }
 }
 prep();
-function cell_kind(i:number, row:number, col:number):number{
-    let result = 0;
-    const cell = cells[row][col];
-    switch(typeof cell){
-        case 'number':
-            result = 1;
-            break;
-        case 'string':
-            if(!cell.length)
-                result = 0;
-            else
-                result = cell[0] == '='?2:3;
-            break;
-    }
-    return result;
-}
-
-function cell_number(i:number, row:number, col:number):number{
-    return cells[row][col] as number;
-}
 
 function cell_text(i:number, row:number, col:number):string{
     return cells[row][col] as string;
@@ -233,8 +206,6 @@ function show():void{
 }
 declare function drspread(
     wasm_path:string,
-    sheet_query_cell_kind:(id:number, row:number, col:number)=>CellKind,
-    sheet_cell_number:(id:number, row:number, col:number)=>number,
     sheet_cell_text_:(id:number, row:number, col:number) => string,
     sheet_col_height:(id:number, col:number)=>number,
     sheet_row_width:(id:number, row:number)=>number,
@@ -253,8 +224,6 @@ declare function drspread(
 
 drspread(
     '/Bin/drspread.wasm', 
-    cell_kind,
-    cell_number,
     cell_text,
     col_height,
     row_width,

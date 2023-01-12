@@ -219,23 +219,6 @@ get_cached_val(const SpreadCache* cache, SheetHandle hnd, intptr_t row, intptr_t
 #endif // use these inline functions instead of using _ops directly
 
 force_inline
-CellKind
-sp_query_cell_kind(SP_ARGS, intptr_t row, intptr_t col){
-    #ifndef __wasm__
-        if(!ctx->_ops.query_cell_kind) return CELL_UNKNOWN;
-        return SP_CALL(query_cell_kind, row, col);
-    #else
-        return (CellKind)SP_CALL(query_cell_kind, row, col);
-    #endif
-}
-
-force_inline
-double
-sp_cell_number(SP_ARGS, intptr_t row, intptr_t col){
-    return SP_CALL(cell_number, row, col);
-}
-
-force_inline
 const char*_Nullable
 sp_cell_text(SP_ARGS, intptr_t row, intptr_t col, size_t* len){
     #ifdef __wasm__
@@ -327,9 +310,7 @@ sp_name_to_sheet(const SpreadContext* ctx, const char* name, size_t len){
 
 #ifdef __wasm__
 // alias these so the ctx is unused.
-#define sp_query_cell_kind(ctx, ...) ((void)ctx, sp_query_cell_kind(__VA_ARGS__))
 #define sp_query_cell_number(ctx, ...) ((void)ctx, sp_query_cell_number(__VA_ARGS__))
-#define sp_cell_number(ctx, ...) ((void)ctx, sp_cell_number(__VA_ARGS__))
 #define sp_cell_text(ctx, ...) ((void)ctx, sp_cell_text(__VA_ARGS__))
 #define sp_col_height(ctx, ...) ((void)ctx, sp_col_height(__VA_ARGS__))
 #define sp_row_width(ctx, ...) ((void)ctx, sp_row_width(__VA_ARGS__))

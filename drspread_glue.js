@@ -1,5 +1,5 @@
 "use strict";
-function drspread(wasm_path, sheet_query_cell_kind, sheet_cell_number, sheet_cell_text_, sheet_col_height, sheet_row_width, sheet_set_display_number, sheet_set_display_string_, sheet_set_display_error, sheet_name_to_col_idx_, sheet_next_cell_, sheet_dims_, sheet_name_to_sheet_) {
+function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width, sheet_set_display_number, sheet_set_display_string_, sheet_set_display_error, sheet_name_to_col_idx_, sheet_next_cell_, sheet_dims_, sheet_name_to_sheet_) {
     let winst;
     let exports;
     let malloc;
@@ -41,8 +41,6 @@ function drspread(wasm_path, sheet_query_cell_kind, sheet_cell_number, sheet_cel
         env: {
             round: Math.round,
             pow: Math.pow,
-            sheet_query_cell_kind,
-            sheet_cell_number,
             sheet_cell_text: function (id, row, col) {
                 return js_string_to_wasm(sheet_cell_text_(id, row, col));
             },

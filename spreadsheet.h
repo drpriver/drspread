@@ -166,42 +166,6 @@ get_dims(void*m, SheetHandle hnd, intptr_t* ncols, intptr_t* nrows){
 }
 
 static
-double
-cell_number(void*m, SheetHandle hnd, intptr_t row, intptr_t col){
-    (void)m;
-    // printf("%s: row,col: %zd,%zd\n", __func__, row, col);
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows) return 0;
-    struct Row* ro = &sheet->cells[row];
-    if(col < 0 || col >= ro->n) return 0;
-    StringView s = {strlen(ro->data[col]), ro->data[col]};
-    s = stripped(s);
-    DoubleResult dr = parse_double(s.text, s.length);
-    return dr.result;
-}
-
-static
-CellKind
-cell_kind(void*m, SheetHandle hnd, intptr_t row, intptr_t col){
-    (void)m;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows) return CELL_EMPTY;
-    struct Row* ro = &sheet->cells[row];
-    if(col < 0 || col >= ro->n) return CELL_EMPTY;
-    const char* txt = ro->data[col];
-    if(!txt) return CELL_EMPTY;
-    while(*txt == ' ') txt++;
-    StringView s = {strlen(txt), txt};
-    s = stripped(s);
-    if(s.length == 0) return CELL_EMPTY;
-    if(s.text[0] == '=') return CELL_FORMULA;
-    return CELL_UNKNOWN;
-    if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
-    return CELL_OTHER;
-}
-
-
-static
 int
 read_csv(SpreadSheet* sheet, const char* filename){
     FILE* fp = fopen(filename, "rb");

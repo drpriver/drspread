@@ -32,12 +32,11 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
         cached->kind = CACHE_IN_PROGRESS;
     }
     // printf("Evaluate %zd, %zd\n", row, col);
-    CellKind kind = sp_query_cell_kind(ctx, hnd, row, col);
-    if(kind == CELL_UNKNOWN){
-        size_t len = 0;
-        const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
-        kind = classify_cell(txt, len);
-    }
+    CellKind kind;
+    size_t len = 0;
+    const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
+    StringView stxt = stripped2(txt, len);
+    kind = classify_cell(stxt.text, stxt.length);
     switch(kind){
         case CELL_EMPTY:
             if(cached){
@@ -46,20 +45,20 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
             }
             return expr_alloc(ctx, EXPR_NULL);
         case CELL_OTHER:{
-            size_t len = 0;
-            const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
             if(cached){
                 cached->e.kind = EXPR_STRING;
-                cached->s.sv = stripped2(txt, len);
+                cached->s.sv = stxt;
                 return &cached->e;
             }
             String* s = expr_alloc(ctx, EXPR_STRING);
             if(!s) return NULL;
-            s->sv = stripped2(txt, len);
+            s->sv = stxt;
             return &s->e;
         }
         case CELL_NUMBER:{
-            double value = sp_cell_number(ctx, hnd, row, col);
+            DoubleResult dr = parse_double(stxt.text, stxt.length);
+            assert(!dr.errored);
+            double value = dr.result;
             if(cached){
                 cached->n.e.kind = EXPR_NUMBER;
                 cached->n.value = value;
@@ -71,10 +70,8 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
             return &n->e;
         }
         case CELL_FORMULA:{
-            size_t len = 0;
-            const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
             char* chk = ctx->a.cursor;
-            Expression *root = parse(ctx, hnd, txt, len);
+            Expression *root = parse(ctx, hnd, stxt.text, stxt.length);
             if(!root || root->kind == EXPR_ERROR)
                 ctx->a.cursor = chk;
             if(!root) return NULL;

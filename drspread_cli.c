@@ -19,8 +19,6 @@ main(int argc, char** argv){
         .set_display_error=&display_error,
         .set_display_string=&display_string,
         .name_to_col_idx=&get_name_to_col_idx,
-        .query_cell_kind=&cell_kind,
-        .cell_number=&cell_number,
         .row_width=&get_row_width,
         .col_height=&get_col_height,
         .dims=&get_dims,
@@ -54,8 +52,11 @@ main(int argc, char** argv){
         }
     }
     else {
-        int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
-        (void)nerr;
+        for(int i = 0; i < 1000; i++){
+            int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
+            (void)nerr;
+        }
+        return 0;
         // printf("nerr: %d\n", nerr);
         write_display(&sheet, stdout);
         GetInputCtx gi = {
