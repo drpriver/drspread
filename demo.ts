@@ -244,7 +244,7 @@ declare function drspread(
     sheet_name_to_col_idx_:(id:number, s:string) => number,
     sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
-    sheet_name_to_sheet_:(id:number, s:string)=>number,
+    sheet_name_to_sheet_:(s:string)=>number,
 ):Promise<{
     evaluate_formulas: (id: number) => void;
     evaluate_string: (id: number, s: string) => number|string;
@@ -264,7 +264,7 @@ drspread(
     name_to_col_idx,
     next_cell,
     dims,
-    function(id:number, s:string){return 0;},
+    function(s:string){return 0;},
 ).then(({evaluate_formulas, evaluate_string, exports}) =>{
     ex = exports;
     ev_formulas = evaluate_formulas;

@@ -51,7 +51,7 @@ _Bool evaled_is_not_scalar(Expression*_Nullable e){
     }
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_sum){
     // printf("enter %s\n", __func__);
     if(argc != 1) return Error(ctx, "");
@@ -80,7 +80,7 @@ FORMULAFUNC(drsp_sum){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_avg){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -110,7 +110,37 @@ FORMULAFUNC(drsp_avg){
     n->value = sum/count;
     return &n->e;
 }
-static
+
+DRSP_INTERNAL
+FORMULAFUNC(drsp_count){
+    if(argc != 1) return Error(ctx, "");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    char* chk = ctx->a.cursor;
+    Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(arg->kind != EXPR_RANGE1D_COLUMN)
+        return Error(ctx, "");
+    intptr_t col, start, end;
+    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, caller_row, caller_col) != 0)
+        return Error(ctx, "");
+    intptr_t count = 0;
+    // NOTE: inclusive range
+    for(intptr_t row = start; row <= end; row++){
+        char* chk = ctx->a.cursor;
+        Expression* e = evaluate(ctx, hnd, row, col);
+        if(!e || e->kind == EXPR_ERROR) return e;
+        if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
+            continue;
+        count += 1;
+        ctx->a.cursor = chk;
+    }
+    ctx->a.cursor = chk;
+    n->value = (double)count;
+    return &n->e;
+}
+
+DRSP_INTERNAL
 FORMULAFUNC(drsp_min){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -141,7 +171,7 @@ FORMULAFUNC(drsp_min){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_max){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -172,7 +202,7 @@ FORMULAFUNC(drsp_max){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_mod){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -189,7 +219,7 @@ FORMULAFUNC(drsp_mod){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_floor){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -204,7 +234,7 @@ FORMULAFUNC(drsp_floor){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_ceil){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -219,7 +249,7 @@ FORMULAFUNC(drsp_ceil){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_trunc){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -233,7 +263,8 @@ FORMULAFUNC(drsp_trunc){
     n->value = __builtin_trunc(((Number*)arg)->value);
     return &n->e;
 }
-static
+
+DRSP_INTERNAL
 FORMULAFUNC(drsp_round){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -247,7 +278,8 @@ FORMULAFUNC(drsp_round){
     n->value = __builtin_round(((Number*)arg)->value);
     return &n->e;
 }
-static
+
+DRSP_INTERNAL
 FORMULAFUNC(drsp_abs){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -262,7 +294,7 @@ FORMULAFUNC(drsp_abs){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
     if(argc != 1 && argc != 2) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -286,7 +318,7 @@ FORMULAFUNC(drsp_num){
     ctx->a.cursor = chk;
     return &n->e;
 }
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_try){
     if(argc != 2) return Error(ctx, "");
     char* chk = ctx->a.cursor;
@@ -297,7 +329,7 @@ FORMULAFUNC(drsp_try){
     return evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_cell){
     SheetHandle foreign = hnd;
     if(argc != 2 && argc != 3) return Error(ctx, "");
@@ -326,7 +358,7 @@ FORMULAFUNC(drsp_cell){
 
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_pow){
     if(argc != 2) return Error(ctx, "");
     char* ochk = ctx->a.cursor;
@@ -354,7 +386,7 @@ FORMULAFUNC(drsp_pow){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_tablelookup){
     // "needle", [haystack], [values]
     if(argc != 3 && argc != 4) return Error(ctx, "");
@@ -427,7 +459,7 @@ FORMULAFUNC(drsp_tablelookup){
     }
 }
 
-static
+DRSP_INTERNAL
 FORMULAFUNC(drsp_find){
     // "needle", [haystack]
     if(argc != 2) return Error(ctx, "");
@@ -491,7 +523,8 @@ FORMULAFUNC(drsp_find){
 #define SV(x) {sizeof(x)-1, x}
 #endif
 
-static const FuncInfo FUNCTABLE[] = {
+DRSP_INTERNAL
+const FuncInfo FUNCTABLE[] = {
     {{3, "sum"  }, &drsp_sum},
     {{3, "avg"  }, &drsp_avg},
     {{3, "min"  }, &drsp_min},
@@ -508,9 +541,11 @@ static const FuncInfo FUNCTABLE[] = {
     {{3, "try"  }, &drsp_try},
     {{3, "pow"  }, &drsp_pow},
     {{4, "cell" }, &drsp_cell},
+    {{5, "count"}, &drsp_count},
     // {{3, "col"  }, &drsp_col},
 };
-static const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);
+
+DRSP_INTERNAL const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

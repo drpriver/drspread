@@ -23,13 +23,24 @@
 // everything else is true
 
 // functions:
-//    sum
-//    min
-//    max
-//    avg
-//    mod (3.5 style ability mode)
-//    count - number of non-null entries
-//    counttrue - number of true entries
+//    sum(array)
+//    avg(array)
+//    min(array)
+//    max(array)
+//    mod(score) (3.5 style ability mode)
+//    abs(x)
+//    floor(x)
+//    ceil(x)
+//    trunc(x)
+//    round(x)
+//    tlu(needle, haystack, values, ?default) - table look up (
+//    find(needle, haystack)
+//    num(num, ?default) - coerce to a number, use default if impossible
+//    try(fallible, default) - if first arg errors, use default, otherwise use
+//                             first arg
+//    pow(base, power)
+//    cell(?sheet, col, row)
+//    count(array)
 
 // unary:
 //   -
@@ -47,8 +58,6 @@
 //   <=
 //   =, ==
 //   !=
-//   & (logical and)
-//   | (logical or)
 
 // Terminals:
 //   function call
@@ -58,9 +67,11 @@
 //   (group)
 
 #ifdef __wasm__
+DRSP_EXPORT
 int
 drsp_evaluate_formulas(SheetHandle sheethandle){
 #else
+DRSP_EXPORT
 int
 drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
 #endif
@@ -115,9 +126,12 @@ drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
 }
 
 #ifdef __wasm__
+DRSP_EXPORT
 int
 drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval){
 #else
+
+DRSP_EXPORT
 int
 drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval){
 #endif

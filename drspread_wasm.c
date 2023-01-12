@@ -1,20 +1,22 @@
 //
 // Copyright © 2023, David Priver
 //
+#include "drspread.h"
 #include "drspread_wasm.h"
 #include "drspread.c"
 #include "Wasm/jsinter.h"
-#ifndef EXPORT
-#define EXPORT extern
+
+#ifndef DRSP_IMPORT
+#define DRSP_IMPORT extern
 #endif
 
-EXPORT
+DRSP_EXPORT
 void
 sheet_evaluate_formulas(intptr_t id){
     drsp_evaluate_formulas((void*)id);
 }
 
-EXPORT
+DRSP_EXPORT
 int
 sheet_evaluate_string(intptr_t id, PString* p, DrSpreadCellValue* result){
     _Static_assert(16 == sizeof *result,"");

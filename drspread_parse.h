@@ -11,11 +11,11 @@
 #define _Nullable
 #endif
 #endif
-static
+DRSP_INTERNAL
 Expression*_Nullable
 parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length);
 
-static
+DRSP_INTERNAL
 CellKind
 classify_cell(const char* txt, size_t length);
 

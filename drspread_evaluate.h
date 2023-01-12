@@ -14,15 +14,15 @@
 #endif
 #endif
 
-static
+DRSP_INTERNAL
 Expression*_Nullable
 evaluate_expr(SpreadContext*, SheetHandle, Expression*, intptr_t caller_row, intptr_t caller_col);
 
-static
+DRSP_INTERNAL
 Expression*_Nullable
 evaluate(SpreadContext*, SheetHandle, intptr_t row, intptr_t col);
 
-static
+DRSP_INTERNAL
 Expression*_Nullable
 evaluate_string(SpreadContext* ctx, SheetHandle, const char* txt, size_t len);
 

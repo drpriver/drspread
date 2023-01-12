@@ -21,7 +21,7 @@ function drspread(
     sheet_name_to_col_idx_:(id:number, s:string) => number,
     sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
-    sheet_name_to_sheet_:(id:number, s:string)=>number,
+    sheet_name_to_sheet_:(s:string)=>number,
 ):Promise<{
     evaluate_formulas: (id: number) => void;
     evaluate_string: (id: number, s: string) => number|string;
@@ -108,7 +108,7 @@ const imports = {
         },
         sheet_name_to_sheet:function(id:number, p:number, len:number):number{
             const s = wasm_string_to_js(p, len);
-            return sheet_name_to_sheet_(id, s);
+            return sheet_name_to_sheet_(s);
         },
     },
 };

@@ -18,7 +18,7 @@
 #endif
 #endif
 
-static
+DRSP_INTERNAL
 CellKind
 classify_cell(const char* txt, size_t length){
     StringView s = {length, txt};
@@ -30,18 +30,18 @@ classify_cell(const char* txt, size_t length){
 }
 
 #define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, SheetHandle hnd, StringView* sv)
-static PARSEFUNC(parse_comparison);
-static PARSEFUNC(parse_addplus);
-static PARSEFUNC(parse_divmul);
-static PARSEFUNC(parse_unary);
-static PARSEFUNC(parse_terminal);
-static PARSEFUNC(parse_number);
-static PARSEFUNC(parse_group);
-static PARSEFUNC(parse_range);
-static PARSEFUNC(parse_string);
-static PARSEFUNC(parse_func_call);
+DRSP_INTERNAL PARSEFUNC(parse_comparison);
+DRSP_INTERNAL PARSEFUNC(parse_addplus);
+DRSP_INTERNAL PARSEFUNC(parse_divmul);
+DRSP_INTERNAL PARSEFUNC(parse_unary);
+DRSP_INTERNAL PARSEFUNC(parse_terminal);
+DRSP_INTERNAL PARSEFUNC(parse_number);
+DRSP_INTERNAL PARSEFUNC(parse_group);
+DRSP_INTERNAL PARSEFUNC(parse_range);
+DRSP_INTERNAL PARSEFUNC(parse_string);
+DRSP_INTERNAL PARSEFUNC(parse_func_call);
 
-static
+DRSP_INTERNAL
 Expression*_Nullable
 parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length){
     StringView sv = {length, txt};
@@ -57,7 +57,7 @@ parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length){
     return root;
 }
 
-static
+DRSP_INTERNAL
 PARSEFUNC(parse_comparison){
     Expression* lhs = parse_addplus(ctx, hnd, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
@@ -94,7 +94,8 @@ PARSEFUNC(parse_comparison){
     }
     return lhs;
 }
-static
+
+DRSP_INTERNAL
 PARSEFUNC(parse_addplus){
     Expression* lhs = parse_divmul(ctx, hnd, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
@@ -115,7 +116,8 @@ PARSEFUNC(parse_addplus){
     }
     return lhs;
 }
-static
+
+DRSP_INTERNAL
 PARSEFUNC(parse_divmul){
     Expression* lhs = parse_unary(ctx, hnd, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
@@ -136,7 +138,8 @@ PARSEFUNC(parse_divmul){
     }
     return lhs;
 }
-static
+
+DRSP_INTERNAL
 PARSEFUNC(parse_unary){
     while(sv->length && sv->text[0] == '+'){
         sv->text++, sv->length--;
@@ -204,7 +207,8 @@ PARSEFUNC(parse_unary){
     }
     return e;
 }
-static
+
+DRSP_INTERNAL
 PARSEFUNC(parse_terminal){
     if(!sv->length) return Error(ctx, "");
     switch(sv->text[0]){
@@ -230,7 +234,7 @@ PARSEFUNC(parse_terminal){
     }
 }
 
-static
+DRSP_INTERNAL
 PARSEFUNC(parse_string){
     (void)hnd;
     assert(sv->length && (sv->text[0] == '"' || sv->text[0] == '\''));
@@ -249,7 +253,7 @@ PARSEFUNC(parse_string){
     return &s->e;
 }
 
-static
+DRSP_INTERNAL
 PARSEFUNC(parse_range){
     assert(sv->length && sv->text[0] == '[');
     intptr_t col, row0, row1;
@@ -335,7 +339,8 @@ PARSEFUNC(parse_range){
     r->row_end = row1;
     return &r->e;
 }
-static
+
+DRSP_INTERNAL
 PARSEFUNC(parse_number){
     (void)hnd;
     const char* begin = sv->text;
@@ -364,7 +369,7 @@ PARSEFUNC(parse_number){
     return &n->e;
 }
 
-static
+DRSP_INTERNAL
 PARSEFUNC(parse_group){
     (void)sv;
     assert(sv->length && sv->text[0] == '(');
@@ -377,6 +382,7 @@ PARSEFUNC(parse_group){
     return e;
 }
 
+DRSP_INTERNAL
 PARSEFUNC(parse_func_call){
     const char* begin = sv->text;
     const char* end = begin;

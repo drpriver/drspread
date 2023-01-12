@@ -10,7 +10,7 @@
 #pragma clang assume_nonnull begin
 #endif
 
-static
+DRSP_INTERNAL
 Expression*_Nullable
 evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
     CacheVal* cached = get_cached_val(&ctx->cache, hnd, row, col);
@@ -115,7 +115,7 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
 }
 
 // This is for a repl
-static
+DRSP_INTERNAL
 Expression*_Nullable
 evaluate_string(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t len){
     Expression *root = parse(ctx, hnd, txt, len);
@@ -124,7 +124,7 @@ evaluate_string(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t len
     return e;
 }
 
-static
+DRSP_INTERNAL
 Expression*_Nullable
 evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
     switch(expr->kind){

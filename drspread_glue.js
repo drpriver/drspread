@@ -78,7 +78,7 @@ function drspread(wasm_path, sheet_query_cell_kind, sheet_cell_number, sheet_cel
             },
             sheet_name_to_sheet: function (id, p, len) {
                 const s = wasm_string_to_js(p, len);
-                return sheet_name_to_sheet_(id, s);
+                return sheet_name_to_sheet_(s);
             },
         },
     };

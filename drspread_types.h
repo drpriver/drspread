@@ -15,6 +15,10 @@
 #define force_inline static inline __attribute__((always_inline))
 #endif
 
+#ifndef DRSP_INTERNAL
+#define DRSP_INTERNAL static __attribute__((visibility("hidden")))
+#endif
+
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #else

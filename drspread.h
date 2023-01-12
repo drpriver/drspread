@@ -17,6 +17,10 @@
 #endif
 #endif
 
+#ifndef DRSP_EXPORT
+#define DRSP_EXPORT extern __attribute__((visibility("default")))
+#endif
+
 enum CellKind: intptr_t {
     CELL_EMPTY = 0, // Empty Cell
     CELL_NUMBER = 1,
@@ -50,6 +54,7 @@ struct SheetOps {
     void*_Nullable (*_Nullable name_to_sheet)(void* ctx, const char*, size_t);
 };
 
+DRSP_EXPORT
 int
 drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops);
 
@@ -65,9 +70,11 @@ struct  DrSpreadCellValue {
     };
 };
 
+DRSP_EXPORT
 int
 drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval);
 #else
+DRSP_EXPORT
 int
 drsp_evaluate_formulas(SheetHandle sheethandle);
 
@@ -82,7 +89,7 @@ struct  DrSpreadCellValue {
         } s;
     };
 };
-
+DRSP_EXPORT
 int
 drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval);
 #endif
