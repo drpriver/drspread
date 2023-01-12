@@ -12,7 +12,7 @@ main(int argc, char** argv){
     int e = read_csv(&sheet, argv[1]);
     if(e) return e;
     SheetOps ops = {
-        .ctx = &sheet,
+        .ctx = NULL,
         .next_cell=&next,
         .cell_txt=&txt,
         .set_display_number=&display_number,
@@ -28,7 +28,7 @@ main(int argc, char** argv){
     if(argc > 2){
         for(int i = 2; i < argc; i++){
             DrSpreadCellValue val;
-            int err = drsp_evaluate_string(&ops, argv[i], strlen(argv[i]), &val);
+            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, argv[i], strlen(argv[i]), &val);
             if(err){
                 puts("err");
             }
@@ -38,7 +38,10 @@ main(int argc, char** argv){
                         printf("\n");
                         break;
                     case CELL_NUMBER:
-                        printf("%.1f\n", val.d);
+                        if((intptr_t)val.d == val.d)
+                            printf("%zd\n", (intptr_t)val.d);
+                        else
+                            printf("%.1f\n", val.d);
                         break;
                     case CELL_OTHER:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);
@@ -51,7 +54,7 @@ main(int argc, char** argv){
         }
     }
     else {
-        int nerr = drsp_evaluate_formulas(&ops);
+        int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
         (void)nerr;
         // printf("nerr: %d\n", nerr);
         write_display(&sheet, stdout);
@@ -69,7 +72,7 @@ main(int argc, char** argv){
             if(len == 1 && *line == 'q') break;
             gi_add_line_to_history_len(&gi, line, len);
             DrSpreadCellValue val;
-            int err = drsp_evaluate_string(&ops, line, len, &val);
+            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, line, len, &val);
             if(err) puts("err");
             else {
                 switch(val.kind){
@@ -77,7 +80,10 @@ main(int argc, char** argv){
                         printf("\n");
                         break;
                     case CELL_NUMBER:
-                        printf("%.1f\n", val.d);
+                        if((intptr_t)val.d == val.d)
+                            printf("%zd\n", (intptr_t)val.d);
+                        else
+                            printf("%.1f\n", val.d);
                         break;
                     case CELL_OTHER:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);

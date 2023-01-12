@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "stringview.h"
+#ifndef IMPORT
+#define IMPORT extern
+#endif
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
@@ -35,10 +38,6 @@ StringView_to_new_PString(StringView source){
     return result;
 }
 
-extern
-void
-log_string(const void*, size_t);
-extern void logi32(int32_t);
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

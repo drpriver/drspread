@@ -12,8 +12,8 @@
 
 static
 Expression*_Nullable
-evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
-    CacheVal* cached = get_cached_val(&ctx->cache, row, col);
+evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
+    CacheVal* cached = get_cached_val(&ctx->cache, hnd, row, col);
     if(cached){
         if(cached->kind == CACHE_IN_PROGRESS)
             return Error(ctx, "");
@@ -32,12 +32,10 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
         cached->kind = CACHE_IN_PROGRESS;
     }
     // printf("Evaluate %zd, %zd\n", row, col);
-    CellKind kind = CELL_UNKNOWN;
-    if(ctx->ops.query_cell_kind)
-        kind = ctx->ops.query_cell_kind(ctx->ops.ctx, row, col);
+    CellKind kind = sp_query_cell_kind(ctx, hnd, row, col);
     if(kind == CELL_UNKNOWN){
         size_t len = 0;
-        const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
+        const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
         kind = classify_cell(txt, len);
     }
     switch(kind){
@@ -49,7 +47,7 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
             return expr_alloc(ctx, EXPR_NULL);
         case CELL_OTHER:{
             size_t len = 0;
-            const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
+            const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
             if(cached){
                 cached->e.kind = EXPR_STRING;
                 cached->s.sv = stripped2(txt, len);
@@ -61,7 +59,7 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
             return &s->e;
         }
         case CELL_NUMBER:{
-            double value = ctx->ops.cell_number(ctx->ops.ctx, row, col);
+            double value = sp_cell_number(ctx, hnd, row, col);
             if(cached){
                 cached->n.e.kind = EXPR_NUMBER;
                 cached->n.value = value;
@@ -74,9 +72,9 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
         }
         case CELL_FORMULA:{
             size_t len = 0;
-            const char* txt = ctx->ops.cell_txt(ctx->ops.ctx, row, col, &len);
+            const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
             char* chk = ctx->a.cursor;
-            Expression *root = parse(ctx, txt, len);
+            Expression *root = parse(ctx, hnd, txt, len);
             if(!root || root->kind == EXPR_ERROR)
                 ctx->a.cursor = chk;
             if(!root) return NULL;
@@ -87,7 +85,7 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
                 }
                 return root;
             }
-            Expression *e = evaluate_expr(ctx, root, row, col);
+            Expression *e = evaluate_expr(ctx, hnd, root, row, col);
             if(!e) return e;
             if(cached){
                 if(e->kind == EXPR_NUMBER){
@@ -119,16 +117,16 @@ evaluate(SpreadContext* ctx, intptr_t row, intptr_t col){
 // This is for a repl
 static
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, const char* txt, size_t len){
-    Expression *root = parse(ctx, txt, len);
+evaluate_string(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t len){
+    Expression *root = parse(ctx, hnd, txt, len);
     if(!root || root->kind == EXPR_ERROR) return root;
-    Expression *e = evaluate_expr(ctx, root, -1, -1);
+    Expression *e = evaluate_expr(ctx, hnd, root, -1, -1);
     return e;
 }
 
 static
 Expression*_Nullable
-evaluate_expr(SpreadContext* ctx, Expression* expr, intptr_t caller_row, intptr_t caller_col){
+evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
     switch(expr->kind){
         case EXPR_NULL:
         case EXPR_ERROR:
@@ -138,7 +136,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr, intptr_t caller_row, intptr_
             return expr;
         case EXPR_FUNCTION_CALL:{
             FunctionCall* fc = (FunctionCall*)expr;
-            return fc->func(ctx, caller_row, caller_col, fc->argc, fc->argv);
+            return fc->func(ctx, hnd, caller_row, caller_col, fc->argc, fc->argv);
         }
         case EXPR_RANGE0D:{
             Range0D* rng = (Range0D*)expr;
@@ -146,15 +144,15 @@ evaluate_expr(SpreadContext* ctx, Expression* expr, intptr_t caller_row, intptr_
             if(r == IDX_DOLLAR) r = caller_row;
             intptr_t c = rng->col;
             if(c == IDX_DOLLAR) c = caller_col;
-            return evaluate(ctx, r, c);
+            return evaluate(ctx, hnd, r, c);
         }
         case EXPR_BINARY:{
             char* chk = ctx->a.cursor;
             Binary* b = (Binary*)expr;
-            Expression* lhs = evaluate_expr(ctx, b->lhs, caller_row, caller_col);
+            Expression* lhs = evaluate_expr(ctx, hnd, b->lhs, caller_row, caller_col);
             if(!lhs) return NULL;
             if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING) return NULL;
-            Expression* rhs = evaluate_expr(ctx, b->rhs, caller_row, caller_col);
+            Expression* rhs = evaluate_expr(ctx, hnd, b->rhs, caller_row, caller_col);
             if(!rhs) return NULL;
             if(lhs->kind == EXPR_STRING){
                 if(rhs->kind != EXPR_STRING)
@@ -204,7 +202,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr, intptr_t caller_row, intptr_
         case EXPR_UNARY:{
             char* chk = ctx->a.cursor;
             Unary* u = (Unary*)expr;
-            Expression* v = evaluate_expr(ctx, u->expr, caller_row, caller_col);
+            Expression* v = evaluate_expr(ctx, hnd, u->expr, caller_row, caller_col);
             if(!v) return NULL;
             if(v->kind != EXPR_NUMBER) return Error(ctx, "");
             if(u->op == UN_PLUS) return u->expr;
@@ -226,7 +224,7 @@ evaluate_expr(SpreadContext* ctx, Expression* expr, intptr_t caller_row, intptr_
             Group* g = (Group*)expr;
             // TODO: check if this tail calls.
             // Otherwise we need a goto to the top.
-            return evaluate_expr(ctx, g->expr, caller_row, caller_col);
+            return evaluate_expr(ctx, hnd, g->expr, caller_row, caller_col);
         };
     };
     return NULL;

@@ -13,6 +13,7 @@ static TestFunc TestFuncs;
 static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
+static TestFunc TestMultisheet;
 
 int main(int argc, char** argv){
     RegisterTest(TestSpreadsheet1);
@@ -23,6 +24,7 @@ int main(int argc, char** argv){
     RegisterTest(TestMod);
     RegisterTest(TestBugs);
     RegisterTest(TestBugs2);
+    RegisterTest(TestMultisheet);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -40,6 +42,14 @@ streq(const char* a, const char* b){
     return strcmp(a,b) == 0;
 }
 
+static inline
+_Bool
+streq2(const char* a, const char* b, size_t blen){
+    StringView l = {strlen(a), a};
+    StringView r = {blen, b};
+    return sv_equals(l, r);
+}
+
 
 // We just leak the spreadsheets, it's really not that much data
 static
@@ -54,7 +64,7 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
     TestAssertEquals(sheet.rows, expected_len);
 
     SheetOps ops = {
-        .ctx = &sheet,
+        .ctx = NULL,
         .next_cell=&next,
         .cell_txt=&txt,
         .set_display_number=&display_number,
@@ -67,7 +77,7 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
         .col_height=&get_col_height,
         .dims=&get_dims,
     };
-    int nerr = drsp_evaluate_formulas(&ops);
+    int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
     TestExpectEquals(nerr, expected_nerr);
     for(size_t i = 0; i < expected_len; i++){
         const struct Row* display_row = &sheet.display[i];
@@ -107,7 +117,7 @@ TestFunction(TestSpreadsheet1){
     ;
     struct Row expected[] = {
         ROW("61", "Axe",         "10"),
-        ROW( "3", "Torch",        "1"),
+        ROW( "4", "Torch",        "1"),
         ROW("50", "Plate Armor", "50"),
         ROW( "1", "Food",        "1 per potato"),
     };
@@ -198,6 +208,12 @@ TestFunction(TestFuncs){
         "=floor(12.9)\n"
         "=round(12.9)\n"
         "=trunc(12.9)\n"
+        "\n"
+        "=num(1, 2)\n"
+        "=num('', 2)\n"
+        "=num('')\n"
+        "=try(ceil('a'), 'b')\n"
+        "=pow(2, 3)\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -212,7 +228,7 @@ TestFunction(TestFuncs){
         ROW("-2", ""),
         ROW("hello", ""),
         // NOTE: find returns an OFFSET, not an index
-        ROW("2", ""),
+        ROW("3", ""),
         ROW(""),
         ROW("-12"),
         ROW("-13"),
@@ -233,6 +249,12 @@ TestFunction(TestFuncs){
         ROW("12"),
         ROW("13"),
         ROW("12"),
+        ROW(""),
+        ROW("1"),
+        ROW("2"),
+        ROW("0"),
+        ROW("b"),
+        ROW("8"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -307,6 +329,116 @@ TestFunction(TestBugs2){
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
+
+struct SheetCollection {
+    SpreadSheet sheets[2];
+    const char* names[2];
+};
+
+static
+void*_Nullable
+collection_name_to_sheet(void* ctx, const char* name, size_t len){
+    (void)len;
+    struct SheetCollection* collection = ctx;
+    if(streq2(collection->names[0], name, len))
+        return &collection->sheets[0];
+    if(streq2(collection->names[1], name, len))
+        return &collection->sheets[1];
+    return NULL;
+}
+
+static
+struct
+TestStats
+test_multi_spreadsheet(const char* caller, const char* name1, const char* input1, const char* name2, const char* input2, const struct Row* expected, size_t expected_len, int expected_nerr){
+#define __func__ caller
+    struct TestStats TEST_stats = {0};
+    struct SheetCollection collection = {0};
+    int err;
+    err = read_csv_from_string(&collection.sheets[0], input1);
+    TestAssertFalse(err);
+    collection.names[0] = name1;
+    err = read_csv_from_string(&collection.sheets[1], input2);
+    TestAssertFalse(err);
+    collection.names[1] = name2;
+    TestAssertEquals(collection.sheets[0].rows, expected_len);
+
+    SheetOps ops = {
+        .ctx = &collection,
+        .next_cell=&next,
+        .cell_txt=&txt,
+        .set_display_number=&display_number,
+        .set_display_error=&display_error,
+        .set_display_string=&display_string,
+        .name_to_col_idx=&get_name_to_col_idx,
+        .query_cell_kind=&cell_kind,
+        .cell_number=&cell_number,
+        .row_width=&get_row_width,
+        .col_height=&get_col_height,
+        .dims=&get_dims,
+        .name_to_sheet = &collection_name_to_sheet,
+    };
+    int nerr = drsp_evaluate_formulas((SheetHandle)&collection.sheets[0], &ops);
+    TestExpectEquals(nerr, expected_nerr);
+    for(size_t i = 0; i < expected_len; i++){
+        const struct Row* display_row = &collection.sheets[0].display[i];
+        const struct Row* expected_row = &expected[i];
+        TestAssertEquals(display_row->n, expected_row->n);
+        for(int j = 0; j < display_row->n; j++){
+            TEST_stats.executed++;
+            const char* lhs = display_row->data[j];
+            const char* rhs = expected_row->data[j];
+            if(!streq(lhs, rhs)){
+                TEST_stats.failures++;
+                  TestReport("Test condition failed");
+                  TestReport("row %zu, col %d", i, j);
+                  TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                          _test_color_green, lhs, _test_color_reset,
+                          _test_color_red, _test_color_reset,
+                          _test_color_green, rhs, _test_color_reset);
+            }
+        }
+    }
+#undef __func__
+    return TEST_stats;
+}
+TestFunction(TestMultisheet){
+    const char* name1 = "root";
+    const char* input1 =
+        "=cell('other', 'a', 1)-1\n"
+        "=cell([a,8], 'a', 2)\n"
+        "=cell([a,7], 2)\n"
+        "=cell('other', 'b', 2)\n"
+        "=cell('other', 'b', find(0, [a, :3]))\n"
+        "=cell('other', 'b', find('0', [a, :3]))\n"
+        "a\n"
+        "other\n"
+    ;
+    const char* name2 = "other";
+    const char* input2 =
+        " 1 | 2\n"
+        " 3 | 4\n"
+    ;
+    struct Row expected[] = {
+        ROW("0"),
+        ROW("3"),
+        ROW("3"),
+        ROW("4"),
+        ROW("2"),
+        ROW("error"),
+        ROW("a"),
+        ROW("other"),
+    };
+    return test_multi_spreadsheet(
+        __func__,
+        name1, input1,
+        name2, input2,
+        expected, arrlen(expected),
+        1
+    );
+}
+
+
 
 #pragma clang diagnostic pop
 

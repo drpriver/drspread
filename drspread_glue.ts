@@ -6,6 +6,7 @@ const enum CellKind {
     CELL_NUMBER = 1,
     CELL_FORMULA = 2,
     CELL_OTHER = 3,
+    CELL_UNKNOWN = 4,
 }
 function drspread(
     wasm_path:string,
@@ -20,6 +21,7 @@ function drspread(
     sheet_name_to_col_idx_:(id:number, s:string) => number,
     sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
+    sheet_name_to_sheet_:(id:number, s:string)=>number,
 ):Promise<{
     evaluate_formulas: (id: number) => void;
     evaluate_string: (id: number, s: string) => number|string;
@@ -89,7 +91,7 @@ const imports = {
             const prev_row = read4(prow);
             const prev_col = read4(pcol);
             const [r, c] = sheet_next_cell_(id, i, prev_row, prev_col);
-            if(r ==4294967295 && c == 4294967295)
+            if(r == 4294967295 && c == 4294967295)
                 return 1;
             if(r == -1 && c == -1)
                 return 1;
@@ -102,6 +104,10 @@ const imports = {
             write4(pncols, cols);
             write4(pnrows, rows);
             return 0;
+        },
+        sheet_name_to_sheet:function(id:number, p:number, len:number):number{
+            const s = wasm_string_to_js(p, len);
+            return sheet_name_to_sheet_(id, s);
         },
     },
 };

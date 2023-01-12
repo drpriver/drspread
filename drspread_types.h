@@ -7,6 +7,14 @@
 #include "buff_allocator.h"
 #include "stringview.h"
 
+#ifdef __wasm__
+#include "drspread_wasm.h"
+#endif
+
+#ifndef force_inline
+#define force_inline static inline __attribute__((always_inline))
+#endif
+
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #else
@@ -49,7 +57,7 @@ struct Expression {
 
 typedef struct SpreadContext SpreadContext;
 struct SpreadContext {
-    const SheetOps ops;
+    const SheetOps _ops; // don't call these directly
     BuffAllocator a;
     SpreadCache cache;
     Expression null;
@@ -85,7 +93,7 @@ struct Number {
     double value;
 };
 typedef struct FunctionCall FunctionCall;
-#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
+#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, SheetHandle hnd,  intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
 typedef FORMULAFUNC(FormulaFunc);
 struct FunctionCall {
     Expression e;
@@ -188,11 +196,146 @@ struct CacheVal {
 };
 static inline
 CacheVal*_Nullable
-get_cached_val(const SpreadCache* cache, intptr_t row, intptr_t col){
+get_cached_val(const SpreadCache* cache, SheetHandle hnd, intptr_t row, intptr_t col){
+    (void)hnd;
+    return NULL;
     if(row < 0 || col < 0 || col >= cache->ncols || row >= cache->nrows) return NULL;
     intptr_t idx = col*cache->nrows + row;
     return &cache->vals[idx];
 }
+
+#ifdef __wasm__
+#define SP_ARGS SheetHandle sheet
+#define SP_CALL(func, ...) sheet_##func(sheet, __VA_ARGS__)
+#else
+#define SP_ARGS const SpreadContext* ctx, SheetHandle sheet
+#define SP_CALL(func, ...) ctx->_ops.func(ctx->_ops.ctx, sheet, __VA_ARGS__)
+#endif // use these inline functions instead of using _ops directly
+
+force_inline
+CellKind
+sp_query_cell_kind(SP_ARGS, intptr_t row, intptr_t col){
+    #ifndef __wasm__
+        if(!ctx->_ops.query_cell_kind) return CELL_UNKNOWN;
+        return SP_CALL(query_cell_kind, row, col);
+    #else
+        return (CellKind)SP_CALL(query_cell_kind, row, col);
+    #endif
+}
+
+force_inline
+double
+sp_cell_number(SP_ARGS, intptr_t row, intptr_t col){
+    return SP_CALL(cell_number, row, col);
+}
+
+force_inline
+const char*_Nullable
+sp_cell_text(SP_ARGS, intptr_t row, intptr_t col, size_t* len){
+    #ifdef __wasm__
+        PString* p = sheet_cell_text(sheet, row, col)
+        *len = p->length;
+        return (char*)p->text;
+    #else
+        return SP_CALL(cell_txt, row, col, len);
+    #endif
+}
+
+force_inline
+intptr_t
+sp_col_height(SP_ARGS, intptr_t col){
+    return SP_CALL(col_height, col);
+}
+
+force_inline
+intptr_t
+sp_row_width(SP_ARGS, intptr_t row){
+    return SP_CALL(row_width, row);
+}
+
+force_inline
+int
+sp_dims(SP_ARGS, intptr_t* ncols, intptr_t* nrows){
+    return SP_CALL(dims, ncols, nrows);
+}
+
+force_inline
+int
+sp_set_display_number(SP_ARGS, intptr_t row, intptr_t col, double value){
+    #ifdef __wasm__
+        SP_CALL(set_display_number, row, col, value);
+        return 0;
+    #else
+        return SP_CALL(set_display_number, row, col, value);
+    #endif
+}
+
+force_inline
+int
+sp_set_display_error(SP_ARGS, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len){
+    #ifdef __wasm__
+        (void)errmess;
+        (void)errmess_len;
+        SP_CALL(set_display_error, row, col);
+    #else
+        return SP_CALL(set_display_error, row, col, errmess, errmess_len);
+    #endif
+    return 0;
+}
+
+force_inline
+int
+sp_set_display_string(SP_ARGS, intptr_t row, intptr_t col, const char* txt, size_t len){
+    #ifdef __wasm__
+        SP_CALL(set_display_string, row, col, txt, len);
+        return 0;
+    #else
+        return SP_CALL(set_display_string, row, col, txt, len);
+    #endif
+}
+
+force_inline
+int
+sp_next_cell(SP_ARGS, intptr_t nth, intptr_t* row, intptr_t* col){
+    return SP_CALL(next_cell, nth, row, col);
+}
+force_inline
+intptr_t
+sp_name_to_col_idx(SP_ARGS, const char* name, size_t len){
+    return SP_CALL(name_to_col_idx, name, len);
+}
+
+#ifdef __wasm
+force_inline
+void*_Nullable
+sp_name_to_sheet_(const char* name, size_t len){
+    return (void*)sheet_name_to_sheet(name, len);
+}
+#else
+force_inline
+void*_Nullable
+sp_name_to_sheet(const SpreadContext* ctx, const char* name, size_t len){
+    return ctx->_ops.name_to_sheet(ctx->_ops.ctx, name, len);
+}
+#endif
+
+#ifdef __wasm__
+// alias these so the ctx is unused.
+#define sp_query_cell_kind(ctx, ...) ((void)ctx, sp_query_cell_kind(__VA_ARGS__))
+#define sp_query_cell_number(ctx, ...) ((void)ctx, sp_query_cell_number(__VA_ARGS__))
+#define sp_cell_number(ctx, ...) ((void)ctx, sp_cell_number(__VA_ARGS__))
+#define sp_cell_text(ctx, ...) ((void)ctx, sp_cell_text(__VA_ARGS__))
+#define sp_col_height(ctx, ...) ((void)ctx, sp_col_height(__VA_ARGS__))
+#define sp_row_width(ctx, ...) ((void)ctx, sp_row_width(__VA_ARGS__))
+#define sp_dims(ctx, ...) ((void)ctx, sp_dims(__VA_ARGS__))
+#define sp_set_display_number(ctx, ...) ((void)ctx, sp_set_display_number(__VA_ARGS__))
+#define sp_set_display_error(ctx, ...) ((void)ctx, sp_set_display_error(__VA_ARGS__))
+#define sp_set_display_string(ctx, ...) ((void)ctx, sp_set_display_string(__VA_ARGS__))
+#define sp_next_cell(ctx, ...) ((void)ctx, sp_next_cell(__VA_ARGS__))
+#define sp_name_to_col_idx(ctx, ...) ((void)ctx, sp_name_to_col_idx(__VA_ARGS__))
+#define sp_name_to_sheet(ctx, name, len) ((void)ctx, sp_name_to_sheet_(name, len))
+#endif
+
 
 
 

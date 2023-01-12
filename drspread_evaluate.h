@@ -16,15 +16,15 @@
 
 static
 Expression*_Nullable
-evaluate_expr(SpreadContext*, Expression*, intptr_t caller_row, intptr_t caller_col);
+evaluate_expr(SpreadContext*, SheetHandle, Expression*, intptr_t caller_row, intptr_t caller_col);
 
 static
 Expression*_Nullable
-evaluate(SpreadContext*, intptr_t row, intptr_t col);
+evaluate(SpreadContext*, SheetHandle, intptr_t row, intptr_t col);
 
 static
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, const char* txt, size_t len);
+evaluate_string(SpreadContext* ctx, SheetHandle, const char* txt, size_t len);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

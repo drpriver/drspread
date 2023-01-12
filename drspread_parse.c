@@ -29,7 +29,7 @@ classify_cell(const char* txt, size_t length){
     return CELL_OTHER;
 }
 
-#define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, StringView* sv)
+#define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, SheetHandle hnd, StringView* sv)
 static PARSEFUNC(parse_comparison);
 static PARSEFUNC(parse_addplus);
 static PARSEFUNC(parse_divmul);
@@ -43,14 +43,14 @@ static PARSEFUNC(parse_func_call);
 
 static
 Expression*_Nullable
-parse(SpreadContext* ctx, const char* txt, size_t length){
+parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length){
     StringView sv = {length, txt};
     lstrip(&sv);
     while(sv.length && sv.text[0] == '=')
         sv.text++, sv.length--;
     lstrip(&sv);
     // printf("'%s'\n", sv.text);
-    Expression* root = parse_comparison(ctx, &sv);
+    Expression* root = parse_comparison(ctx, hnd, &sv);
     if(!root || root->kind == EXPR_ERROR) return root;
     lstrip(&sv);
     if(sv.length != 0) return Error(ctx, "");
@@ -59,7 +59,7 @@ parse(SpreadContext* ctx, const char* txt, size_t length){
 
 static
 PARSEFUNC(parse_comparison){
-    Expression* lhs = parse_addplus(ctx, sv);
+    Expression* lhs = parse_addplus(ctx, hnd, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
     lstrip(sv);
     while(sv->length && (sv->text[0] == '<' || sv->text[0] == '>' || sv->text[0] == '=' || sv->text[0] == '!')){
@@ -83,7 +83,7 @@ PARSEFUNC(parse_comparison){
             default: return Error(ctx, "");
         }
         lstrip(sv);
-        Expression* rhs = parse_addplus(ctx, sv);
+        Expression* rhs = parse_addplus(ctx, hnd, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         Binary* b = expr_alloc(ctx, EXPR_BINARY);
         if(!b) return NULL;
@@ -96,14 +96,14 @@ PARSEFUNC(parse_comparison){
 }
 static
 PARSEFUNC(parse_addplus){
-    Expression* lhs = parse_divmul(ctx, sv);
+    Expression* lhs = parse_divmul(ctx, hnd, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
     lstrip(sv);
     while(sv->length && (sv->text[0] == '+' || sv->text[0] == '-')){
         char c = sv->text[0];
         sv->length--, sv->text++;
         lstrip(sv);
-        Expression* rhs = parse_divmul(ctx, sv);
+        Expression* rhs = parse_divmul(ctx, hnd, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         BinaryKind op = c == '+'?BIN_ADD : BIN_SUB;
         Binary* b = expr_alloc(ctx, EXPR_BINARY);
@@ -117,14 +117,14 @@ PARSEFUNC(parse_addplus){
 }
 static
 PARSEFUNC(parse_divmul){
-    Expression* lhs = parse_unary(ctx, sv);
+    Expression* lhs = parse_unary(ctx, hnd, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
     lstrip(sv);
     while(sv->length && (sv->text[0] == '*' || sv->text[0] == '/')){
         char c = sv->text[0];
         sv->length--, sv->text++;
         lstrip(sv);
-        Expression* rhs = parse_unary(ctx, sv);
+        Expression* rhs = parse_unary(ctx, hnd, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         BinaryKind op = c == '*'?BIN_MUL : BIN_DIV;
         Binary* b = expr_alloc(ctx, EXPR_BINARY);
@@ -153,7 +153,7 @@ PARSEFUNC(parse_unary){
     switch(c){
         case '!': op = UN_NOT; break;
         case '-': op = UN_NEG; break;
-        default: return parse_terminal(ctx, sv);
+        default: return parse_terminal(ctx, hnd, sv);
     }
     if(op != -1){
         sv->text++, sv->length--;
@@ -168,7 +168,7 @@ PARSEFUNC(parse_unary){
         sv->length-=2;
         lstrip(sv);
     }
-    Expression* e = parse_unary(ctx, sv);
+    Expression* e = parse_unary(ctx, hnd, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
     if(op != -1){
         _Bool handled = 0;
@@ -209,22 +209,22 @@ PARSEFUNC(parse_terminal){
     if(!sv->length) return Error(ctx, "");
     switch(sv->text[0]){
         case '[':
-            return parse_range(ctx, sv);
+            return parse_range(ctx, hnd, sv);
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wgnu-case-range"
         case 'a' ... 'z':
         case 'A' ... 'Z':
         #pragma clang diagnostic pop
-            return parse_func_call(ctx, sv);
+            return parse_func_call(ctx, hnd, sv);
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9':
         case '.':
-            return parse_number(ctx, sv);
+            return parse_number(ctx, hnd, sv);
         case '(':
-            return parse_group(ctx, sv);
+            return parse_group(ctx, hnd, sv);
         case '\'':
         case '"':
-            return parse_string(ctx, sv);
+            return parse_string(ctx, hnd, sv);
         default:
             return Error(ctx, "");
     }
@@ -232,6 +232,7 @@ PARSEFUNC(parse_terminal){
 
 static
 PARSEFUNC(parse_string){
+    (void)hnd;
     assert(sv->length && (sv->text[0] == '"' || sv->text[0] == '\''));
     char terminator = sv->text[0];
     sv->length--, sv->text++;
@@ -266,7 +267,7 @@ PARSEFUNC(parse_range){
     if(colname.length == 1 && colname.text[0] == '$')
         col = IDX_DOLLAR;
     else
-        col = ctx->ops.name_to_col_idx(ctx->ops.ctx, colname.text, colname.length);
+        col = sp_name_to_col_idx(ctx, hnd, colname.text, colname.length);
     if(sv->text[0] == ']'){
         sv->length--, sv->text++;
         Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
@@ -336,6 +337,7 @@ PARSEFUNC(parse_range){
 }
 static
 PARSEFUNC(parse_number){
+    (void)hnd;
     const char* begin = sv->text;
     const char* end = begin;
     while(sv->length){
@@ -367,7 +369,7 @@ PARSEFUNC(parse_group){
     (void)sv;
     assert(sv->length && sv->text[0] == '(');
     sv->text++, sv->length--;
-    Expression* e = parse_comparison(ctx, sv);
+    Expression* e = parse_comparison(ctx, hnd, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
     lstrip(sv);
     if(!sv->length || sv->text[0] != ')') return Error(ctx, "");
@@ -405,7 +407,7 @@ PARSEFUNC(parse_func_call){
         if(!sv->length) return Error(ctx, "");
         if(sv->text[0] == ')')
             break;
-        Expression* e = parse_comparison(ctx, sv);
+        Expression* e = parse_comparison(ctx, hnd, sv);
         if(!e || e->kind == EXPR_ERROR) return e;
         argv[argc] = e;
     }

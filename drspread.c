@@ -58,71 +58,74 @@
 //   (group)
 
 int
-drsp_evaluate_formulas(const SheetOps* ops){
+drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
     intptr_t row=-1, col=-1;
     int nerrs = 0;
     _Alignas(intptr_t) char buff[10000];
     intptr_t ncols = 1, nrows = 1;
-    if(ops->dims){
-        int err = ops->dims(ops->ctx, &ncols, &nrows);
-        (void)err;
-    }
     SpreadContext ctx = {
-        .ops=*ops,
+        ._ops=*ops,
         .a={buff, buff, buff+sizeof buff},
-        .cache={.ncols=ncols, .nrows=nrows},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
     };
+    if(ops->dims){
+        int err = sp_dims(&ctx, sheethandle, &ncols, &nrows);
+        (void)err;
+        ctx.cache.ncols = ncols;
+        ctx.cache.nrows = nrows;
+    }
     ctx.cache.vals = buff_alloc(&ctx.a, ncols*nrows*sizeof *ctx.cache.vals);
     if(!ctx.cache.vals) ctx.cache = (SpreadCache){0};
     for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
         ctx.cache.vals[i].kind = CACHE_UNSET;
     char* chk = ctx.a.cursor;
-    for(intptr_t i = 0; ctx.ops.next_cell(ctx.ops.ctx, i, &row, &col) == 0; i++){
-        Expression* e = evaluate(&ctx, row, col);
+    for(intptr_t i = 0; sp_next_cell(&ctx, sheethandle, i, &row, &col) == 0; i++){
+        Expression* e = evaluate(&ctx, sheethandle, row, col);
         ctx.a.cursor = chk;
         if(e){
             switch(e->kind){
                 case EXPR_NUMBER:
-                    ctx.ops.set_display_number(ctx.ops.ctx, row, col, ((Number*)e)->value);
+                    sp_set_display_number(&ctx, sheethandle, row, col, ((Number*)e)->value);
                     continue;
                 case EXPR_STRING:
-                    ctx.ops.set_display_string(ctx.ops.ctx, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                    sp_set_display_string(&ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
                     continue;
                 case EXPR_NULL:
-                    ctx.ops.set_display_string(ctx.ops.ctx, row, col, "", 0);
+                    sp_set_display_string(&ctx, sheethandle, row, col, "", 0);
                     continue;
                 default: break;
             }
         }
         nerrs++;
-        ctx.ops.set_display_error(ctx.ops.ctx, row, col, "error", 5);
+        sp_set_display_error(&ctx, sheethandle, row, col, "error", 5);
     }
     return nerrs;
 }
 
 int
-drsp_evaluate_string(const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval){
+drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval){
     _Alignas(intptr_t) char buff[4000];
     intptr_t ncols = 1, nrows = 1;
-    if(ops->dims){
-        int err = ops->dims(ops->ctx, &ncols, &nrows);
-        (void)err;
-    }
     SpreadContext ctx = {
-        .ops=*ops,
+        ._ops=*ops,
         .a={buff, buff, buff+sizeof buff},
         .cache={.ncols=ncols, .nrows=nrows},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
     };
+    if(ops->dims){
+        int err = sp_dims(&ctx, sheethandle, &ncols, &nrows);
+        (void)err;
+        ctx.cache.ncols = ncols;
+        ctx.cache.nrows = nrows;
+    }
     ctx.cache.vals = buff_alloc(&ctx.a, ncols*nrows*sizeof *ctx.cache.vals);
     if(!ctx.cache.vals) ctx.cache = (SpreadCache){0};
     for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
         ctx.cache.vals[i].kind = CACHE_UNSET;
     // printf("%zd\n", ctx.a.cursor - buff);
-    Expression* e = evaluate_string(&ctx, txt, len);
+    Expression* e = evaluate_string(&ctx, sheethandle, txt, len);
     if(!e) return 1;
     switch(e->kind){
         case EXPR_NULL:

@@ -13,7 +13,7 @@
 #endif
 static
 Expression*_Nullable
-parse(SpreadContext* ctx, const char* txt, size_t length);
+parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length);
 
 static
 CellKind

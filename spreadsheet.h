@@ -48,9 +48,10 @@ struct SpreadSheet {
 };
 
 static
-int next(void* ctx, intptr_t i, intptr_t* row, intptr_t* col){
+int next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
+    (void)m;
     (void)i;
-    SpreadSheet* sheet = ctx;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     intptr_t r = *row;
     intptr_t c = *col;
     if(r == -1){
@@ -68,8 +69,9 @@ int next(void* ctx, intptr_t i, intptr_t* row, intptr_t* col){
 }
 
 static
-const char* txt(void* ctx, intptr_t row, intptr_t col, size_t* len){
-    SpreadSheet* sheet = ctx;
+const char* txt(void*m, SheetHandle hnd, intptr_t row, intptr_t col, size_t* len){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows){
         *len = 0;
         return "";
@@ -86,8 +88,9 @@ const char* txt(void* ctx, intptr_t row, intptr_t col, size_t* len){
 
 static
 int
-display_number(void* ctx, intptr_t row, intptr_t col, double val){
-    SpreadSheet* sheet = ctx;
+display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows) return 1;
     struct Row* ro = &sheet->display[row];
     if(col < 0 || col >= ro->n) return 1;
@@ -99,8 +102,9 @@ display_number(void* ctx, intptr_t row, intptr_t col, double val){
 
 static
 int
-display_error(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t len){
-    SpreadSheet* sheet = ctx;
+display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows) return 1;
     struct Row* ro = &sheet->display[row];
     if(col < 0 || col >= ro->n) return 1;
@@ -111,8 +115,9 @@ display_error(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t le
 }
 static
 int
-display_string(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t len){
-    SpreadSheet* sheet = ctx;
+display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows) return 1;
     struct Row* ro = &sheet->display[row];
     if(col < 0 || col >= ro->n) return 1;
@@ -122,8 +127,9 @@ display_string(void* ctx, intptr_t row, intptr_t col, const char* mess, size_t l
 
 static
 intptr_t
-get_name_to_col_idx(void* ctx, const char* name, size_t length){
-    (void)ctx;
+get_name_to_col_idx(void*m, SheetHandle hnd, const char* name, size_t length){
+    (void)m;
+    (void)hnd;
     (void)length;
     assert(length);
     assert(name[0] >= 'a');
@@ -132,8 +138,9 @@ get_name_to_col_idx(void* ctx, const char* name, size_t length){
 
 static
 intptr_t
-get_row_width(void* ctx, intptr_t row){
-    SpreadSheet* sheet = ctx;
+get_row_width(void*m, SheetHandle hnd, intptr_t row){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows) return 0;
     struct Row* ro = &sheet->display[row];
     return ro->n;
@@ -141,16 +148,18 @@ get_row_width(void* ctx, intptr_t row){
 
 static
 intptr_t
-get_col_height(void* ctx, intptr_t col){
+get_col_height(void*m, SheetHandle hnd, intptr_t col){
+    (void)m;
     (void)col;
-    SpreadSheet* sheet = ctx;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     return sheet->rows;
 }
 
 static
 int
-get_dims(void* ctx, intptr_t* ncols, intptr_t* nrows){
-    SpreadSheet* sheet = ctx;
+get_dims(void*m, SheetHandle hnd, intptr_t* ncols, intptr_t* nrows){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     *ncols = sheet->maxcols;
     *nrows = sheet->rows;
     return 0;
@@ -158,9 +167,10 @@ get_dims(void* ctx, intptr_t* ncols, intptr_t* nrows){
 
 static
 double
-cell_number(void* ctx, intptr_t row, intptr_t col){
+cell_number(void*m, SheetHandle hnd, intptr_t row, intptr_t col){
+    (void)m;
     // printf("%s: row,col: %zd,%zd\n", __func__, row, col);
-    SpreadSheet* sheet = ctx;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows) return 0;
     struct Row* ro = &sheet->cells[row];
     if(col < 0 || col >= ro->n) return 0;
@@ -172,8 +182,9 @@ cell_number(void* ctx, intptr_t row, intptr_t col){
 
 static
 CellKind
-cell_kind(void* ctx, intptr_t row, intptr_t col){
-    SpreadSheet* sheet = ctx;
+cell_kind(void*m, SheetHandle hnd, intptr_t row, intptr_t col){
+    (void)m;
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(row < 0 || row >= sheet->rows) return CELL_EMPTY;
     struct Row* ro = &sheet->cells[row];
     if(col < 0 || col >= ro->n) return CELL_EMPTY;
