@@ -8,6 +8,9 @@
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
+#ifndef force_inline
+#define force_inline static inline __attribute__((always_inline))
+#endif
 
 typedef struct StringView StringView;
 struct StringView {
@@ -17,14 +20,14 @@ struct StringView {
 
 #define SV(x) ((StringView){sizeof(x)-1, x})
 
-static inline
+force_inline
 _Bool
 sv_equals(StringView a, StringView b){
     if(a.length != b.length) return 0;
     return memcmp(a.text, b.text, a.length) == 0;
 }
 
-static inline
+force_inline
 void
 lstrip(StringView* sv){
     while(sv->length){
@@ -41,7 +44,7 @@ lstrip(StringView* sv){
     }
 }
 
-static inline
+force_inline
 void
 rstrip(StringView* sv){
     while(sv->length){
@@ -57,7 +60,7 @@ rstrip(StringView* sv){
     }
 }
 
-static inline
+force_inline
 void
 lstripc(StringView* sv){
     while(sv->length){
@@ -75,7 +78,7 @@ lstripc(StringView* sv){
     }
 }
 
-static inline
+force_inline
 StringView
 stripped(StringView sv){
     lstrip(&sv);
@@ -83,7 +86,7 @@ stripped(StringView sv){
     return sv;
 }
 
-static inline
+force_inline
 StringView
 stripped2(const char* txt, size_t len){
     StringView sv = {len, txt};
