@@ -22,10 +22,12 @@ DRSP_INTERNAL
 CellKind
 classify_cell(const char* txt, size_t length){
     StringView s = {length, txt};
-    s = stripped(s);
     if(!s.length) return CELL_EMPTY;
-    if(s.text[0] == '=') return CELL_FORMULA;
-    if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
+    char first = s.text[0];
+    if(first == '=') return CELL_FORMULA;
+    if((first >= '0' && first <= '9') || first == '.' || first == '-'){
+        if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
+    }
     return CELL_OTHER;
 }
 
