@@ -1,6 +1,13 @@
 //
 // Copyright © 2023, David Priver
 //
+const enum CellKind {
+    CELL_EMPTY = 0, // Empty Cell
+    CELL_NUMBER = 1,
+    CELL_FORMULA = 2,
+    CELL_OTHER = 3,
+    CELL_UNKNOWN = 4,
+}
 declare let cells: Array<Array<string|number>>;
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let display:Array<Array<string>> = [
@@ -91,7 +98,7 @@ function dims(i:number):[number, number]{
 let table:HTMLTableElement;
 let raw:HTMLTableElement;
 let pre:HTMLPreElement;
-let ev_string:(_:number, s:string)=>number;
+let ev_string:(_:number, s:string)=>string|number;
 let ev_formulas:(_:number)=>void;
 let ex:WebAssembly.Exports;
 
@@ -226,7 +233,7 @@ function show():void{
 }
 declare function drspread(
     wasm_path:string,
-    sheet_cell_kind:(id:number, row:number, col:number)=>number,
+    sheet_query_cell_kind:(id:number, row:number, col:number)=>CellKind,
     sheet_cell_number:(id:number, row:number, col:number)=>number,
     sheet_cell_text_:(id:number, row:number, col:number) => string,
     sheet_col_height:(id:number, col:number)=>number,
@@ -237,9 +244,10 @@ declare function drspread(
     sheet_name_to_col_idx_:(id:number, s:string) => number,
     sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
     sheet_dims_:(id:number)=>[number, number],
+    sheet_name_to_sheet_:(id:number, s:string)=>number,
 ):Promise<{
-    evaluate_formulas: (id: number) => void; 
-    evaluate_string: (id: number, s: string) => number; 
+    evaluate_formulas: (id: number) => void;
+    evaluate_string: (id: number, s: string) => number|string;
     exports: WebAssembly.Exports;
 }>;
 
@@ -256,6 +264,7 @@ drspread(
     name_to_col_idx,
     next_cell,
     dims,
+    function(id:number, s:string){return 0;},
 ).then(({evaluate_formulas, evaluate_string, exports}) =>{
     ex = exports;
     ev_formulas = evaluate_formulas;

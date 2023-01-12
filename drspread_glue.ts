@@ -70,6 +70,7 @@ function readdouble(p:number):number{
 const imports = {
     env:{
         round: Math.round,
+        pow: Math.pow,
         sheet_query_cell_kind,
         sheet_cell_number,
         sheet_cell_text:function(id:number, row:number, col:number):number{
@@ -131,9 +132,9 @@ function evaluate_string(id:number, s:string):number|string{
     }
     const kind = read4(p);
     switch(kind){
-        case 0: return "";
-        case 1: return readdouble(p+8);
-        case 2: return wasm_string_to_js(p+12, read4(p+8));
+        case CellKind.CELL_EMPTY: return "";
+        case CellKind.CELL_NUMBER: return readdouble(p+8);
+        case CellKind.CELL_OTHER: return wasm_string_to_js(p+12, read4(p+8));
         default: return "error";
     }
     // reset_memory();

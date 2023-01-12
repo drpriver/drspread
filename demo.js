@@ -206,7 +206,7 @@ function show() {
         };
     }
 }
-drspread('/Bin/drspread.wasm', cell_kind, cell_number, cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims).then(({ evaluate_formulas, evaluate_string, exports }) => {
+drspread('/Bin/drspread.wasm', cell_kind, cell_number, cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims, function (id, s) { return 0; }).then(({ evaluate_formulas, evaluate_string, exports }) => {
     ex = exports;
     ev_formulas = evaluate_formulas;
     for (let i = 0; i < 1; i++) {

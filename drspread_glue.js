@@ -1,5 +1,5 @@
 "use strict";
-function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text_, sheet_col_height, sheet_row_width, sheet_set_display_number, sheet_set_display_string_, sheet_set_display_error, sheet_name_to_col_idx_, sheet_next_cell_, sheet_dims_) {
+function drspread(wasm_path, sheet_query_cell_kind, sheet_cell_number, sheet_cell_text_, sheet_col_height, sheet_row_width, sheet_set_display_number, sheet_set_display_string_, sheet_set_display_error, sheet_name_to_col_idx_, sheet_next_cell_, sheet_dims_, sheet_name_to_sheet_) {
     let winst;
     let exports;
     let malloc;
@@ -40,7 +40,8 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
     const imports = {
         env: {
             round: Math.round,
-            sheet_cell_kind,
+            pow: Math.pow,
+            sheet_query_cell_kind,
             sheet_cell_number,
             sheet_cell_text: function (id, row, col) {
                 return js_string_to_wasm(sheet_cell_text_(id, row, col));
@@ -75,6 +76,10 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
                 write4(pnrows, rows);
                 return 0;
             },
+            sheet_name_to_sheet: function (id, p, len) {
+                const s = wasm_string_to_js(p, len);
+                return sheet_name_to_sheet_(id, s);
+            },
         },
     };
     function evaluate_formulas(id) {
@@ -96,7 +101,7 @@ function drspread(wasm_path, sheet_cell_kind, sheet_cell_number, sheet_cell_text
         switch (kind) {
             case 0: return "";
             case 1: return readdouble(p + 8);
-            case 2: return wasm_string_to_js(p + 12, read4(p + 8));
+            case 3: return wasm_string_to_js(p + 12, read4(p + 8));
             default: return "error";
         }
     }
