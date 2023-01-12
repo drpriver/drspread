@@ -103,6 +103,7 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
 #define ROW(...) { \
     arrlen(((const char*[]){__VA_ARGS__})),  \
     ((const char*[]){__VA_ARGS__}), \
+    ((size_t[]){0}), \
 }
 
 

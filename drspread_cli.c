@@ -52,12 +52,10 @@ main(int argc, char** argv){
         }
     }
     else {
-        for(int i = 0; i < 1000; i++){
-            int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
-            (void)nerr;
-        }
-        return 0;
+        int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
         // printf("nerr: %d\n", nerr);
+        (void)nerr;
+        return 0;
         write_display(&sheet, stdout);
         GetInputCtx gi = {
             .prompt.text = "> ",

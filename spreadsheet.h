@@ -25,18 +25,31 @@
 #endif
 #endif
 
+#if !defined(likely) && !defined(unlikely)
+#if defined(__GNUC__) || defined(__clang__)
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+#else
+#define likely(x) (x)
+#define unlikely(x) (x)
+#endif
+#endif
+
 // This code is only intended for testing and the demo cli app.
 // So it leaks memory all over the place.
 
 struct Row {
     int n;
     const char*_Nonnull*_Nonnull data;
+    size_t* lengths;
 };
 
 static
 void row_push(struct Row* ro, const char* txt){
     ro->data = realloc(ro->data, ++ro->n*sizeof(txt));
     ro->data[ro->n-1] = txt;
+    ro->lengths = realloc(ro->lengths, ro->n*sizeof txt);
+    ro->lengths[ro->n-1] = strlen(txt);
 }
 
 typedef struct SpreadSheet SpreadSheet;
@@ -54,7 +67,7 @@ int next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     intptr_t r = *row;
     intptr_t c = *col;
-    if(r == -1){
+    if(unlikely(r == -1)){
         *row = 0;
         *col = 0;
         return 0;
@@ -62,7 +75,7 @@ int next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
     c++;
     const struct Row* ro = &sheet->cells[r];
     if(c >= ro->n) r++, c=0;
-    if(r >= sheet->rows) return 1;
+    if(unlikely(r >= sheet->rows)) return 1;
     *row = r;
     *col = c;
     return 0;
@@ -72,17 +85,17 @@ static
 const char* txt(void*m, SheetHandle hnd, intptr_t row, intptr_t col, size_t* len){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows){
+    if(unlikely(row < 0 || row >= sheet->rows)){
         *len = 0;
         return "";
     }
     const struct Row* ro = &sheet->cells[row];
-    if(col < 0 || col >= ro->n){
+    if(unlikely(col < 0 || col >= ro->n)){
         *len = 0;
         return "";
     }
     const char* t = ro->data[col];
-    *len = strlen(t);
+    *len = ro->lengths[col];
     return t;
 }
 
@@ -91,13 +104,17 @@ int
 display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows) return 1;
+    if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     struct Row* ro = &sheet->display[row];
-    if(col < 0 || col >= ro->n) return 1;
-    if((intptr_t)val == val){
-        return asprintf((char**)&ro->data[col], "%zd", (intptr_t)val) < 0;
-    }
-    return asprintf((char**)&ro->data[col], "%-.1f", val) < 0;
+    if(unlikely(col < 0 || col >= ro->n)) return 1;
+    int printed;
+    if((intptr_t)val == val)
+        printed = asprintf((char**)&ro->data[col], "%zd", (intptr_t)val) < 0;
+    else
+        printed = asprintf((char**)&ro->data[col], "%-.1f", val) < 0;
+    if(printed < 0) return 1;
+    ro->lengths[col] = printed;
+    return 0;
 }
 
 static
@@ -105,12 +122,13 @@ int
 display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows) return 1;
+    if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     struct Row* ro = &sheet->display[row];
-    if(col < 0 || col >= ro->n) return 1;
+    if(unlikely(col < 0 || col >= ro->n)) return 1;
     (void)mess;
     (void)len;
     ro->data[col] = "error";
+    ro->lengths[col] = 5;
     return 0;
 }
 static
@@ -118,10 +136,12 @@ int
 display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows) return 1;
+    if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     struct Row* ro = &sheet->display[row];
-    if(col < 0 || col >= ro->n) return 1;
-    asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
+    if(unlikely(col < 0 || col >= ro->n)) return 1;
+    int printed = asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
+    if(printed < 0) return 1;
+    ro->lengths[col] = printed;
     return 0;
 }
 
@@ -141,7 +161,7 @@ intptr_t
 get_row_width(void*m, SheetHandle hnd, intptr_t row){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(row < 0 || row >= sheet->rows) return 0;
+    if(unlikely(row < 0 || row >= sheet->rows)) return 0;
     struct Row* ro = &sheet->display[row];
     return ro->n;
 }
@@ -236,7 +256,7 @@ write_display(SpreadSheet* sheet, FILE* out){
         const struct Row* ro = &sheet->display[row];
         if(ro->n > C) C = ro->n;
         for(int i = 0; i < ro->n && i < 12; i++){
-            int len = strlen(ro->data[i]);
+            int len = ro->lengths[i];
             if(lens[i] < len) lens[i] = len;
         }
     }

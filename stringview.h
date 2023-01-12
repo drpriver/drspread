@@ -33,8 +33,8 @@ lstrip(StringView* sv){
     while(sv->length){
         switch(sv->text[0]){
             case ' ':
-            case '\n':
-            case '\t':
+            // case '\n':
+            // case '\t':
                 sv->length--;
                 sv->text++;
                 continue;
@@ -50,8 +50,8 @@ rstrip(StringView* sv){
     while(sv->length){
         switch(sv->text[sv->length-1]){
             case ' ':
-            case '\n':
-            case '\t':
+            // case '\n':
+            // case '\t':
                 sv->length--;
                 continue;
             default:
@@ -66,8 +66,8 @@ lstripc(StringView* sv){
     while(sv->length){
         switch(sv->text[0]){
             case ' ':
-            case '\n':
-            case '\t':
+            // case '\n':
+            // case '\t':
             case ',':
                 sv->length--;
                 sv->text++;

@@ -20,13 +20,12 @@
 
 DRSP_INTERNAL
 CellKind
-classify_cell(const char* txt, size_t length){
-    StringView s = {length, txt};
-    if(!s.length) return CELL_EMPTY;
-    char first = s.text[0];
+classify_cell(const char* text, size_t length){
+    if(!length) return CELL_EMPTY;
+    char first = text[0];
     if(first == '=') return CELL_FORMULA;
     if((first >= '0' && first <= '9') || first == '.' || first == '-'){
-        if(!parse_double(s.text, s.length).errored) return CELL_NUMBER;
+        if(!parse_double(text, length).errored) return CELL_NUMBER;
     }
     return CELL_OTHER;
 }
@@ -249,6 +248,7 @@ PARSEFUNC(parse_string){
     const char* end = sv->text;
     if(!sv->length) return Error(ctx, "");
     String* s = expr_alloc(ctx, EXPR_STRING);
+    if(!s) return NULL;
     s->sv.text = begin;
     s->sv.length = end - begin;
     sv->length--, sv->text++;
