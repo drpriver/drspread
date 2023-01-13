@@ -28,6 +28,13 @@ sv_equals(StringView a, StringView b){
 }
 
 force_inline
+_Bool
+sv_equals2(StringView a, const char* txt, size_t len){
+    if(a.length != len) return 0;
+    return memcmp(a.text, txt, len) == 0;
+}
+
+force_inline
 void
 lstrip(StringView* sv){
     while(sv->length){

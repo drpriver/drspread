@@ -19,6 +19,23 @@ struct BuffAllocator {
     char* const end;
 };
 
+typedef struct BuffCheckpoint BuffCheckpoint;
+struct BuffCheckpoint {
+    char* const ptr;
+};
+
+static inline
+BuffCheckpoint
+buff_checkpoint(const BuffAllocator* b){
+    return (BuffCheckpoint){b->cursor};
+}
+
+static inline
+void
+buff_set(BuffAllocator* b, BuffCheckpoint c){
+    b->cursor = c.ptr;
+}
+
 
 static inline
 __attribute__((__malloc__))

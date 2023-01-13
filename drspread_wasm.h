@@ -15,6 +15,6 @@ IMPORT void sheet_set_display_error(SheetHandle, intptr_t, intptr_t);
 IMPORT intptr_t sheet_name_to_col_idx(SheetHandle, const char*, size_t);
 IMPORT intptr_t sheet_next_cell(SheetHandle, intptr_t, intptr_t*, intptr_t*);
 IMPORT intptr_t sheet_dims(SheetHandle, intptr_t*, intptr_t*);
-IMPORT intptr_t sheet_name_to_sheet(const char*, size_t);
+IMPORT SheetHandle sheet_name_to_sheet(const char*, size_t);
 #pragma clang assume_nonnull end
 #endif

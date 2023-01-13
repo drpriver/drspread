@@ -185,6 +185,8 @@ static const StringView ArgTypeNames[] = {
     SV("USER DEFINED THIS IS A BUG"),
 };
 
+#undef ARGS
+
 // Type Generic macro allows us to turn a type into an enum.
 #define ARGTYPE(_x) _Generic(_x, \
         int64_t: ARG_INTEGER64, \

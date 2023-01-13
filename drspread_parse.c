@@ -51,10 +51,17 @@ parse(SpreadContext* ctx, const char* txt, size_t length){
         sv.text++, sv.length--;
     lstrip(&sv);
     // printf("'%s'\n", sv.text);
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* root = parse_comparison(ctx, &sv);
-    if(!root || root->kind == EXPR_ERROR) return root;
+    if(!root || root->kind == EXPR_ERROR) {
+        buff_set(&ctx->a, bc);
+        return root;
+    }
     lstrip(&sv);
-    if(sv.length != 0) return Error(ctx, "");
+    if(sv.length != 0) {
+        buff_set(&ctx->a, bc);
+        return Error(ctx, "");
+    }
     return root;
 }
 

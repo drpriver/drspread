@@ -66,45 +66,41 @@
 //   'string', "string"
 //   (group)
 
+// This sucks, but not many languages have any way of abstracting over arity at all.
 #ifdef __wasm__
-DRSP_EXPORT
-int
-drsp_evaluate_formulas(SheetHandle sheethandle){
+#define ARGS SheetHandle sheethandle
 #else
+#define ARGS SheetHandle sheethandle, const SheetOps* ops
+#endif
+
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
-#endif
+drsp_evaluate_formulas(ARGS){
+#undef ARGS
     intptr_t row=-1, col=-1;
     int nerrs = 0;
-    _Alignas(intptr_t) char buff[10000];
-    intptr_t ncols = 1, nrows = 1;
+    _Alignas(intptr_t) char evalbuff [10000];
     SpreadContext ctx = {
-#ifndef __wasm__
-        ._ops=*ops,
-#endif
-        .a={buff, buff, buff+sizeof buff},
+        #ifndef __wasm__
+            ._ops=*ops,
+        #endif
+        .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
     };
-#ifdef __wasm__
-    if(1){
-#else
-    if(ops->dims){
-#endif
-        int err = sp_dims(&ctx, sheethandle, &ncols, &nrows);
-        (void)err;
-        ctx.cache.ncols = ncols;
-        ctx.cache.nrows = nrows;
-    }
-    ctx.cache.vals = buff_alloc(&ctx.a, ncols*nrows*sizeof *ctx.cache.vals);
-    if(!ctx.cache.vals) ctx.cache = (SpreadCache){0};
-    for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
-        ctx.cache.vals[i].kind = CACHE_UNSET;
-    char* chk = ctx.a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx.a);
     for(intptr_t i = 0; sp_next_cell(&ctx, sheethandle, i, &row, &col) == 0; i++){
+        buff_set(&ctx.a, bc);
         Expression* e = evaluate(&ctx, sheethandle, row, col);
-        ctx.a.cursor = chk;
+        #if !defined(__wasm__) && !defined(TESTING_H)
+        if(0)
+        #else
+        if(0)
+        #endif
+        for(int i = 0; i < 10000; i++){
+            buff_set(&ctx.a, bc);
+            e = evaluate(&ctx, sheethandle, row, col);
+        }
         if(e){
             switch(e->kind){
                 case EXPR_NUMBER:
@@ -122,46 +118,33 @@ drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops){
         nerrs++;
         sp_set_display_error(&ctx, sheethandle, row, col, "error", 5);
     }
+    free_caches(&ctx);
     return nerrs;
 }
-
+// Again, this sucks.
+// Don't need the SheetOps* arg and as this is an export the
+// number of parameters matters.
 #ifdef __wasm__
-DRSP_EXPORT
-int
-drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval){
+#define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval
 #else
+#define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval
+#endif
 
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval){
-#endif
-    _Alignas(intptr_t) char buff[4000];
-    intptr_t ncols = 1, nrows = 1;
+drsp_evaluate_string(ARGS){
+#undef ARGS
+    _Alignas(intptr_t) char evalbuff [10000];
     SpreadContext ctx = {
 #ifndef __wasm__
         ._ops=*ops,
 #endif
-        .a={buff, buff, buff+sizeof buff},
-        .cache={.ncols=ncols, .nrows=nrows},
+        .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
     };
-#ifdef __wasm__
-    if(1){
-#else
-    if(ops->dims){
-#endif
-        int err = sp_dims(&ctx, sheethandle, &ncols, &nrows);
-        (void)err;
-        ctx.cache.ncols = ncols;
-        ctx.cache.nrows = nrows;
-    }
-    ctx.cache.vals = buff_alloc(&ctx.a, ncols*nrows*sizeof *ctx.cache.vals);
-    if(!ctx.cache.vals) ctx.cache = (SpreadCache){0};
-    for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
-        ctx.cache.vals[i].kind = CACHE_UNSET;
-    // printf("%zd\n", ctx.a.cursor - buff);
     Expression* e = evaluate_string(&ctx, sheethandle, txt, len, -1, -1);
+    free_caches(&ctx);
     if(!e) return 1;
     switch(e->kind){
         case EXPR_NULL:

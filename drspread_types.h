@@ -3,9 +3,12 @@
 //
 #ifndef DRSPREAD_TYPES_H
 #define DRSPREAD_TYPES_H
+#include <assert.h>
+#include <stdlib.h>
 #include "drspread.h"
 #include "buff_allocator.h"
 #include "stringview.h"
+#include "hash_func.h"
 
 #ifdef __wasm__
 #include "drspread_wasm.h"
@@ -13,6 +16,20 @@
 
 #ifndef force_inline
 #define force_inline static inline __attribute__((always_inline))
+#endif
+
+#if !defined(likely) && !defined(unlikely)
+#if defined(__GNUC__) || defined(__clang__)
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+#else
+#define likely(x) (x)
+#define unlikely(x) (x)
+#endif
+#endif
+
+#ifndef arrlen
+#define arrlen(arr) (sizeof(arr)/sizeof((arr)[0]))
 #endif
 
 #ifndef DRSP_INTERNAL
@@ -28,13 +45,7 @@
 #endif
 
 
-typedef struct CacheVal CacheVal;
-
-typedef struct SpreadCache SpreadCache;
-struct SpreadCache {
-    intptr_t ncols, nrows;
-    CacheVal* vals;
-};
+typedef struct SpreadContext SpreadContext;
 
 enum ExpressionKind: intptr_t {
     EXPR_ERROR = 0,
@@ -48,10 +59,6 @@ enum ExpressionKind: intptr_t {
     EXPR_STRING,
     EXPR_NULL,
 };
-enum : intptr_t{
-    CACHE_UNSET=EXPR_NULL+1,
-    CACHE_IN_PROGRESS,
-};
 typedef enum ExpressionKind ExpressionKind;
 
 typedef struct Expression Expression;
@@ -59,16 +66,6 @@ struct Expression {
     _Alignas(intptr_t) ExpressionKind kind;
 };
 
-typedef struct SpreadContext SpreadContext;
-struct SpreadContext {
-#ifndef __wasm__
-    const SheetOps _ops; // don't call these directly
-#endif
-    BuffAllocator a;
-    SpreadCache cache;
-    Expression null;
-    Expression error;
-};
 
 
 enum BinaryKind: intptr_t {
@@ -149,6 +146,209 @@ struct String {
     StringView sv;
 };
 
+typedef struct SheetCache SheetCache;
+struct SheetCache {
+    struct {
+        StringView s;
+        SheetHandle sheet;
+    } items[8];
+};
+
+typedef struct StringCache StringCache;
+struct StringCache {
+    SheetHandle handle;
+    size_t n;
+    size_t cap;
+    unsigned char* data;
+};
+
+typedef struct ColCache ColCache;
+struct ColCache {
+    SheetHandle handle;
+    size_t n;
+    size_t cap;
+    unsigned char* data;
+};
+
+typedef struct RowCol RowCol;
+struct RowCol {
+    intptr_t row, col;
+};
+
+typedef struct RowColSv RowColSv;
+struct RowColSv {
+    RowCol rc;
+    StringView sv;
+};
+
+__attribute__((no_sanitize("nullability")))
+static inline
+StringView*_Nullable
+get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
+#if 1 && !defined(__wasm__)
+    // In native code the string accessors actually get inlined so this is
+    // unnecessary.
+    //
+    // Also we don't free in native code, but in wasm we wipe the memory
+    // anyway.
+    return NULL;
+#endif
+    if(cache->n*2 >= cache->cap){
+        size_t old_cap = cache->cap;
+        size_t new_cap = old_cap?old_cap*2:128;
+        #ifdef __wasm__
+            unsigned char* new_data = sane_realloc(cache->data, old_cap*(4*sizeof(intptr_t)+sizeof(uint32_t)), new_cap*(4*sizeof(intptr_t)+sizeof(uint32_t)));
+        #else
+            unsigned char* new_data = realloc(cache->data, new_cap*(4*sizeof(intptr_t)+sizeof(uint32_t)));
+        #endif
+        if(!new_data) return NULL;
+        cache->data = new_data;
+        cache->cap = new_cap;
+        uint32_t* indexes = (uint32_t*)(new_data + 4*sizeof(intptr_t)*new_cap);
+        memset(indexes, 0xff, sizeof(*indexes)*new_cap);
+        RowColSv *items = (RowColSv*)new_data;
+        for(size_t i = 0; i < cache->n; i++){
+            RowCol k = items[i].rc;
+            uint32_t hash = hash_alignany(&k, sizeof k);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
+            while(indexes[idx] != UINT32_MAX){
+                idx++;
+                if(unlikely(idx >= new_cap)) idx = 0;
+            }
+            indexes[idx] = i;
+        }
+    }
+    size_t cap = cache->cap;
+    RowCol key = {row, col};
+    uint32_t hash = hash_alignany(&key, sizeof key);
+    RowColSv *items = (RowColSv*)cache->data;
+    uint32_t* indexes = (uint32_t*)(cache->data + 4*sizeof(intptr_t)*cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    for(;;){
+        uint32_t i = indexes[idx];
+        if(i == UINT32_MAX){ // empty slot
+            indexes[idx] = cache->n;
+            items[cache->n] = (RowColSv){key, {0}};
+            StringView* result = &items[cache->n].sv;
+            cache->n++;
+            return result;
+        }
+        if(items[i].rc.row == row && items[i].rc.col == col){
+            return &items[i].sv;
+        }
+        idx++;
+        if(unlikely(idx >= cap)) idx = 0;
+    }
+}
+
+
+static inline
+SheetHandle _Nullable*_Nullable
+get_cached_sheet(SheetCache* cache, const char* name, size_t len){
+#if 0 && !defined(__wasm__)
+    return NULL;
+#endif
+    if(!len) return NULL;
+    for(size_t i = 0; i < arrlen(cache->items); i++){
+        if(!cache->items[i].s.length){
+            cache->items[i].s.text = name;
+            cache->items[i].s.length = len;
+            return &cache->items[i].sheet;
+        }
+        if(cache->items[i].s.length != len) continue;
+        if(sv_equals2(cache->items[i].s, name, len))
+            return &cache->items[i].sheet;
+    }
+    return NULL;
+}
+
+typedef struct ColName ColName;
+struct ColName {
+    StringView name;
+    intptr_t idx;
+};
+
+static inline
+intptr_t*_Nullable
+get_cached_col_name(ColCache* cache, const char* name, size_t len){
+#if 0 && !defined(__wasm__)
+    return NULL;
+#endif
+    if(cache->n*2 >= cache->cap){
+        size_t old_cap = cache->cap;
+        size_t new_cap = old_cap?old_cap*2:128;
+        #ifdef __wasm__
+            unsigned char* new_data = sane_realloc(cache->data, old_cap*(3*sizeof(intptr_t)+sizeof(uint32_t)), new_cap*(3*sizeof(intptr_t)+sizeof(uint32_t)));
+        #else
+            unsigned char* new_data = realloc(cache->data, new_cap*(3*sizeof(intptr_t)+sizeof(uint32_t)));
+        #endif
+        if(!new_data) return NULL;
+        cache->data = new_data;
+        cache->cap = new_cap;
+        uint32_t* indexes = (uint32_t*)(new_data + 3*sizeof(intptr_t)*new_cap);
+        memset(indexes, 0xff, sizeof(*indexes)*new_cap);
+        ColName *items = (ColName*)new_data;
+        for(size_t i = 0; i < cache->n; i++){
+            StringView k = items[i].name;
+            uint32_t hash = hash_align1(k.text, k.length);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
+            while(indexes[idx] != UINT32_MAX){
+                idx++;
+                if(unlikely(idx >= new_cap)) idx = 0;
+            }
+            indexes[idx] = i;
+        }
+    }
+    size_t cap = cache->cap;
+    StringView key = {len, name};
+    uint32_t hash = hash_alignany(key.text, key.length);
+    ColName *items = (ColName*)cache->data;
+    uint32_t* indexes = (uint32_t*)(cache->data + 3*sizeof(intptr_t)*cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    for(;;){
+        uint32_t i = indexes[idx];
+        if(i == UINT32_MAX){ // empty slot
+            indexes[idx] = cache->n;
+            items[cache->n] = (ColName){key, -1};
+            intptr_t* result = &items[cache->n].idx;
+            cache->n++;
+            return result;
+        }
+        if(sv_equals(items[i].name, key)){
+            return &items[i].idx;
+        }
+        idx++;
+        if(unlikely(idx >= cap)) idx = 0;
+    }
+}
+
+
+
+struct SpreadContext {
+#ifndef __wasm__
+    const SheetOps _ops; // don't call these directly
+#endif
+    StringCache scache[4];
+    ColCache colcache[4];
+    SheetCache sheetcache;
+    BuffAllocator a;
+    Expression null;
+    Expression error;
+};
+
+static inline
+void
+free_caches(SpreadContext* ctx){
+    for(size_t i = 0; i < arrlen(ctx->scache); i++){
+        StringCache* cache = &ctx->scache[i];
+        free(cache->data);
+    }
+    for(size_t i = 0; i < arrlen(ctx->colcache); i++){
+        ColCache* cache = &ctx->colcache[i];
+        free(cache->data);
+    }
+}
+
 static inline
 void*_Nullable
 expr_alloc(SpreadContext* ctx, ExpressionKind kind){
@@ -192,23 +392,6 @@ struct FuncInfo {
     FormulaFunc* func;
 };
 
-struct CacheVal {
-    union {
-        intptr_t kind;
-        Expression e;
-        Number n;
-        String s;
-    };
-};
-static inline
-CacheVal*_Nullable
-get_cached_val(const SpreadCache* cache, SheetHandle hnd, intptr_t row, intptr_t col){
-    (void)hnd;
-    return NULL;
-    if(row < 0 || col < 0 || col >= cache->ncols || row >= cache->nrows) return NULL;
-    intptr_t idx = col*cache->nrows + row;
-    return &cache->vals[idx];
-}
 
 #ifdef __wasm__
 #define SP_ARGS SheetHandle sheet
@@ -220,14 +403,35 @@ get_cached_val(const SpreadCache* cache, SheetHandle hnd, intptr_t row, intptr_t
 
 force_inline
 const char*_Nullable
-sp_cell_text(SP_ARGS, intptr_t row, intptr_t col, size_t* len){
+sp_cell_text(SpreadContext* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
+    StringCache* cache = NULL;
+    for(size_t i = 0; i < arrlen(ctx->scache); i++){
+        if(ctx->scache[i].handle == sheet){
+            cache = &ctx->scache[i];
+            break;
+        }
+    }
+    StringView* cached = cache?get_cached_string(cache, row, col):NULL;
+    if(cached && cached->text){
+        *len = cached->length;
+        return cached->text;
+    }
+    size_t l;
+    const char* s;
     #ifdef __wasm__
         PString* p = sheet_cell_text(sheet, row, col);
-        *len = p->length;
-        return (char*)p->text;
+        l = p->length;
+        s = (char*)p->text;
     #else
-        return SP_CALL(cell_txt, row, col, len);
+        s = SP_CALL(cell_txt, row, col, &l);
     #endif
+    if(cached){
+        cached->length = l;
+        if(!s) cached->text = (char*)1;
+        else cached->text = s;
+    }
+    *len = l;
+    return s;
 }
 
 force_inline
@@ -290,28 +494,40 @@ sp_next_cell(SP_ARGS, intptr_t nth, intptr_t* row, intptr_t* col){
 }
 force_inline
 intptr_t
-sp_name_to_col_idx(SP_ARGS, const char* name, size_t len){
-    return SP_CALL(name_to_col_idx, name, len);
+sp_name_to_col_idx(SpreadContext* ctx, SheetHandle sheet, const char* name, size_t len){
+    ColCache* cache = NULL;
+    for(size_t i = 0; i < arrlen(ctx->colcache); i++){
+        if(ctx->colcache[i].handle == sheet){
+            cache = &ctx->colcache[i];
+            break;
+        }
+    }
+    intptr_t* pidx = cache?get_cached_col_name(cache, name, len):NULL;
+    if(pidx && *pidx != -1) return *pidx;
+    intptr_t idx = SP_CALL(name_to_col_idx, name, len);
+    if(pidx) *pidx = idx;
+    return idx;
 }
 
-#ifdef __wasm
 force_inline
-void*_Nullable
-sp_name_to_sheet_(const char* name, size_t len){
-    return (void*)sheet_name_to_sheet(name, len);
+SheetHandle _Nullable
+sp_name_to_sheet(SpreadContext* ctx, const char* name, size_t len){
+    SheetCache* cache = &ctx->sheetcache;
+    SheetHandle* h = get_cached_sheet(cache, name, len);
+    if(h && *h) return *h;
+    SheetHandle hnd;
+    #ifdef __wasm__
+        hnd = sheet_name_to_sheet(name, len);
+    #else
+        hnd = ctx->_ops.name_to_sheet(ctx->_ops.ctx, name, len);
+    #endif
+    if(h) *h = hnd;
+    return hnd;
 }
-#else
-force_inline
-void*_Nullable
-sp_name_to_sheet(const SpreadContext* ctx, const char* name, size_t len){
-    return ctx->_ops.name_to_sheet(ctx->_ops.ctx, name, len);
-}
-#endif
 
 #ifdef __wasm__
 // alias these so the ctx is unused.
 #define sp_query_cell_number(ctx, ...) ((void)ctx, sp_query_cell_number(__VA_ARGS__))
-#define sp_cell_text(ctx, ...) ((void)ctx, sp_cell_text(__VA_ARGS__))
 #define sp_col_height(ctx, ...) ((void)ctx, sp_col_height(__VA_ARGS__))
 #define sp_row_width(ctx, ...) ((void)ctx, sp_row_width(__VA_ARGS__))
 #define sp_dims(ctx, ...) ((void)ctx, sp_dims(__VA_ARGS__))
@@ -319,11 +535,7 @@ sp_name_to_sheet(const SpreadContext* ctx, const char* name, size_t len){
 #define sp_set_display_error(ctx, ...) ((void)ctx, sp_set_display_error(__VA_ARGS__))
 #define sp_set_display_string(ctx, ...) ((void)ctx, sp_set_display_string(__VA_ARGS__))
 #define sp_next_cell(ctx, ...) ((void)ctx, sp_next_cell(__VA_ARGS__))
-#define sp_name_to_col_idx(ctx, ...) ((void)ctx, sp_name_to_col_idx(__VA_ARGS__))
-#define sp_name_to_sheet(ctx, name, len) ((void)ctx, sp_name_to_sheet_(name, len))
 #endif
-
-
 
 
 #ifdef __clang__

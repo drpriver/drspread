@@ -13,24 +13,6 @@
 DRSP_INTERNAL
 Expression*_Nullable
 evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
-    CacheVal* cached = get_cached_val(&ctx->cache, hnd, row, col);
-    if(cached){
-        if(cached->kind == CACHE_IN_PROGRESS)
-            return Error(ctx, "");
-        if(cached->kind == EXPR_STRING){
-            return &cached->e;
-        }
-        if(cached->kind == EXPR_NUMBER){
-            return &cached->e;
-        }
-        if(cached->kind == EXPR_ERROR){
-            return &cached->e;
-        }
-        if(cached->kind == EXPR_NULL){
-            return &cached->e;
-        }
-        cached->kind = CACHE_IN_PROGRESS;
-    }
     // printf("Evaluate %zd, %zd\n", row, col);
     CellKind kind;
     size_t len = 0;
@@ -39,17 +21,8 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
     kind = classify_cell(stxt.text, stxt.length);
     switch(kind){
         case CELL_EMPTY:
-            if(cached){
-                cached->kind = EXPR_NULL;
-                return &cached->e;
-            }
             return expr_alloc(ctx, EXPR_NULL);
         case CELL_OTHER:{
-            if(cached){
-                cached->e.kind = EXPR_STRING;
-                cached->s.sv = stxt;
-                return &cached->e;
-            }
             String* s = expr_alloc(ctx, EXPR_STRING);
             if(!s) return NULL;
             s->sv = stxt;
@@ -59,11 +32,6 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
             DoubleResult dr = parse_double(stxt.text, stxt.length);
             assert(!dr.errored);
             double value = dr.result;
-            if(cached){
-                cached->n.e.kind = EXPR_NUMBER;
-                cached->n.value = value;
-                return &cached->e;
-            }
             Number* n = expr_alloc(ctx, EXPR_NUMBER);
             if(!n) return NULL;
             n->value = value;
@@ -76,34 +44,10 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
                 ctx->a.cursor = chk;
             if(!root) return NULL;
             if(root->kind == EXPR_ERROR) {
-                if(cached){
-                    cached->kind = EXPR_ERROR;
-                    return &cached->e;
-                }
                 return root;
             }
             Expression *e = evaluate_expr(ctx, hnd, root, row, col);
             if(!e) return e;
-            if(cached){
-                if(e->kind == EXPR_NUMBER){
-                    cached->kind = EXPR_NUMBER;
-                    cached->n = *(Number*)e;
-                    return &cached->e;
-                }
-                else if(e->kind == EXPR_STRING){
-                    cached->kind = EXPR_STRING;
-                    cached->s = *(String*)e;
-                    return &cached->e;
-                }
-                else if(e->kind == EXPR_NULL){
-                    cached->kind = EXPR_NULL;
-                    return &cached->e;
-                }
-                else{
-                    cached->kind = EXPR_ERROR;
-                    return &cached->e;
-                }
-            }
             return e;
         }
         case CELL_UNKNOWN:

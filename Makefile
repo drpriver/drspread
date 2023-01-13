@@ -27,7 +27,7 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes
 
 Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -fsanitize=address,undefined,nullability
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -fsanitize=address,undefined,nullability -g
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@
