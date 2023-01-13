@@ -52,7 +52,9 @@ enum ExpressionKind: intptr_t {
     EXPR_NUMBER,
     EXPR_FUNCTION_CALL,
     EXPR_RANGE0D,
+    EXPR_RANGE0D_FOREIGN,
     EXPR_RANGE1D_COLUMN,
+    EXPR_RANGE1D_COLUMN_FOREIGN,
     EXPR_GROUP,
     EXPR_BINARY,
     EXPR_UNARY,
@@ -105,7 +107,9 @@ struct FunctionCall {
     Expression*_Nonnull*_Nonnull argv;
 };
 
-enum {IDX_DOLLAR=-2147483647-1}; // INT32_MIN
+enum {IDX_DOLLAR=-2147483647}; // INT32_MIN+1
+enum {IDX_UNSET=-2147483647-1}; // INT32_MIN
+
 
 typedef struct Range0D Range0D;
 struct Range0D {
@@ -114,11 +118,29 @@ struct Range0D {
     intptr_t row;
 };
 
+typedef struct ForeignRange0D ForeignRange0D;
+struct ForeignRange0D {
+    union {
+        Expression e;
+        Range0D r;
+    };
+    StringView sheet_name;
+};
+
 typedef struct Range1DColumn Range1DColumn;
 struct Range1DColumn {
     Expression e;
     StringView col_name;
     intptr_t row_start, row_end; // inclusive
+};
+
+typedef struct ForeignRange1DColumn ForeignRange1DColumn;
+struct ForeignRange1DColumn {
+    union {
+        Range1DColumn r;
+        Expression e;
+    };
+    StringView sheet_name;
 };
 
 typedef struct Binary Binary;
@@ -357,14 +379,18 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
         case EXPR_ERROR:
             return &ctx->error;
             break;
-        case EXPR_NUMBER:         sz = sizeof(Number); break;
-        case EXPR_FUNCTION_CALL:  sz = sizeof(FunctionCall); break;
-        case EXPR_RANGE0D:        sz = sizeof(Range0D); break;
-        case EXPR_RANGE1D_COLUMN: sz = sizeof(Range1DColumn); break;
-        case EXPR_GROUP:          sz = sizeof(Group); break;
-        case EXPR_BINARY:         sz = sizeof(Binary); break;
-        case EXPR_UNARY:          sz = sizeof(Unary); break;
-        case EXPR_STRING:         sz = sizeof(String); break;
+        case EXPR_NUMBER:          sz = sizeof(Number); break;
+        case EXPR_FUNCTION_CALL:   sz = sizeof(FunctionCall); break;
+        case EXPR_RANGE0D_FOREIGN: sz = sizeof(ForeignRange0D); break;
+        case EXPR_RANGE0D:         sz = sizeof(Range0D); break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
+            sz = sizeof(ForeignRange1DColumn);
+            break;
+        case EXPR_RANGE1D_COLUMN:  sz = sizeof(Range1DColumn); break;
+        case EXPR_GROUP:           sz = sizeof(Group); break;
+        case EXPR_BINARY:          sz = sizeof(Binary); break;
+        case EXPR_UNARY:           sz = sizeof(Unary); break;
+        case EXPR_STRING:          sz = sizeof(String); break;
         case EXPR_NULL:
             return &ctx->null;
             break;

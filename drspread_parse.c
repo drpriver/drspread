@@ -261,87 +261,156 @@ PARSEFUNC(parse_string){
     return &s->e;
 }
 
+static inline
+StringView
+parse_possibly_bare_string(StringView* sv){
+    if(!sv->length)
+        return (StringView){0};
+    char terminator = sv->text[0];
+    if(terminator == '\'' || terminator == '"'){
+        // quoted string
+        sv->text++; sv->length--;
+        const char* begin = sv->text;
+        while(sv->length && sv->text[0] != terminator){
+            sv->length--, sv->text++;
+        }
+        if(!sv->length) return (StringView){0};
+        const char* end = sv->text;
+        sv->length--, sv->text++;
+        return (StringView){end-begin, begin};
+    }
+    switch(sv->text[0]){
+        case '-':
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
+        case ':': case '$':
+            return (StringView){0};
+        default: break;
+    }
+    // bare string
+    const char* begin = sv->text;
+    while(sv->length && sv->text[0] != ' ' && sv->text[0] != ',' && sv->text[0] != ']'){
+        sv->length--, sv->text++;
+    }
+    if(!sv->length) return (StringView){0};
+    const char* end = sv->text;
+    return (StringView){end-begin, begin};
+}
+
+static inline
+intptr_t
+maybe_parse_number(StringView* sv){
+    if(!sv->length) return IDX_UNSET;
+    switch(sv->text[0]){
+        case '-':
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
+        case '$':
+            break;
+        default:
+            return IDX_UNSET;
+    }
+    const char* begin = sv->text;
+    while(sv->length && sv->text[0] != ' ' && sv->text[0] != ',' && sv->text[0] != ']' && sv->text[0] != ':'){
+        sv->length--, sv->text++;
+    }
+    if(!sv->length)
+        return IDX_UNSET;
+    const char* end = sv->text;
+    if(end - begin == 1 && *begin == '$')
+        return IDX_DOLLAR;
+    Int32Result ir = parse_int32(begin, end-begin);
+    if(ir.errored) return IDX_UNSET;
+    return ir.result;
+}
+
+
 DRSP_INTERNAL
 PARSEFUNC(parse_range){
     assert(sv->length && sv->text[0] == '[');
-    intptr_t row0, row1;
     sv->length--, sv->text++;
+    StringView sheetname = {0};
+    StringView colname = {0};
+    intptr_t row0 = IDX_UNSET, row1 = IDX_UNSET;
     lstrip(sv);
     if(!sv->length) return Error(ctx, "");
-    const char* begin = sv->text;
-    const char* end = begin;
-    while(sv->length && sv->text[0] != ',' && sv->text[0] != ']'){
-        end++, sv->length--, sv->text++;
+    sheetname = parse_possibly_bare_string(sv);
+    lstripc(sv);
+    colname = parse_possibly_bare_string(sv);
+    if(!colname.length){
+        colname = sheetname;
+        sheetname = (StringView){0};
     }
-    if(!sv->length) return Error(ctx, "");
-    StringView colname = stripped2(begin, end-begin);
     if(!colname.length) return Error(ctx, "");
-    if(sv->text[0] == ']'){
+
+    lstripc(sv);
+    if(sv->length && sv->text[0] == ':'){
+        row0 = 1;
+    }
+    else {
+        row0 = maybe_parse_number(sv);
+        lstrip(sv);
+    }
+    if(sv->length && sv->text[0] == ':'){
         sv->length--, sv->text++;
-        Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
-        if(!r) return NULL;
-        r->col_name = colname;
-        r->row_start = 0;
-        r->row_end = -1;
-        return &r->e;
+        lstrip(sv);
+        row1 = maybe_parse_number(sv);
+        lstrip(sv);
+        if(row1 == IDX_UNSET)
+            row1 = -1;
     }
+    if(!sv->length || sv->text[0] != ']')
+        return Error(ctx, "");
+    assert(sv->length && sv->text[0] == ']');
     sv->length--, sv->text++;
-    lstrip(sv);
-    begin = sv->text;
-    end = begin;
-    while(sv->length && sv->text[0] != ']' && sv->text[0] != ':'){
-        end++, sv->length--, sv->text++;
-    }
-    if(!sv->length) return Error(ctx, "");
-    if(begin == end)
-        row0 = 0;
-    else{
-        StringView num = stripped2(begin, end-begin);
-        if(num.length == 1 && num.text[0] == '$')
-            row0 = IDX_DOLLAR;
-        else {
-            Int32Result ir = parse_int32(num.text, num.length);
-            if(ir.errored) return Error(ctx, "");
-            row0 = ir.result;
-            if(row0) row0--;
-        }
-    }
-    char c = sv->text[0];
-    sv->text++, sv->length--;
-    if(c == ']'){
-        Range0D* r = expr_alloc(ctx, EXPR_RANGE0D);
-        if(!r) return NULL;
-        r->col_name = colname;
-        r->row = row0;
-        return &r->e;
-    }
-    lstrip(sv);
-    begin = sv->text;
-    end = begin;
-    while(sv->length && sv->text[0] != ']'){
-        end++, sv->length--, sv->text++;
-    }
-    if(!sv->length) return Error(ctx, "");
-    sv->text++, sv->length--;
-    if(begin == end)
+    if(row0 == IDX_UNSET && row1 == IDX_UNSET){
+        row0 = 1;
         row1 = -1;
-    else{
-        StringView num = stripped2(begin, end-begin);
-        if(num.length == 1 && num.text[0] == '$')
-            row1 = IDX_DOLLAR;
+    }
+    if(row0 > 0)
+        row0--;
+    if(row1 > 0)
+        row1--;
+    if(row1 == IDX_UNSET){
+        // 0D
+        if(sheetname.length){
+            // Foreign
+            ForeignRange0D* r = expr_alloc(ctx, EXPR_RANGE0D_FOREIGN);
+            if(!r) return NULL;
+            r->r.col_name = colname;
+            r->sheet_name = sheetname;
+            r->r.row = row0;
+            return &r->e;
+        }
         else {
-            Int32Result ir = parse_int32(num.text, num.length);
-            if(ir.errored) return Error(ctx, "");
-            row1 = ir.result;
-            if(row1) row1--;
+            Range0D* r = expr_alloc(ctx, EXPR_RANGE0D);
+            if(!r) return NULL;
+            r->col_name = colname;
+            r->row = row0;
+            return &r->e;
         }
     }
-    Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
-    if(!r) return NULL;
-    r->col_name = colname;
-    r->row_start = row0;
-    r->row_end = row1;
-    return &r->e;
+    else {
+        // 1D
+        if(sheetname.length){
+            // Foreign
+            ForeignRange1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+            if(!r) return NULL;
+            r->sheet_name = sheetname;
+            r->r.col_name = colname;
+            r->r.row_start = row0;
+            r->r.row_end = row1;
+            return &r->e;
+        }
+        else {
+            Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+            if(!r) return NULL;
+            r->col_name = colname;
+            r->row_start = row0;
+            r->row_end = row1;
+            return &r->e;
+        }
+    }
 }
 
 DRSP_INTERNAL

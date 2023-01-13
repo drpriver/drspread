@@ -73,7 +73,7 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
                 write4(pnrows, rows);
                 return 0;
             },
-            sheet_name_to_sheet: function (id, p, len) {
+            sheet_name_to_sheet: function (p, len) {
                 const s = wasm_string_to_js(p, len);
                 return sheet_name_to_sheet_(s);
             },

@@ -15,9 +15,15 @@
 
 static inline
 int
-get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, intptr_t caller_row, intptr_t caller_col){
-    if(arg->kind != EXPR_RANGE1D_COLUMN)
+get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, SheetHandle _Nonnull *_Nonnull rhnd, intptr_t caller_row, intptr_t caller_col){
+    if(arg->kind != EXPR_RANGE1D_COLUMN && arg->kind != EXPR_RANGE1D_COLUMN_FOREIGN)
         return 1;
+    if(arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+        StringView sheet_name = ((ForeignRange1DColumn*)arg)->sheet_name;
+        hnd = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
+        if(!hnd) return 1;
+        *rhnd = hnd;
+    }
     Range1DColumn* rng = (Range1DColumn*)arg;
     intptr_t start = rng->row_start;
     if(start == IDX_DOLLAR) start = caller_row;
@@ -68,13 +74,14 @@ FORMULAFUNC(drsp_sum){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, caller_row, caller_col) != 0)
+    SheetHandle rhnd = hnd;
+    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
         return Error(ctx, "");
     double sum = 0;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
         char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, hnd, row, col);
+        Expression* e = evaluate(ctx, rhnd, row, col);
         if(!e || e->kind == EXPR_ERROR) return e;
         if(evaled_is_not_scalar(e)) return Error(ctx, "");
         if(e->kind != EXPR_NUMBER) continue;
@@ -95,17 +102,16 @@ FORMULAFUNC(drsp_avg){
     char* chk = ctx->a.cursor;
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_RANGE1D_COLUMN)
-        return Error(ctx, "");
     intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, caller_row, caller_col) != 0)
+    SheetHandle rhnd = hnd;
+    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
         return Error(ctx, "");
     double sum = 0.;
     double count = 0.;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
         char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, hnd, row, col);
+        Expression* e = evaluate(ctx, rhnd, row, col);
         if(!e || e->kind == EXPR_ERROR) return e;
         if(evaled_is_not_scalar(e)) return Error(ctx, "");
         if(e->kind != EXPR_NUMBER) continue;
@@ -126,16 +132,15 @@ FORMULAFUNC(drsp_count){
     char* chk = ctx->a.cursor;
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_RANGE1D_COLUMN)
-        return Error(ctx, "");
+    SheetHandle rhnd = hnd;
     intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, caller_row, caller_col) != 0)
+    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
         return Error(ctx, "");
     intptr_t count = 0;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
         char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, hnd, row, col);
+        Expression* e = evaluate(ctx, rhnd, row, col);
         if(!e || e->kind == EXPR_ERROR) return e;
         if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
             continue;
@@ -155,16 +160,15 @@ FORMULAFUNC(drsp_min){
     char* chk = ctx->a.cursor;
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_RANGE1D_COLUMN)
-        return Error(ctx, "");
+    SheetHandle rhnd = hnd;
     intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, caller_row, caller_col) != 0)
+    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
         return Error(ctx, "");
     double v = 1e32;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
         char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, hnd, row, col);
+        Expression* e = evaluate(ctx, rhnd, row, col);
         if(!e || e->kind == EXPR_ERROR) return e;
         if(evaled_is_not_scalar(e)) return Error(ctx, "");
         if(e->kind != EXPR_NUMBER) continue;
@@ -186,16 +190,15 @@ FORMULAFUNC(drsp_max){
     char* chk = ctx->a.cursor;
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_RANGE1D_COLUMN)
-        return Error(ctx, "");
+    SheetHandle rhnd = hnd;
     intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, caller_row, caller_col) != 0)
+    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
         return Error(ctx, "");
     double v = -1e32;
     // NOTE: inclusive range
     for(intptr_t row = start; row <= end; row++){
         char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, hnd, row, col);
+        Expression* e = evaluate(ctx, rhnd, row, col);
         if(!e || e->kind == EXPR_ERROR) return e;
         if(evaled_is_not_scalar(e)) return Error(ctx, "");
         if(e->kind != EXPR_NUMBER) continue;
@@ -433,14 +436,14 @@ FORMULAFUNC(drsp_tablelookup){
     {
         Expression* haystack = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
         if(!haystack || haystack->kind == EXPR_ERROR) return haystack;
-        if(haystack->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "");
         intptr_t col, start, end;
-        if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, caller_row, caller_col) != 0)
+        SheetHandle rhnd = hnd;
+        if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
 
         char* loopchk = ctx->a.cursor;
         for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
-            Expression* e = evaluate(ctx, hnd, row, col);
+            Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e) return e;
             if(e->kind != nkind) continue;
             if(nkind == EXPR_STRING){
@@ -466,13 +469,13 @@ FORMULAFUNC(drsp_tablelookup){
     {
         Expression* values = evaluate_expr(ctx, hnd, argv[2], caller_row, caller_col);
         if(!values || values->kind == EXPR_ERROR) return values;
-        if(values->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "values must be a column range");
         intptr_t col, start, end;
-        if(get_range1dcol(ctx, hnd, values, &col, &start, &end, caller_row, caller_col) != 0)
+        SheetHandle rhnd = hnd;
+        if(get_range1dcol(ctx, hnd, values, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "invalid column range");
         ctx->a.cursor = chk;
         if(start+offset > end) return Error(ctx, "out of bounds");
-        return evaluate(ctx, hnd, start+offset, col);
+        return evaluate(ctx, rhnd, start+offset, col);
     }
 }
 
@@ -503,12 +506,13 @@ FORMULAFUNC(drsp_find){
         if(!haystack || haystack->kind == EXPR_ERROR) return haystack;
         if(haystack->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "");
         intptr_t col, start, end;
-        if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, caller_row, caller_col) != 0)
+        SheetHandle rhnd = hnd;
+        if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
 
         char* loopchk = ctx->a.cursor;
         for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
-            Expression* e = evaluate(ctx, hnd, row, col);
+            Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e) return e;
             if(e->kind != nkind) continue;
             if(nkind == EXPR_NULL){

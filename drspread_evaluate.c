@@ -73,11 +73,22 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
         case EXPR_ERROR:
         case EXPR_NUMBER:
         case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
         case EXPR_STRING:
             return expr;
         case EXPR_FUNCTION_CALL:{
             FunctionCall* fc = (FunctionCall*)expr;
             return fc->func(ctx, hnd, caller_row, caller_col, fc->argc, fc->argv);
+        }
+        case EXPR_RANGE0D_FOREIGN:{
+            ForeignRange0D* rng = (ForeignRange0D*)expr;
+            SheetHandle foreign = sp_name_to_sheet(ctx, rng->sheet_name.text, rng->sheet_name.length);
+            if(!foreign) return Error(ctx, "");
+            intptr_t r = rng->r.row;
+            if(r == IDX_DOLLAR) r = caller_row;
+            intptr_t c = sv_equals(rng->r.col_name, SV("$"))?caller_col:sp_name_to_col_idx(ctx, hnd, rng->r.col_name.text, rng->r.col_name.length);
+            if(c == IDX_DOLLAR) c = caller_col;
+            return evaluate(ctx, foreign, r, c);
         }
         case EXPR_RANGE0D:{
             Range0D* rng = (Range0D*)expr;

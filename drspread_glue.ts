@@ -101,7 +101,7 @@ const imports = {
             write4(pnrows, rows);
             return 0;
         },
-        sheet_name_to_sheet:function(id:number, p:number, len:number):number{
+        sheet_name_to_sheet:function(p:number, len:number):number{
             const s = wasm_string_to_js(p, len);
             return sheet_name_to_sheet_(s);
         },

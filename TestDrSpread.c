@@ -14,8 +14,12 @@ static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
 static TestFunc TestMultisheet;
+static TestFunc TestRanges;
+static TestFunc TestBadRanges;
 
 int main(int argc, char** argv){
+    RegisterTest(TestRanges);
+    RegisterTest(TestBadRanges);
     RegisterTest(TestSpreadsheet1);
     RegisterTest(TestSpreadsheet2);
     RegisterTest(TestBinOps);
@@ -106,6 +110,59 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
     ((size_t[]){0}), \
 }
 
+TestFunction(TestRanges){
+    const char* input =
+        " 0 | =[a,1]\n"
+        " 1 | =['a', 1]\n"
+        " 2 | =['a', $]\n"
+        " 3 | =[\"$\", 3]\n"
+        " 4 | =['$', 3]\n"
+        " 5 | =sum([a])\n"
+        " 6 | =sum(['a', :])\n"
+        " 7 | =sum(['a', 1:2])\n"
+        " 8 | =sum(['a', :2])\n"
+        " 9 | =sum(['a', 2:])\n"
+        "10 | =sum([a, 2:])\n"
+    ;
+    struct Row expected[] = {
+        ROW("0", "0"),
+        ROW("1", "0"),
+        ROW("2", "2"),
+        ROW("3", "2"),
+        ROW("4", "2"),
+        ROW("5", "55"),
+        ROW("6", "55"),
+        ROW("7", "1"),
+        ROW("8", "1"),
+        ROW("9", "55"),
+        ROW("10", "55"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+}
+
+TestFunction(TestBadRanges){
+    const char* input =
+        " 0 | =[a,]\n"
+        " 1 | =[1]\n"
+        " 2 | =[$]\n"
+        " 3 | =[]\n"
+        " 4 | =['$', '3', '3']\n"
+        " 5 | =sum(['a])\n"
+        " 6 | =sum(['a', '3':'3'])\n"
+        " 7 | =sum([3, 1:2])\n"
+    ;
+    struct Row expected[] = {
+        ROW( "0", "error"),
+        ROW( "1", "error"),
+        ROW( "2", "error"),
+        ROW( "3", "error"),
+        ROW( "4", "error"),
+        ROW( "5", "error"),
+        ROW( "6", "error"),
+        ROW( "7", "error"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 8);
+}
 
 TestFunction(TestSpreadsheet1){
     const char* input =
@@ -411,7 +468,7 @@ TestFunction(TestMultisheet){
         "=cell('other', 'b', find(0, [a, :3]))\n"
         "=cell('other', 'b', find('0', [a, :3]))\n"
         "a\n"
-        "other\n"
+        "other | =[other, a, 1] | =sum([other, a])\n"
     ;
     const char* name2 = "other";
     const char* input2 =
@@ -426,7 +483,7 @@ TestFunction(TestMultisheet){
         ROW("2"),
         ROW("error"),
         ROW("a"),
-        ROW("other"),
+        ROW("other","1", "4"),
     };
     return test_multi_spreadsheet(
         __func__,
