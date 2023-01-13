@@ -21,16 +21,23 @@ get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* co
     Range1DColumn* rng = (Range1DColumn*)arg;
     intptr_t start = rng->row_start;
     if(start == IDX_DOLLAR) start = caller_row;
-    if(start < 0) start += sp_col_height(ctx, hnd, rng->col);
+    intptr_t colnum;
+    if(rng->col_name.length == 0 && rng->col_name.text[0] == '$'){
+        colnum = caller_col;
+    }
+    else {
+        colnum = sp_name_to_col_idx(ctx, hnd, rng->col_name.text, rng->col_name.length);
+    }
+    if(start < 0) start += sp_col_height(ctx, hnd, colnum);
     intptr_t end = rng->row_end;
     if(end == IDX_DOLLAR) end = caller_row;
-    if(end < 0) end += sp_col_height(ctx, hnd, rng->col);
+    if(end < 0) end += sp_col_height(ctx, hnd, colnum);
     if(end < start){
         intptr_t tmp = end;
         end = start;
         start = tmp;
     }
-    *col = rng->col == IDX_DOLLAR?caller_col:rng->col;
+    *col = colnum;
     *rowstart = start;
     *rowend = end;
     return 0;
@@ -355,7 +362,17 @@ FORMULAFUNC(drsp_cell){
     row_idx--;
     if(row_idx < 0) return Error(ctx, "");
     return evaluate(ctx, foreign, row_idx, col_idx);
+}
 
+DRSP_INTERNAL
+FORMULAFUNC(drsp_eval){
+    if(argc != 1) return Error(ctx, "");
+    Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(arg->kind != EXPR_STRING) return Error(ctx, "");
+    StringView sv = ((String*)arg)->sv;
+    Expression* result = evaluate_string(ctx, hnd, sv.text, sv.length, caller_row, caller_col);
+    return result;
 }
 
 DRSP_INTERNAL
@@ -525,23 +542,24 @@ FORMULAFUNC(drsp_find){
 
 DRSP_INTERNAL
 const FuncInfo FUNCTABLE[] = {
-    {{3, "sum"  }, &drsp_sum},
-    {{3, "avg"  }, &drsp_avg},
-    {{3, "min"  }, &drsp_min},
-    {{3, "max"  }, &drsp_max},
-    {{3, "mod"  }, &drsp_mod},
-    {{3, "abs"  }, &drsp_abs},
-    {{5, "floor"}, &drsp_floor},
-    {{4, "ceil" }, &drsp_ceil},
-    {{5, "trunc"}, &drsp_trunc},
-    {{5, "round"}, &drsp_round},
-    {{3, "tlu"  }, &drsp_tablelookup},
-    {{4, "find" }, &drsp_find},
-    {{3, "num"  }, &drsp_num},
-    {{3, "try"  }, &drsp_try},
-    {{3, "pow"  }, &drsp_pow},
-    {{4, "cell" }, &drsp_cell},
-    {{5, "count"}, &drsp_count},
+    {SV("sum"), &drsp_sum},
+    {SV("avg"), &drsp_avg},
+    {SV("min"), &drsp_min},
+    {SV("max"), &drsp_max},
+    {SV("mod"), &drsp_mod},
+    {SV("abs"), &drsp_abs},
+    {SV("floor"), &drsp_floor},
+    {SV("ceil"), &drsp_ceil},
+    {SV("trunc"), &drsp_trunc},
+    {SV("round"), &drsp_round},
+    {SV("tlu"), &drsp_tablelookup},
+    {SV("find"), &drsp_find},
+    {SV("num"), &drsp_num},
+    {SV("try"), &drsp_try},
+    {SV("pow"), &drsp_pow},
+    {SV("cell"), &drsp_cell},
+    {SV("count"), &drsp_count},
+    {SV("eval"), &drsp_eval},
     // {{3, "col"  }, &drsp_col},
 };
 

@@ -213,6 +213,7 @@ TestFunction(TestFuncs){
         "=num('')\n"
         "=try(ceil('a'), 'b')\n"
         "=pow(2, 3)\n"
+        "=eval('pow(2,4)')\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -254,6 +255,7 @@ TestFunction(TestFuncs){
         ROW("0"),
         ROW("b"),
         ROW("8"),
+        ROW("16"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

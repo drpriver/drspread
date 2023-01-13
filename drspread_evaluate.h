@@ -24,7 +24,7 @@ evaluate(SpreadContext*, SheetHandle, intptr_t row, intptr_t col);
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, SheetHandle, const char* txt, size_t len);
+evaluate_string(SpreadContext* ctx, SheetHandle, const char* txt, size_t len, intptr_t row, intptr_t col);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

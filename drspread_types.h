@@ -113,14 +113,14 @@ enum {IDX_DOLLAR=-2147483647-1}; // INT32_MIN
 typedef struct Range0D Range0D;
 struct Range0D {
     Expression e;
-    intptr_t col;
+    StringView col_name;
     intptr_t row;
 };
 
 typedef struct Range1DColumn Range1DColumn;
 struct Range1DColumn {
     Expression e;
-    intptr_t col;
+    StringView col_name;
     intptr_t row_start, row_end; // inclusive
 };
 

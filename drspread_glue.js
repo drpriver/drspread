@@ -23,8 +23,7 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
         const encoded = encoder.encode(s);
         const p = malloc(encoded.length + 4);
         write4(p, encoded.length);
-        const sub = mem.subarray(p + 4, p + 4 + encoded.length);
-        sub.set(encoded);
+        mem.set(encoded, p + 4);
         return p;
     }
     function read4(p) {

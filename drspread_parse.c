@@ -30,7 +30,7 @@ classify_cell(const char* text, size_t length){
     return CELL_OTHER;
 }
 
-#define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, SheetHandle hnd, StringView* sv)
+#define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, StringView* sv)
 DRSP_INTERNAL PARSEFUNC(parse_comparison);
 DRSP_INTERNAL PARSEFUNC(parse_addplus);
 DRSP_INTERNAL PARSEFUNC(parse_divmul);
@@ -44,14 +44,14 @@ DRSP_INTERNAL PARSEFUNC(parse_func_call);
 
 DRSP_INTERNAL
 Expression*_Nullable
-parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length){
+parse(SpreadContext* ctx, const char* txt, size_t length){
     StringView sv = {length, txt};
     lstrip(&sv);
     while(sv.length && sv.text[0] == '=')
         sv.text++, sv.length--;
     lstrip(&sv);
     // printf("'%s'\n", sv.text);
-    Expression* root = parse_comparison(ctx, hnd, &sv);
+    Expression* root = parse_comparison(ctx, &sv);
     if(!root || root->kind == EXPR_ERROR) return root;
     lstrip(&sv);
     if(sv.length != 0) return Error(ctx, "");
@@ -60,7 +60,7 @@ parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_comparison){
-    Expression* lhs = parse_addplus(ctx, hnd, sv);
+    Expression* lhs = parse_addplus(ctx, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
     lstrip(sv);
     while(sv->length && (sv->text[0] == '<' || sv->text[0] == '>' || sv->text[0] == '=' || sv->text[0] == '!')){
@@ -84,7 +84,7 @@ PARSEFUNC(parse_comparison){
             default: return Error(ctx, "");
         }
         lstrip(sv);
-        Expression* rhs = parse_addplus(ctx, hnd, sv);
+        Expression* rhs = parse_addplus(ctx, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         Binary* b = expr_alloc(ctx, EXPR_BINARY);
         if(!b) return NULL;
@@ -98,14 +98,14 @@ PARSEFUNC(parse_comparison){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_addplus){
-    Expression* lhs = parse_divmul(ctx, hnd, sv);
+    Expression* lhs = parse_divmul(ctx, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
     lstrip(sv);
     while(sv->length && (sv->text[0] == '+' || sv->text[0] == '-')){
         char c = sv->text[0];
         sv->length--, sv->text++;
         lstrip(sv);
-        Expression* rhs = parse_divmul(ctx, hnd, sv);
+        Expression* rhs = parse_divmul(ctx, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         BinaryKind op = c == '+'?BIN_ADD : BIN_SUB;
         Binary* b = expr_alloc(ctx, EXPR_BINARY);
@@ -120,14 +120,14 @@ PARSEFUNC(parse_addplus){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_divmul){
-    Expression* lhs = parse_unary(ctx, hnd, sv);
+    Expression* lhs = parse_unary(ctx, sv);
     if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
     lstrip(sv);
     while(sv->length && (sv->text[0] == '*' || sv->text[0] == '/')){
         char c = sv->text[0];
         sv->length--, sv->text++;
         lstrip(sv);
-        Expression* rhs = parse_unary(ctx, hnd, sv);
+        Expression* rhs = parse_unary(ctx, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         BinaryKind op = c == '*'?BIN_MUL : BIN_DIV;
         Binary* b = expr_alloc(ctx, EXPR_BINARY);
@@ -157,7 +157,7 @@ PARSEFUNC(parse_unary){
     switch(c){
         case '!': op = UN_NOT; break;
         case '-': op = UN_NEG; break;
-        default: return parse_terminal(ctx, hnd, sv);
+        default: return parse_terminal(ctx, sv);
     }
     if(op != -1){
         sv->text++, sv->length--;
@@ -172,7 +172,7 @@ PARSEFUNC(parse_unary){
         sv->length-=2;
         lstrip(sv);
     }
-    Expression* e = parse_unary(ctx, hnd, sv);
+    Expression* e = parse_unary(ctx, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
     if(op != -1){
         _Bool handled = 0;
@@ -214,22 +214,22 @@ PARSEFUNC(parse_terminal){
     if(!sv->length) return Error(ctx, "");
     switch(sv->text[0]){
         case '[':
-            return parse_range(ctx, hnd, sv);
+            return parse_range(ctx, sv);
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wgnu-case-range"
         case 'a' ... 'z':
         case 'A' ... 'Z':
         #pragma clang diagnostic pop
-            return parse_func_call(ctx, hnd, sv);
+            return parse_func_call(ctx, sv);
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9':
         case '.':
-            return parse_number(ctx, hnd, sv);
+            return parse_number(ctx, sv);
         case '(':
-            return parse_group(ctx, hnd, sv);
+            return parse_group(ctx, sv);
         case '\'':
         case '"':
-            return parse_string(ctx, hnd, sv);
+            return parse_string(ctx, sv);
         default:
             return Error(ctx, "");
     }
@@ -237,7 +237,6 @@ PARSEFUNC(parse_terminal){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_string){
-    (void)hnd;
     assert(sv->length && (sv->text[0] == '"' || sv->text[0] == '\''));
     char terminator = sv->text[0];
     sv->length--, sv->text++;
@@ -258,7 +257,7 @@ PARSEFUNC(parse_string){
 DRSP_INTERNAL
 PARSEFUNC(parse_range){
     assert(sv->length && sv->text[0] == '[');
-    intptr_t col, row0, row1;
+    intptr_t row0, row1;
     sv->length--, sv->text++;
     lstrip(sv);
     if(!sv->length) return Error(ctx, "");
@@ -270,15 +269,11 @@ PARSEFUNC(parse_range){
     if(!sv->length) return Error(ctx, "");
     StringView colname = stripped2(begin, end-begin);
     if(!colname.length) return Error(ctx, "");
-    if(colname.length == 1 && colname.text[0] == '$')
-        col = IDX_DOLLAR;
-    else
-        col = sp_name_to_col_idx(ctx, hnd, colname.text, colname.length);
     if(sv->text[0] == ']'){
         sv->length--, sv->text++;
         Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
         if(!r) return NULL;
-        r->col = col;
+        r->col_name = colname;
         r->row_start = 0;
         r->row_end = -1;
         return &r->e;
@@ -309,7 +304,7 @@ PARSEFUNC(parse_range){
     if(c == ']'){
         Range0D* r = expr_alloc(ctx, EXPR_RANGE0D);
         if(!r) return NULL;
-        r->col = col;
+        r->col_name = colname;
         r->row = row0;
         return &r->e;
     }
@@ -336,7 +331,7 @@ PARSEFUNC(parse_range){
     }
     Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
     if(!r) return NULL;
-    r->col = col;
+    r->col_name = colname;
     r->row_start = row0;
     r->row_end = row1;
     return &r->e;
@@ -344,7 +339,6 @@ PARSEFUNC(parse_range){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_number){
-    (void)hnd;
     const char* begin = sv->text;
     const char* end = begin;
     while(sv->length){
@@ -376,7 +370,7 @@ PARSEFUNC(parse_group){
     (void)sv;
     assert(sv->length && sv->text[0] == '(');
     sv->text++, sv->length--;
-    Expression* e = parse_comparison(ctx, hnd, sv);
+    Expression* e = parse_comparison(ctx, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
     lstrip(sv);
     if(!sv->length || sv->text[0] != ')') return Error(ctx, "");
@@ -415,7 +409,7 @@ PARSEFUNC(parse_func_call){
         if(!sv->length) return Error(ctx, "");
         if(sv->text[0] == ')')
             break;
-        Expression* e = parse_comparison(ctx, hnd, sv);
+        Expression* e = parse_comparison(ctx, sv);
         if(!e || e->kind == EXPR_ERROR) return e;
         argv[argc] = e;
     }

@@ -13,7 +13,7 @@
 #endif
 DRSP_INTERNAL
 Expression*_Nullable
-parse(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t length);
+parse(SpreadContext* ctx, const char* txt, size_t length);
 
 DRSP_INTERNAL
 CellKind

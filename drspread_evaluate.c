@@ -71,7 +71,7 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
         }
         case CELL_FORMULA:{
             char* chk = ctx->a.cursor;
-            Expression *root = parse(ctx, hnd, stxt.text, stxt.length);
+            Expression *root = parse(ctx, stxt.text, stxt.length);
             if(!root || root->kind == EXPR_ERROR)
                 ctx->a.cursor = chk;
             if(!root) return NULL;
@@ -114,10 +114,10 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
 // This is for a repl
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t len){
-    Expression *root = parse(ctx, hnd, txt, len);
+evaluate_string(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t len, intptr_t caller_row, intptr_t caller_col){
+    Expression *root = parse(ctx, txt, len);
     if(!root || root->kind == EXPR_ERROR) return root;
-    Expression *e = evaluate_expr(ctx, hnd, root, -1, -1);
+    Expression *e = evaluate_expr(ctx, hnd, root, caller_row, caller_col);
     return e;
 }
 
@@ -139,7 +139,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             Range0D* rng = (Range0D*)expr;
             intptr_t r = rng->row;
             if(r == IDX_DOLLAR) r = caller_row;
-            intptr_t c = rng->col;
+            intptr_t c = sv_equals(rng->col_name, SV("$"))?caller_col:sp_name_to_col_idx(ctx, hnd, rng->col_name.text, rng->col_name.length);
             if(c == IDX_DOLLAR) c = caller_col;
             return evaluate(ctx, hnd, r, c);
         }

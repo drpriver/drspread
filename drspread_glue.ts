@@ -51,8 +51,7 @@ function js_string_to_wasm(s:string):number{
     const encoded = encoder.encode(s);
     const p = malloc(encoded.length+4);
     write4(p, encoded.length);
-    const sub = mem.subarray(p+4, p+4+encoded.length);
-    sub.set(encoded);
+    mem.set(encoded, p+4);
     return p;
 }
 function read4(p:number):number{

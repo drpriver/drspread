@@ -20,13 +20,13 @@ clean:
 	rm -rf Depends
 .DEFAULT_GOAL:=Bin/drspread
 
-WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -O3 -ffreestanding -nostdinc -isystem Wasm
-Bin/drspread.wasm: drspread_wasm.c | Bin Depends Makefile
-	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WFLAGS) -iquote. $(WASMCFLAGS)
+WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm
+Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
+	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WFLAGS) -iquote. $(WASMCFLAGS) -O3
 %.js: %.ts
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes
 
-Bin/TestDrSpread: TestDrSpread.c | Bin Depends
+Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -fsanitize=address,undefined,nullability
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults

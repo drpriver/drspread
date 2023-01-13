@@ -161,7 +161,7 @@ drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* t
     for(intptr_t i = 0; i < ctx.cache.nrows*ctx.cache.ncols; i++)
         ctx.cache.vals[i].kind = CACHE_UNSET;
     // printf("%zd\n", ctx.a.cursor - buff);
-    Expression* e = evaluate_string(&ctx, sheethandle, txt, len);
+    Expression* e = evaluate_string(&ctx, sheethandle, txt, len, -1, -1);
     if(!e) return 1;
     switch(e->kind){
         case EXPR_NULL:
