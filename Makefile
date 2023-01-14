@@ -32,7 +32,7 @@ Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@
 .PHONY: all
-all: TestResults/TestDrSpread Bin/TestDrSpread
+all: TestResults/TestDrSpread Bin/TestDrSpread Bin/drspread Bin/drspread.wasm
 .DEFAULT_GOAL:=all
 
 include $(wildcard misc.mak)
