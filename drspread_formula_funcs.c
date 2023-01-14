@@ -581,7 +581,7 @@ FORMULAFUNC(drsp_tablelookup){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_find){
     // "needle", [haystack]
-    if(argc != 2) return Error(ctx, "");
+    if(argc != 2 && argc != 3) return Error(ctx, "");
     char* chk = ctx->a.cursor;
     ExpressionKind nkind;
     union {
@@ -633,7 +633,11 @@ FORMULAFUNC(drsp_find){
         }
         ctx->a.cursor = chk;
     }
-    if(offset < 0) return Error(ctx, "");
+    if(offset < 0) {
+        if(argc == 3)
+            return evaluate_expr(ctx, hnd, argv[2], caller_row, caller_col);
+        return Error(ctx, "");
+    }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     n->value = offset+1;
     return &n->e;

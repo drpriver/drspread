@@ -1,0 +1,325 @@
+::toc
+::script
+  document.addEventListener('DOMContentLoaded', ()=>{
+    for(const node of document.querySelectorAll('dt.func')){
+      console.log(node);
+      node.onclick = ()=>{
+        window.location.hash = node.id;
+      };
+    }
+  });
+  //endjs
+::css
+  :root {
+    color-scheme: light dark; /* both supported */
+  }
+  @media (prefers-color-scheme: dark) {
+    a:visited {
+      color: rgb(20, 140, 220);
+    }
+    a {
+      color: rgb(0, 80, 200);
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    body{
+      background-color: white;
+    }
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    display: grid;
+    grid-template-columns: 8em auto;
+    margin: 0;
+    padding: 4px;
+  }
+  dt.func {
+    font-weight: bold;
+    font-size: 32px;
+    font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+    border-bottom: 1px dotted gray;
+    cursor: pointer;
+  }
+  dt.arg {
+    font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+    color: rgb(242, 52, 52);
+    color: rgb(25,227,123)
+  }
+  pre {
+    font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+  }
+  /*endcss*/
+::js
+  for(const n of ctx.select_nodes({type:NodeType.DEFLIST})){
+    if(n.header != 'Args') {
+      continue;
+    }
+    for(const child of n.children){
+      if(child.type == NodeType.DEF){
+        child.noid = true;
+        child.classes.add('arg');
+      }
+    }
+    n.noid = true;
+  }
+  for(const n of ctx.select_nodes({type:NodeType.MD})){
+    if(n.header == 'Example' || n.header == 'Examples')
+      n.noid = true;
+  }
+  //endjs
+::dl
+  ::js
+    for(const child of node.parent.children){
+      child.classes.add('func');
+    }
+    //endjs
+  abs::def
+    ::pre
+      abs(number)
+    Returns the absolute value of the input.
+    Args::dl
+      number::def
+        A number argument.
+    Example::md
+      ::pre
+        abs(-2)
+      The above yields 2.
+  avg::def
+    ::pre
+      avg(range)
+    Returns the average value of the input range, ignoring non-number inputs.
+
+    Returns 0 for an empty range.
+    Args::dl
+      range::def
+        A column range.
+      
+  call::def
+    ::pre
+      call(funcname)
+      call(funcname, args)
+      call(funcname, args, args)
+      call(funcname, args, args, args)
+      ...
+    Calls the function identified by funcname.
+    Args::dl
+      funcname::def
+        A string identifying the function to call.
+      args::def
+        Any number of arguments. They are forwarded to the identified function as arguments.
+    Example::md
+      ::pre
+        call('pow', 2, 3)
+      The above will yield 8.
+
+  ceil::def
+    ::pre
+      ceil(number)
+    Returns the smallest integer greater than or equal to the argument.
+    Args::dl
+      number::def
+        A number argument.
+  cell::def
+    ::pre
+      cell(sheetname, col, row)
+      cell(col, row)
+    Returns the value at the identified cell.
+
+    This is the dynamic equivelant to a cell literal.
+
+    Args::dl
+      sheetname::def
+        (Optional) A string identifying the sheet the cell is in. If not given, the current sheet is assumed.
+      col::def
+        A string identifying the column the cell is in.
+      row::def
+        A number identifying the row the cell is in.
+  col::def
+    ::pre
+      col(sheetname, colname, rowstart, rowend)
+      col(colname, rowstart, rowend)
+      col(colname, rowstart)
+      col(colname)
+      col(sheetname, colname, rowstart)
+      col(sheetname, colname)
+    Returns the range identified by the parameters.
+
+    This is the dynamic equivelant to a range literal.
+
+    Args::dl
+      sheetname::def
+        (Optional) A string identifying the sheet the range is in. If not given, the current sheet is assumed.
+      colname::def
+        A string identifying the column the range is in.
+      rowstart::def
+        (Optional) A number identifying the start of the range. If not given, the beginning of the column is assumed.
+      rowend::def
+        (Optional) A number identifying the end of the range (inclusive). If not given, the end of the column is assumed.
+      
+  count::def
+    ::pre
+      count(range)
+    Counts the number of non-empty cells in the range.
+
+    Note that <tt>sum(range)/count(range)</tt> does not give the same
+    result as <tt>avg(range)</tt> as <tt>count</tt> includes strings.
+    Args::dl
+      range::def
+        A column range.
+        
+  eval::def
+    ::pre
+      eval(code)
+    Evaluates the argument as it if were a formula in a cell.
+    Args::dl
+      code::def
+        A string that is the code to evaluate.
+    Example::md
+      ::pre
+        eval('round(12.1)')
+      The above evaluates to 12.
+  find::def
+    ::pre
+      find(needle, haystack)
+      find(needle, haystack, default)
+    Returns the 1-based index of the location of needle in haystack.
+
+    If needle is not found, default is returned, or an error is returned if default is not given.
+    Args::dl
+      needle::def
+        The value to lookup
+      haystack::def
+        A range in which to search for needle.
+      default::def
+        The value to return if needle is not found in haystack.
+  floor::def
+    ::pre
+      floor(number)
+    Returns the largest integer value less than or equal to the argument.
+    Args::dl
+      number::def
+        A number argument.
+  max::def
+    ::pre
+      max(range)
+    Returns the largest number from range.
+
+    Returns 0 for empty ranges (or ranges with no numbers).
+    
+    Args::dl
+      range::def
+        A column range.
+
+  min::def
+    ::pre
+      min(range)
+    Returns the smallest number from range.
+
+    Returns 0 for empty ranges (or ranges with no numbers).
+    
+    Args::dl
+      range::def
+        A column range.
+  mod::def
+    ::pre
+      mod(score)
+    Returns the ability score modifier corresponding to the ability score number.
+
+    Args::dl
+      score::def
+        An ability score number.
+  num::def
+    ::pre
+      num(maybe_number)
+      num(maybe_number, default)
+    If maybe_number is a number, then maybe_number is returned. Otherwise, if
+    default is given, default is returned. Finally, 0 is returned if none of
+    the above conditions are met.
+
+    Args::dl
+      maybe_number::def
+        An expression that might be a number.
+      default::def
+        An expression to be used if <tt>maybe_number</tt> is not a number.
+    
+  pow::def
+    ::pre
+      pow(base, exponent)
+    Raises the base to the power of exponent.
+    Args::dl
+      base::def
+        The number to be exponentiated.
+      exponent::def
+        The power to raise base to.
+  round::def
+    ::pre
+      round(number)
+    Rounds number to the nearest integral value, rounding .5 away from zero.
+    Args::dl
+      number::def
+        The number to round
+  sqrt::def
+    ::pre
+      sqrt(number)
+    Returns the non-negative square root.
+    Args::dl
+      number::def
+        The number to sqrt.
+  sum::def
+    ::pre
+      sum(range)
+    Returns the sum of the numeric values in range, ignoring strings and blanks.
+
+    Returns 0 for an empty range.
+    Args::dl
+      range::def
+        A column range.
+  tlu::def
+    ::pre
+      tlu(needle, haystack, values)
+      tlu(needle, haystack, values, default)
+    Looks up needle in haystack, return the corresponding value from values.
+
+    If default is given, that value is returned if needle is not found in
+    haystack. Otherwise, an error is returned.
+    Args::dl
+      needle::def
+        The value to lookup
+      haystack::def
+        A range in which to search for needle.
+      values::def
+        A range in which to yield the corresponding value from.
+      default::def
+        If needle is not found, this value is returned.
+    Examples::md
+      ::pre
+        tlu('Plate', [Items], [Weights])
+  trunc::def
+    ::pre
+      trunc(number)
+    Removes the part of the number after the decimal point.
+    Args::dl
+      number::def
+        The number.
+      
+  try::def
+    ::pre
+      try(fallible, default)
+    If the first argument does not fail, returns the first argument.
+
+    Otherwise, returns the second argument.
+    Args::dl
+      fallible::def
+        An expression that could result in an error.
+
+      default::def
+        The expression to use if <tt>fallible</tt> fails.
+
+    Example::md
+      ::pre
+        try(call('doesnotexist', 1), 3)
+
+      The above yields 3.

@@ -55,7 +55,7 @@ main(int argc, char** argv){
         int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
         // printf("nerr: %d\n", nerr);
         (void)nerr;
-        return 0;
+        // return 0;
         write_display(&sheet, stdout);
         GetInputCtx gi = {
             .prompt.text = "> ",
