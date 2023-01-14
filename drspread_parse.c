@@ -469,11 +469,9 @@ PARSEFUNC(parse_func_call){
     FormulaFunc* func = NULL;
 
     for(size_t i = 0; i < FUNCTABLE_LENGTH; i++){
-        if(FUNCTABLE[i].name.length == name.length){
-            if(memcmp(FUNCTABLE[i].name.text, name.text, name.length)==0){
-                func = FUNCTABLE[i].func;
-                break;
-            }
+        if(sv_equals(FUNCTABLE[i].name, name)){
+            func = FUNCTABLE[i].func;
+            break;
         }
     }
     if(!func) return Error(ctx, "");

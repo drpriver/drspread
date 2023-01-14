@@ -368,6 +368,90 @@ FORMULAFUNC(drsp_cell){
 }
 
 DRSP_INTERNAL
+FORMULAFUNC(drsp_col){
+    // This one is kind of complicated, but it accepts up to 4 args
+    // col('Sheetname', 'Colname', rowstart, rowend)
+    // col('Sheetname', 'Colname', rowstart)
+    // col('Sheetname', 'Colname')
+    // col('Colname', rowstart, rowend)
+    // col('Colname', rowstart)
+    // col('Colname')
+    //
+    // It's basically the dynamic form of range literals.
+    if(!argc || argc > 4) return Error(ctx, "");
+    StringView colname = {0}, sheetname = {0};
+    intptr_t rowstart = IDX_UNSET, rowend = IDX_UNSET;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    {
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_STRING) return Error(ctx, "");
+        colname = ((String*)arg)->sv;
+        argc--, argv++;
+    }
+    if(argc){
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind == EXPR_STRING){
+            sheetname = colname;
+            colname = ((String*)arg)->sv;
+        }
+        else if(arg->kind == EXPR_NUMBER){
+            rowstart = (intptr_t)((Number*)arg)->value;
+        }
+        else {
+            return Error(ctx, "");
+        }
+        argc--, argv++;
+    }
+    if(argc){
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        if(rowstart == IDX_UNSET)
+            rowstart = (intptr_t)((Number*)arg)->value;
+        else
+            rowend = (intptr_t)((Number*)arg)->value;
+        argc--, argv++;
+    }
+    if(argc){
+        if(rowend != IDX_UNSET)
+            return Error(ctx, "");
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        rowend = (intptr_t)((Number*)arg)->value;
+        argc--, argv++;
+    }
+    if(!colname.length) return Error(ctx, "");
+    if(rowstart == IDX_UNSET)
+        rowstart = 0;
+    if(rowstart) rowstart--;
+    if(rowend == IDX_UNSET)
+        rowend = -1;
+    else if(rowend) rowend--;
+    if(argc) return Error(ctx, "");
+    buff_set(&ctx->a, bc);
+    if(sheetname.length){
+        ForeignRange1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+        result->r.col_name = colname;
+        result->sheet_name = sheetname;
+        result->r.row_start = rowstart;
+        result->r.row_end = rowend;
+        return &result->e;
+    }
+    else {
+        Range1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        result->col_name = colname;
+        result->row_end = rowend;
+        result->row_start = rowstart;
+        return &result->e;
+    }
+}
+
+DRSP_INTERNAL
 FORMULAFUNC(drsp_eval){
     if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
@@ -540,6 +624,29 @@ FORMULAFUNC(drsp_find){
     return &n->e;
 }
 
+DRSP_INTERNAL
+FORMULAFUNC(drsp_call){
+    if(!argc) return Error(ctx, "");
+    Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(arg->kind != EXPR_STRING)
+        return Error(ctx, "");
+    StringView name = ((String*)arg)->sv;
+
+    FormulaFunc* func = NULL;
+    for(size_t i = 0; i < FUNCTABLE_LENGTH; i++){
+        if(sv_equals(FUNCTABLE[i].name, name)){
+            func = FUNCTABLE[i].func;
+            break;
+        }
+    }
+    if(!func) return Error(ctx, "");
+    argc--, argv++;
+    return func(ctx, hnd, caller_row, caller_col, argc, argv);
+}
+
+
+
 #ifndef SV
 #define SV(x) {sizeof(x)-1, x}
 #endif
@@ -564,7 +671,8 @@ const FuncInfo FUNCTABLE[] = {
     {SV("cell"), &drsp_cell},
     {SV("count"), &drsp_count},
     {SV("eval"), &drsp_eval},
-    // {{3, "col"  }, &drsp_col},
+    {SV("col"), &drsp_col},
+    {SV("call"), &drsp_call},
 };
 
 DRSP_INTERNAL const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);

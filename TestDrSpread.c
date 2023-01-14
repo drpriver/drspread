@@ -14,6 +14,7 @@ static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
 static TestFunc TestMultisheet;
+static TestFunc TestColFunc;
 static TestFunc TestRanges;
 static TestFunc TestBadRanges;
 
@@ -29,6 +30,7 @@ int main(int argc, char** argv){
     RegisterTest(TestBugs);
     RegisterTest(TestBugs2);
     RegisterTest(TestMultisheet);
+    RegisterTest(TestColFunc);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -271,6 +273,7 @@ TestFunction(TestFuncs){
         "=try(ceil('a'), 'b')\n"
         "=pow(2, 3)\n"
         "=eval('pow(2,4)')\n"
+        "=call('pow', 3, 5)\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -313,6 +316,7 @@ TestFunction(TestFuncs){
         ROW("b"),
         ROW("8"),
         ROW("16"),
+        ROW("243"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -457,6 +461,37 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
     }
 #undef __func__
     return TEST_stats;
+}
+TestFunction(TestColFunc){
+    const char* name1 = "root";
+    const char* input1 =
+        "3 | = sum(col('other', 'a'))\n"
+        "4 | = sum(col('other', 'a', 2))\n"
+        "  | = sum(col('other', 'a', 1, 1))\n"
+        "  | = sum(col('a'))\n"
+        "  | = sum(col('a', 2))\n"
+        "  | = sum(col('a', 1, 1))\n"
+    ;
+    const char* name2 = "other";
+    const char* input2 =
+        " 1\n"
+        " 2\n"
+    ;
+    struct Row expected[] = {
+        ROW("3", "3"),
+        ROW("4", "2"),
+        ROW("", "1"),
+        ROW("", "7"),
+        ROW("", "4"),
+        ROW("", "3"),
+    };
+    return test_multi_spreadsheet(
+        __func__,
+        name1, input1,
+        name2, input2,
+        expected, arrlen(expected),
+        0
+    );
 }
 TestFunction(TestMultisheet){
     const char* name1 = "root";
