@@ -274,6 +274,7 @@ TestFunction(TestFuncs){
         "=pow(2, 3)\n"
         "=eval('pow(2,4)')\n"
         "=call('pow', 3, 5)\n"
+        "=sqrt(9)\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -317,6 +318,7 @@ TestFunction(TestFuncs){
         ROW("8"),
         ROW("16"),
         ROW("243"),
+        ROW("3"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

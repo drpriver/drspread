@@ -305,6 +305,21 @@ FORMULAFUNC(drsp_abs){
 }
 
 DRSP_INTERNAL
+FORMULAFUNC(drsp_sqrt){
+    if(argc != 1) return Error(ctx, "");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    char* chk = ctx->a.cursor;
+    Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "");
+    ctx->a.cursor = chk;
+    n->value = __builtin_sqrt(((Number*)arg)->value);
+    return &n->e;
+}
+
+DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
     if(argc != 1 && argc != 2) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
@@ -673,6 +688,7 @@ const FuncInfo FUNCTABLE[] = {
     {SV("eval"), &drsp_eval},
     {SV("col"), &drsp_col},
     {SV("call"), &drsp_call},
+    {SV("sqrt"), &drsp_sqrt},
 };
 
 DRSP_INTERNAL const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);

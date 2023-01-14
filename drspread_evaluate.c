@@ -103,7 +103,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             Binary* b = (Binary*)expr;
             Expression* lhs = evaluate_expr(ctx, hnd, b->lhs, caller_row, caller_col);
             if(!lhs) return NULL;
-            if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING) return NULL;
+            if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING) return Error(ctx, "");
             Expression* rhs = evaluate_expr(ctx, hnd, b->rhs, caller_row, caller_col);
             if(!rhs) return NULL;
             if(lhs->kind == EXPR_STRING){
