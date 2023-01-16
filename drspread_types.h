@@ -15,7 +15,11 @@
 #endif
 
 #ifndef force_inline
+#if defined(__GNUC__) || defined(__clang__)
 #define force_inline static inline __attribute__((always_inline))
+#else
+#define force_inline static inline
+#endif
 #endif
 
 #if !defined(likely) && !defined(unlikely)
@@ -380,7 +384,8 @@ free_caches(SpreadContext* ctx){
     }
 }
 
-static inline
+// static inline
+force_inline
 void*_Nullable
 expr_alloc(SpreadContext* ctx, ExpressionKind kind){
     size_t sz;

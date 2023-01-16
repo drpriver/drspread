@@ -18,7 +18,8 @@
 #endif
 #endif
 
-DRSP_INTERNAL
+// DRSP_INTERNAL
+force_inline
 CellKind
 classify_cell(const char* text, size_t length){
     if(!length) return CELL_EMPTY;

@@ -34,7 +34,6 @@ let reset_memory:()=>void;
 let sheet_evaluate_formulas:(id:number)=>void;
 let sheet_evaluate_string:(id:number, p:number, p2:number)=>number;
 let mem: Uint8Array;
-let mem32: Uint32Array;
 let memview: DataView;
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -56,9 +55,6 @@ function js_string_to_wasm(s:string):number{
 }
 function read4(p:number):number{
     return memview.getInt32(p, true);
-    p /= 4;
-    p |= 0;
-    return mem32[p];
 }
 function readdouble(p:number):number{
     const d = memview.getFloat64(p, true);
@@ -152,7 +148,6 @@ return fetch(wasm_path)
         m.grow(1024);
         mem = new Uint8Array(m.buffer);
         memview = new DataView(mem.buffer);
-        mem32 = new Uint32Array(m.buffer);
         malloc = exports.malloc as any;
         reset_memory = exports.reset_memory as any;
         sheet_evaluate_formulas = exports.sheet_evaluate_formulas as any;

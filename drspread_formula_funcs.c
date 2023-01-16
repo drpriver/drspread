@@ -720,7 +720,9 @@ columnar_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, i
     if(!needle || needle->kind == EXPR_ERROR)
         return needle;
     ComputedColumn* cneedle = (ComputedColumn*)needle;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    // TODO: Use checkpoints.
+    // TODO: lazier computation.
+    // BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* haystack = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!haystack || haystack->kind == EXPR_ERROR)
         return haystack;
@@ -817,18 +819,23 @@ FORMULAFUNC(drsp_tablelookup){
         if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
 
-        char* loopchk = ctx->a.cursor;
-        for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
-            Expression* e = evaluate(ctx, rhnd, row, col);
-            if(!e) return e;
-            if(e->kind != nkind) continue;
-            if(nkind == EXPR_STRING){
+        char*const loopchk = ctx->a.cursor;
+        if(nkind == EXPR_STRING){
+            for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
+                Expression* e = evaluate(ctx, rhnd, row, col);
+                if(!e) return e;
+                if(e->kind != EXPR_STRING) continue;
                 if(sv_equals(nval.s, ((String*)e)->sv)){
                     offset = row - start;
                     break;
                 }
             }
-            else if(nkind == EXPR_NUMBER){
+        }
+        else {
+            for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
+                Expression* e = evaluate(ctx, rhnd, row, col);
+                if(!e) return e;
+                if(e->kind != EXPR_NUMBER) continue;
                 if(nval.d == ((Number*)e)->value){
                     offset = row - start;
                     break;

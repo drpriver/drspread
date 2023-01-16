@@ -12,6 +12,8 @@ WCC?=clang
 
 Bin/drspread: drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3
+Bin/drspread_bench: drspread_cli.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O1 -DBENCHMARKING=1
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O0 -fsanitize=address,nullability,undefined
 .PHONY: clean
@@ -32,7 +34,12 @@ Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@
 .PHONY: all
-all: TestResults/TestDrSpread Bin/TestDrSpread Bin/drspread Bin/drspread.wasm
+ALL=TestResults/TestDrSpread \
+    Bin/TestDrSpread \
+    Bin/drspread \
+    Bin/drspread.wasm \
+    Bin/drspread_bench
+all: $(ALL)
 .DEFAULT_GOAL:=all
 
-include $(wildcard misc.mak)
+include $(wildcard private.mak)

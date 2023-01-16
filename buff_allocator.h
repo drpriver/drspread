@@ -12,6 +12,14 @@
 #endif
 #endif
 
+#ifndef force_inline
+#if defined(__GNUC__) || defined(__clang__)
+#define force_inline static inline __attribute__((always_inline))
+#else
+#define force_inline static inline
+#endif
+#endif
+
 typedef struct BuffAllocator BuffAllocator;
 struct BuffAllocator {
     char* const data;
@@ -37,7 +45,8 @@ buff_set(BuffAllocator* b, BuffCheckpoint c){
 }
 
 
-static inline
+force_inline
+// static inline
 __attribute__((__malloc__))
 void*_Nullable
 buff_alloc(BuffAllocator* a, size_t sz){

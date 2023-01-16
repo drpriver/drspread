@@ -92,15 +92,13 @@ drsp_evaluate_formulas(ARGS){
     for(intptr_t i = 0; sp_next_cell(&ctx, sheethandle, i, &row, &col) == 0; i++){
         buff_set(&ctx.a, bc);
         Expression* e = evaluate(&ctx, sheethandle, row, col);
-        #if !defined(__wasm__) && !defined(TESTING_H)
-        if(0)
-        #else
-        if(0)
+        // benchmarking
+        #ifdef BENCHMARKING
+            for(int i = 0; i < 10000; i++){
+                buff_set(&ctx.a, bc);
+                e = evaluate(&ctx, sheethandle, row, col);
+            }
         #endif
-        for(int i = 0; i < 10000; i++){
-            buff_set(&ctx.a, bc);
-            e = evaluate(&ctx, sheethandle, row, col);
-        }
         if(e){
             switch(e->kind){
                 case EXPR_NUMBER:

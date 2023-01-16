@@ -9,7 +9,11 @@
 #pragma clang assume_nonnull begin
 #endif
 #ifndef force_inline
+#if defined(__GNUC__) || defined(__clang__)
 #define force_inline static inline __attribute__((always_inline))
+#else
+#define force_inline static inline
+#endif
 #endif
 
 typedef struct StringView StringView;

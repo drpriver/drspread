@@ -7,7 +7,6 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
     let sheet_evaluate_formulas;
     let sheet_evaluate_string;
     let mem;
-    let mem32;
     let memview;
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
@@ -28,9 +27,6 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
     }
     function read4(p) {
         return memview.getInt32(p, true);
-        p /= 4;
-        p |= 0;
-        return mem32[p];
     }
     function readdouble(p) {
         const d = memview.getFloat64(p, true);
@@ -117,7 +113,6 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
         m.grow(1024);
         mem = new Uint8Array(m.buffer);
         memview = new DataView(mem.buffer);
-        mem32 = new Uint32Array(m.buffer);
         malloc = exports.malloc;
         reset_memory = exports.reset_memory;
         sheet_evaluate_formulas = exports.sheet_evaluate_formulas;
