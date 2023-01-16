@@ -81,12 +81,9 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
         },
     };
     function evaluate_formulas(id) {
-        const now = window.performance.now();
         reset_memory();
         sheet_evaluate_formulas(id);
         reset_memory();
-        const after = window.performance.now();
-        console.log('evaluate_formulas', after - now);
     }
     function evaluate_string(id, s) {
         reset_memory();

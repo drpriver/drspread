@@ -110,12 +110,12 @@ const imports = {
 };
 
 function evaluate_formulas(id:number){
-    const now = window.performance.now();
+    // const now = window.performance.now();
     reset_memory();
     sheet_evaluate_formulas(id);
     reset_memory();
-    const after = window.performance.now();
-    console.log('evaluate_formulas', after-now);
+    // const after = window.performance.now();
+    // console.log('evaluate_formulas', after-now);
 }
 
 function evaluate_string(id:number, s:string):number|string{
