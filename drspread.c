@@ -79,7 +79,7 @@ drsp_evaluate_formulas(ARGS){
 #undef ARGS
     intptr_t row=-1, col=-1;
     int nerrs = 0;
-    _Alignas(intptr_t) char evalbuff [10000];
+    _Alignas(intptr_t) char evalbuff [30000];
     SpreadContext ctx = {
         #ifndef __wasm__
             ._ops=*ops,
@@ -134,7 +134,7 @@ DRSP_EXPORT
 int
 drsp_evaluate_string(ARGS){
 #undef ARGS
-    _Alignas(intptr_t) char evalbuff [10000];
+    _Alignas(intptr_t) char evalbuff [30000];
     SpreadContext ctx = {
 #ifndef __wasm__
         ._ops=*ops,

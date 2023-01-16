@@ -66,6 +66,11 @@ function readdouble(p:number):number{
 }
 const imports = {
     env:{
+        logline:function(p:number, l:number){
+            const len = (exports as any).strlen(p);
+            const s = wasm_string_to_js(p, len);
+            console.trace(`${s}: ${l}`);
+        },
         round: Math.round,
         pow: Math.pow,
         sheet_cell_text:function(id:number, row:number, col:number):number{

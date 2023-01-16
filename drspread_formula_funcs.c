@@ -5,6 +5,7 @@
 #define DRSPREAD_FORMULA_FUNCS_C
 #include "drspread_types.h"
 #include "drspread_evaluate.h"
+#include "drspread_utils.h"
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
@@ -13,84 +14,80 @@
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
 #endif
 
-static inline
-int
-get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, SheetHandle _Nonnull *_Nonnull rhnd, intptr_t caller_row, intptr_t caller_col){
-    if(arg->kind != EXPR_RANGE1D_COLUMN && arg->kind != EXPR_RANGE1D_COLUMN_FOREIGN)
-        return 1;
-    if(arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
-        StringView sheet_name = ((ForeignRange1DColumn*)arg)->sheet_name;
-        hnd = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
-        if(!hnd) return 1;
-        *rhnd = hnd;
-    }
-    Range1DColumn* rng = (Range1DColumn*)arg;
-    intptr_t start = rng->row_start;
-    if(start == IDX_DOLLAR) start = caller_row;
-    intptr_t colnum;
-    if(rng->col_name.length == 0 && rng->col_name.text[0] == '$'){
-        colnum = caller_col;
-    }
-    else {
-        colnum = sp_name_to_col_idx(ctx, hnd, rng->col_name.text, rng->col_name.length);
-    }
-    if(start < 0) start += sp_col_height(ctx, hnd, colnum);
-    intptr_t end = rng->row_end;
-    if(end == IDX_DOLLAR) end = caller_row;
-    if(end < 0) end += sp_col_height(ctx, hnd, colnum);
-    if(end < start){
-        intptr_t tmp = end;
-        end = start;
-        start = tmp;
-    }
-    *col = colnum;
-    *rowstart = start;
-    *rowend = end;
-    return 0;
-}
-
-static inline
-_Bool evaled_is_not_scalar(Expression*_Nullable e){
-    if(!e) return 1;
-    switch(e->kind){
-        case EXPR_ERROR:
-            return 1;
-        case EXPR_STRING:
-        case EXPR_NULL:
-        case EXPR_NUMBER:
-            return 0;
-        default:
-            return 1;
-    }
-}
-
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sum){
-    // printf("enter %s\n", __func__);
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    intptr_t col, start, end;
-    SheetHandle rhnd = hnd;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
-        return Error(ctx, "");
     double sum = 0;
-    // NOTE: inclusive range
-    for(intptr_t row = start; row <= end; row++){
-        char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, rhnd, row, col);
-        if(!e || e->kind == EXPR_ERROR) return e;
-        if(evaled_is_not_scalar(e)) return Error(ctx, "");
-        if(e->kind != EXPR_NUMBER) continue;
-        sum += ((Number*)e)->value;
-        ctx->a.cursor = chk;
+    if(arg->kind == EXPR_COMPUTED_COLUMN){
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind != EXPR_NUMBER)
+                continue;
+            sum += ((Number*)e)->value;
+        }
     }
-    ctx->a.cursor = chk;
+    else {
+        intptr_t col, start, end;
+        SheetHandle rhnd = hnd;
+        if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            sum += ((Number*)e)->value;
+            buff_set(&ctx->a, bc);
+        }
+    }
+    buff_set(&ctx->a, bc);
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = sum;
-    // printf("leave %s\n", __func__);
+    return &n->e;
+}
+DRSP_INTERNAL
+FORMULAFUNC(drsp_prod){
+    if(argc != 1) return Error(ctx, "");
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    double prod = 1;
+    if(arg->kind == EXPR_COMPUTED_COLUMN){
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind != EXPR_NUMBER)
+                continue;
+            prod *= ((Number*)e)->value;
+        }
+    }
+    else {
+        intptr_t col, start, end;
+        SheetHandle rhnd = hnd;
+        if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            prod *= ((Number*)e)->value;
+            buff_set(&ctx->a, bc);
+        }
+    }
+    buff_set(&ctx->a, bc);
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = prod;
     return &n->e;
 }
 
@@ -99,28 +96,39 @@ FORMULAFUNC(drsp_avg){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    intptr_t col, start, end;
-    SheetHandle rhnd = hnd;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
-        return Error(ctx, "");
     double sum = 0.;
     double count = 0.;
-    // NOTE: inclusive range
-    for(intptr_t row = start; row <= end; row++){
-        char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, rhnd, row, col);
-        if(!e || e->kind == EXPR_ERROR) return e;
-        if(evaled_is_not_scalar(e)) return Error(ctx, "");
-        if(e->kind != EXPR_NUMBER) continue;
-        sum += ((Number*)e)->value;
-        count += 1.0;
-        ctx->a.cursor = chk;
+    if(arg->kind == EXPR_COMPUTED_COLUMN){
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind != EXPR_NUMBER) continue;
+            sum += ((Number*)e)->value;
+            count += 1.0;
+        }
     }
-    ctx->a.cursor = chk;
-    n->value = sum/count;
+    else {
+        intptr_t col, start, end;
+        SheetHandle rhnd = hnd;
+        if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            sum += ((Number*)e)->value;
+            count += 1.0;
+            buff_set(&ctx->a, bc);
+        }
+    }
+    buff_set(&ctx->a, bc);
+    n->value = count!=0.?sum/count:0;
     return &n->e;
 }
 
@@ -129,25 +137,36 @@ FORMULAFUNC(drsp_count){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    SheetHandle rhnd = hnd;
-    intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
-        return Error(ctx, "");
     intptr_t count = 0;
-    // NOTE: inclusive range
-    for(intptr_t row = start; row <= end; row++){
-        char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, rhnd, row, col);
-        if(!e || e->kind == EXPR_ERROR) return e;
-        if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
-            continue;
-        count += 1;
-        ctx->a.cursor = chk;
+    if(arg->kind == EXPR_COMPUTED_COLUMN){
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e= c->data[i];
+            if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
+                continue;
+            count += 1;
+        }
     }
-    ctx->a.cursor = chk;
+    else {
+        SheetHandle rhnd = hnd;
+        intptr_t col, start, end;
+        if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
+                continue;
+            count += 1;
+            buff_set(&ctx->a, bc);
+        }
+    }
+    buff_set(&ctx->a, bc);
     n->value = (double)count;
     return &n->e;
 }
@@ -157,27 +176,38 @@ FORMULAFUNC(drsp_min){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    SheetHandle rhnd = hnd;
-    intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
-        return Error(ctx, "");
     double v = 1e32;
-    // NOTE: inclusive range
-    for(intptr_t row = start; row <= end; row++){
-        char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, rhnd, row, col);
-        if(!e || e->kind == EXPR_ERROR) return e;
-        if(evaled_is_not_scalar(e)) return Error(ctx, "");
-        if(e->kind != EXPR_NUMBER) continue;
-        if(((Number*)e)->value < v)
-            v = ((Number*)e)->value;
-        ctx->a.cursor = chk;
+    if(arg->kind == EXPR_COMPUTED_COLUMN){
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind != EXPR_NUMBER) continue;
+            if(((Number*)e)->value < v)
+                v = ((Number*)e)->value;
+        }
+    }
+    else {
+        SheetHandle rhnd = hnd;
+        intptr_t col, start, end;
+        if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            if(((Number*)e)->value < v)
+                v = ((Number*)e)->value;
+            buff_set(&ctx->a, bc);
+        }
     }
     if(v == 1e32) v = 0.;
-    ctx->a.cursor = chk;
+    buff_set(&ctx->a, bc);
     n->value = v;
     return &n->e;
 }
@@ -187,27 +217,38 @@ FORMULAFUNC(drsp_max){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    SheetHandle rhnd = hnd;
-    intptr_t col, start, end;
-    if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
-        return Error(ctx, "");
     double v = -1e32;
-    // NOTE: inclusive range
-    for(intptr_t row = start; row <= end; row++){
-        char* chk = ctx->a.cursor;
-        Expression* e = evaluate(ctx, rhnd, row, col);
-        if(!e || e->kind == EXPR_ERROR) return e;
-        if(evaled_is_not_scalar(e)) return Error(ctx, "");
-        if(e->kind != EXPR_NUMBER) continue;
-        if(((Number*)e)->value > v)
-            v = ((Number*)e)->value;
-        ctx->a.cursor = chk;
+    if(arg->kind == EXPR_COMPUTED_COLUMN){
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind != EXPR_NUMBER) continue;
+            if(((Number*)e)->value > v)
+                v = ((Number*)e)->value;
+        }
+    }
+    else {
+        SheetHandle rhnd = hnd;
+        intptr_t col, start, end;
+        if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            if(((Number*)e)->value > v)
+                v = ((Number*)e)->value;
+            buff_set(&ctx->a, bc);
+        }
     }
     if(v == -1e32) v = 0.;
-    ctx->a.cursor = chk;
+    buff_set(&ctx->a, bc);
     n->value = v;
     return &n->e;
 }
@@ -215,132 +256,253 @@ FORMULAFUNC(drsp_max){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_mod){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    double score = ((Number*)arg)->value;
-    double mod = __builtin_floor((score - 10)/2);
-    ctx->a.cursor = chk;
-    n->value = mod;
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_floor((n->value - 10)/2);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        double score = ((Number*)arg)->value;
+        double mod = __builtin_floor((score - 10)/2);
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = mod;
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_floor){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    ctx->a.cursor = chk;
-    n->value = __builtin_floor(((Number*)arg)->value);
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_floor(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_floor(((Number*)arg)->value);
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_ceil){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    ctx->a.cursor = chk;
-    n->value = __builtin_ceil(((Number*)arg)->value);
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_ceil(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_ceil(((Number*)arg)->value);
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_trunc){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    ctx->a.cursor = chk;
-    n->value = __builtin_trunc(((Number*)arg)->value);
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_trunc(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_trunc(((Number*)arg)->value);
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_round){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    ctx->a.cursor = chk;
-    n->value = __builtin_round(((Number*)arg)->value);
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_round(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_round(((Number*)arg)->value);
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_abs){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    ctx->a.cursor = chk;
-    n->value = __builtin_fabs(((Number*)arg)->value);
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_fabs(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_fabs(((Number*)arg)->value);
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sqrt){
     if(argc != 1) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER)
-        return Error(ctx, "");
-    ctx->a.cursor = chk;
-    n->value = __builtin_sqrt(((Number*)arg)->value);
-    return &n->e;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_sqrt(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_sqrt(((Number*)arg)->value);
+        return &n->e;
+    }
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
     if(argc != 1 && argc != 2) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
+    double value;
     if(arg->kind == EXPR_NUMBER){
-        n->value = ((Number*)arg)->value;
+        value = ((Number*)arg)->value;
     }
     else if(argc == 2){
         Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
         if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
         if(arg2->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        n->value = ((Number*)arg2)->value;
+        value = ((Number*)arg2)->value;
     }
     else {
-        n->value = 0.;
+        value = 0.;
     }
-    ctx->a.cursor = chk;
+    buff_set(&ctx->a, bc);
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = value;
     return &n->e;
 }
 DRSP_INTERNAL
@@ -480,36 +642,149 @@ FORMULAFUNC(drsp_eval){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_pow){
     if(argc != 2) return Error(ctx, "");
-    char* ochk = ctx->a.cursor;
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(arg->kind != EXPR_NUMBER) {
-        ctx->a.cursor = ochk;
-        return Error(ctx, "");
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+        if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        if(arg2->kind == EXPR_NUMBER){
+            double exp = ((Number*)arg2)->value;
+            for(intptr_t i = 0; i < c->length; i++){
+                Expression* e = c->data[i];
+                if(e->kind == EXPR_NULL) continue;
+                if(e->kind != EXPR_NUMBER)
+                    return Error(ctx, "");
+                Number* n = (Number*)e;
+                n->value = __builtin_pow(n->value, exp);
+            }
+        }
+        else if(expr_is_columnar(arg2)){
+            arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
+            if(!arg2 || arg2->kind == EXPR_NULL)
+                return arg2;
+            ComputedColumn* exps = (ComputedColumn*)arg2;
+            if(c->length != exps->length)
+                return Error(ctx, "");
+            for(intptr_t i = 0; i < c->length; i++){
+                Expression* base = c->data[i];
+                Expression* ex = exps->data[i];
+                if(base->kind == EXPR_NULL)
+                    continue;
+                if(base->kind != EXPR_NUMBER)
+                    return Error(ctx, "");
+                if(ex->kind != EXPR_NUMBER)
+                    return Error(ctx, "");
+                Number* n = (Number*)base;
+                double ex_ = ((Number*)ex)->value;
+                n->value = __builtin_pow(n->value, ex_);
+            }
+        }
+        else {
+            return Error(ctx, "");
+        }
+        buff_set(&ctx->a, bc);
+        return arg;
     }
-    Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
-    if(!arg2 || arg2 -> kind == EXPR_ERROR){
-        ctx->a.cursor = ochk;
-        return arg2;
+    else {
+        if(arg->kind != EXPR_NUMBER) {
+            buff_set(&ctx->a, bc);
+            return Error(ctx, "");
+        }
+        Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+        if(!arg2 || arg2 -> kind == EXPR_ERROR){
+            buff_set(&ctx->a, bc);
+            return arg2;
+        }
+        if(arg2->kind != EXPR_NUMBER){
+            buff_set(&ctx->a, bc);
+            return Error(ctx, "");
+        }
+        double val = __builtin_pow(((Number*)arg)->value, ((Number*)arg2)->value);
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = val;
+        return &n->e;
     }
-    if(arg2->kind != EXPR_NUMBER){
-        ctx->a.cursor = ochk;
-        return Error(ctx, "");
+}
+
+static inline
+Expression*_Nullable
+columnar_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, intptr_t caller_col, Expression* needle, int argc, Expression*_Nonnull*_Nonnull argv){
+    needle = convert_to_computed_column(ctx, hnd, needle, caller_row, caller_col);
+    if(!needle || needle->kind == EXPR_ERROR)
+        return needle;
+    ComputedColumn* cneedle = (ComputedColumn*)needle;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    Expression* haystack = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!haystack || haystack->kind == EXPR_ERROR)
+        return haystack;
+    haystack = convert_to_computed_column(ctx, hnd, haystack, caller_row, caller_col);
+    if(!haystack || haystack->kind == EXPR_ERROR)
+        return haystack;
+    ComputedColumn* chaystack = (ComputedColumn*)haystack;
+    argc--, argv++;
+    Expression* values = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!values || values->kind == EXPR_ERROR)
+        return values;
+    values = convert_to_computed_column(ctx, hnd, values, caller_row, caller_col);
+    if(!values || values->kind == EXPR_ERROR)
+        return values;
+    ComputedColumn* cvalues = (ComputedColumn*)values;
+    Expression* default_ = NULL;
+    for(intptr_t i = 0; i < cneedle->length; i++){
+        Expression* n = cneedle->data[i];
+        ExpressionKind nkind = n->kind;
+        StringView sv;
+        double d;
+        if(nkind == EXPR_NULL)
+            continue;
+        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING)
+            return Error(ctx, "");
+        if(nkind == EXPR_NUMBER)
+            d = ((Number*)n)->value;
+        else
+            sv = ((String*)n)->sv;
+        intptr_t idx;
+        for(idx = 0; idx < chaystack->length; idx++){
+            Expression* h = chaystack->data[idx];
+            if(h->kind != nkind) continue;
+            if(nkind == EXPR_STRING){
+                if(sv_equals(sv, ((String*)h)->sv))
+                    break;
+            }
+            else {
+                if(d == ((Number*)h)->value)
+                    break;
+            }
+        }
+        if(idx == chaystack->length){
+            if(!argc) return Error(ctx, "");
+            if(!default_){
+                default_ = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+                if(!default_ || default_ == EXPR_ERROR) return default_;
+                cneedle->data[i] = default_;
+            }
+        }
+        else {
+            if(idx >= cvalues->length)
+                return Error(ctx, "");
+            cneedle->data[i] = cvalues->data[idx];
+        }
     }
-    double val = __builtin_pow(((Number*)arg)->value, ((Number*)arg2)->value);
-    n->value = val;
-    ctx->a.cursor = chk;
-    return &n->e;
+    return needle;
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_tablelookup){
     // "needle", [haystack], [values]
     if(argc != 3 && argc != 4) return Error(ctx, "");
-    char* chk = ctx->a.cursor;
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
     ExpressionKind nkind;
     union {
         StringView s;
@@ -518,6 +793,8 @@ FORMULAFUNC(drsp_tablelookup){
     {
         Expression* needle = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!needle || needle->kind == EXPR_ERROR) return needle;
+        if(expr_is_columnar(needle))
+            return columnar_tablelookup(ctx, hnd, caller_row, caller_col, needle, argc-1, argv+1);
         nkind = needle->kind;
         if(nkind == EXPR_NULL){
             if(argc == 4){
@@ -529,7 +806,7 @@ FORMULAFUNC(drsp_tablelookup){
             nval.d = ((Number*)needle)->value;
         else
             nval.s = ((String*)needle)->sv;
-        ctx->a.cursor = chk;
+        buff_set(&ctx->a, bc);
     }
     intptr_t offset = -1;
     {
@@ -558,7 +835,7 @@ FORMULAFUNC(drsp_tablelookup){
                 }
             }
         }
-        ctx->a.cursor = chk;
+        buff_set(&ctx->a, bc);
         if(offset < 0) {
             if(argc == 4)
                 return evaluate_expr(ctx, hnd, argv[3], caller_row, caller_col);
@@ -572,7 +849,7 @@ FORMULAFUNC(drsp_tablelookup){
         SheetHandle rhnd = hnd;
         if(get_range1dcol(ctx, hnd, values, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "invalid column range");
-        ctx->a.cursor = chk;
+        buff_set(&ctx->a, bc);
         if(start+offset > end) return Error(ctx, "out of bounds");
         return evaluate(ctx, rhnd, start+offset, col);
     }
@@ -664,6 +941,153 @@ FORMULAFUNC(drsp_call){
     return func(ctx, hnd, caller_row, caller_col, argc, argv);
 }
 
+#ifdef TESTING_H
+DRSP_INTERNAL
+FORMULAFUNC(drsp_first){
+    if(argc != 1) return Error(ctx, "");
+    Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR)
+        return arg;
+    if(!expr_is_columnar(arg))
+        return Error(ctx, "");
+    arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR)
+        return arg;
+    ComputedColumn* c = (ComputedColumn*)arg;
+    if(!c->length)
+        return Error(ctx, "");
+    return c->data[0];
+}
+#endif
+
+DRSP_INTERNAL
+FORMULAFUNC(drsp_array){
+    if(!argc) return Error(ctx, "");
+    ComputedColumn* cc = buff_alloc(&ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*argc);
+    cc->e.kind = EXPR_COMPUTED_COLUMN;
+    cc->length = argc;
+    for(int i = 0; i < argc; i++){
+        Expression* e = evaluate_expr(ctx, hnd, argv[i], caller_row, caller_col);
+        if(!e || e->kind == EXPR_ERROR)
+            return e;
+        cc->data[i] = e;
+    }
+    return &cc->e;
+}
+
+DRSP_INTERNAL
+FORMULAFUNC(drsp_if){
+    if(argc != 3) return Error(ctx, "");
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    Expression* cond = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    if(!cond || cond->kind == EXPR_ERROR)
+        return cond;
+    if(expr_is_columnar(cond)){
+        cond = convert_to_computed_column(ctx, hnd, cond, caller_row, caller_col);
+        if(!cond || cond->kind == EXPR_ERROR)
+            return cond;
+        ComputedColumn* cc = (ComputedColumn*)cond;
+        Expression* t = NULL;
+        Expression* f = NULL;
+        intptr_t tcol = IDX_UNSET, tstart, tend;
+        SheetHandle thnd = hnd;
+        intptr_t fcol = IDX_UNSET, fstart, fend;
+        SheetHandle fhnd = hnd;
+        for(intptr_t i = 0; i < cc->length; i++){
+            Expression* e = cc->data[i];
+            if(evaled_is_not_scalar(e))
+                return Error(ctx, "Must be coercible to true/false");
+            if(scalar_expr_is_truthy(e)){
+                if(!t){
+                    t = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+                    if(!t || t->kind == EXPR_ERROR)
+                        return t;
+                }
+                if(t->kind == EXPR_COMPUTED_COLUMN){
+                    ComputedColumn* tc = (ComputedColumn*)t;
+                    if(i >= tc->length){
+                        return Error(ctx, "");
+                    }
+                    cc->data[i] = tc->data[i];
+                }
+                else if(expr_is_scalar(t)){
+                    cc->data[i] = t;
+                }
+                else if(t->kind == EXPR_RANGE1D_COLUMN || t->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+                    if(tcol == IDX_UNSET){
+                        if(get_range1dcol(ctx, hnd, t, &tcol, &tstart, &tend, &thnd, caller_row, caller_col))
+                            return Error(ctx, "");
+                    }
+                    if(tstart + i > tend)
+                        return Error(ctx, "");
+                    Expression* te = evaluate(ctx, thnd, tstart+i, tcol);
+                    if(!te || te->kind == EXPR_ERROR)
+                        return te;
+                    cc->data[i] = te;
+                }
+                else {
+                    return Error(ctx, "");
+                }
+            }
+            else {
+                if(!f){
+                    f = evaluate_expr(ctx, hnd, argv[2], caller_row, caller_col);
+                    if(!f || f->kind == EXPR_ERROR)
+                        return f;
+                }
+                if(f->kind == EXPR_COMPUTED_COLUMN){
+                    ComputedColumn* fc = (ComputedColumn*)f;
+                    if(i >= fc->length){
+                        return Error(ctx, "");
+                    }
+                    cc->data[i] = fc->data[i];
+                }
+                else if(expr_is_scalar(f)){
+                    cc->data[i] = f;
+                }
+                else if(f->kind == EXPR_RANGE1D_COLUMN || f->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+                    if(fcol == IDX_UNSET){
+                        if(get_range1dcol(ctx, hnd, f, &fcol, &fstart, &fend, &fhnd, caller_row, caller_col))
+                            return Error(ctx, "");
+                    }
+                    if(fstart + i > fend)
+                        return Error(ctx, "");
+                    Expression* fe = evaluate(ctx, fhnd, fstart+i, fcol);
+                    if(!fe || fe->kind == EXPR_ERROR)
+                        return fe;
+                    cc->data[i] = fe;
+                }
+                else {
+                    return Error(ctx, "");
+                }
+            }
+        }
+        return cond;
+    }
+    if(evaled_is_not_scalar(cond)){
+        return Error(ctx, "Must be coercible to true/false");
+    }
+    _Bool truthy;
+    switch(cond->kind){
+        case EXPR_NUMBER:
+            truthy = !!((Number*)cond)->value;
+            break;
+        case EXPR_STRING:
+            truthy = !!((String*)cond)->sv.length;
+            break;
+        case EXPR_NULL:
+            truthy = 0;
+            break;
+        default:
+            __builtin_unreachable();
+    }
+    buff_set(&ctx->a, bc);
+    if(truthy)
+        return evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+    else
+        return evaluate_expr(ctx, hnd, argv[2], caller_row, caller_col);
+}
+
 
 
 #ifndef SV
@@ -673,26 +1097,33 @@ FORMULAFUNC(drsp_call){
 DRSP_INTERNAL
 const FuncInfo FUNCTABLE[] = {
     {SV("sum"),   &drsp_sum},
+    {SV("tlu"),   &drsp_tablelookup},
+    {SV("mod"),   &drsp_mod},
+    {SV("if"),    &drsp_if},
+    {SV("count"), &drsp_count},
     {SV("avg"),   &drsp_avg},
     {SV("min"),   &drsp_min},
     {SV("max"),   &drsp_max},
-    {SV("mod"),   &drsp_mod},
     {SV("abs"),   &drsp_abs},
     {SV("floor"), &drsp_floor},
     {SV("ceil"),  &drsp_ceil},
     {SV("trunc"), &drsp_trunc},
     {SV("round"), &drsp_round},
-    {SV("tlu"),   &drsp_tablelookup},
     {SV("find"),  &drsp_find},
     {SV("num"),   &drsp_num},
     {SV("try"),   &drsp_try},
     {SV("pow"),   &drsp_pow},
     {SV("cell"),  &drsp_cell},
-    {SV("count"), &drsp_count},
     {SV("eval"),  &drsp_eval},
     {SV("col"),   &drsp_col},
     {SV("call"),  &drsp_call},
     {SV("sqrt"),  &drsp_sqrt},
+    {SV("array"), &drsp_array},
+#ifdef TESTING_H
+    {SV("_f"),    &drsp_first},
+    {SV("_a"),    &drsp_array},
+#endif
+    {SV("prod"),  &drsp_prod},
 };
 
 DRSP_INTERNAL const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);

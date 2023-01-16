@@ -41,7 +41,8 @@ static inline
 __attribute__((__malloc__))
 void*_Nullable
 buff_alloc(BuffAllocator* a, size_t sz){
-    if(a->cursor + sz > a->end) return NULL;
+    if(a->cursor + sz > a->end)
+        return NULL;
     char* result = a->cursor;
     a->cursor += sz;
     return result;

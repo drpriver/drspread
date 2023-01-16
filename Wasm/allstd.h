@@ -177,6 +177,7 @@ int puts(const char* str){
     (void)str;
     return 0;
 }
+
 int fputs(const char* str, FILE*stream){
     (void)str;
     (void)stream;

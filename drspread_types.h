@@ -60,6 +60,8 @@ enum ExpressionKind: intptr_t {
     EXPR_UNARY,
     EXPR_STRING,
     EXPR_NULL,
+    EXPR_COMPUTED_COLUMN,
+    // EXPR_TYPED_COLUMN,
 };
 typedef enum ExpressionKind ExpressionKind;
 
@@ -166,6 +168,13 @@ typedef struct String String;
 struct String {
     Expression e;
     StringView sv;
+};
+
+typedef struct ComputedColumn ComputedColumn;
+struct ComputedColumn {
+    Expression e;
+    intptr_t length;
+    _Alignas(intptr_t) Expression*_Nonnull data[];
 };
 
 typedef struct SheetCache SheetCache;
@@ -394,6 +403,8 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
         case EXPR_NULL:
             return &ctx->null;
             break;
+        case EXPR_COMPUTED_COLUMN:
+            __builtin_trap();
         default: __builtin_trap();
     }
     void* result = buff_alloc(&ctx->a, sz);
@@ -402,11 +413,63 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
     return result;
 }
 
+static inline
+size_t
+expr_size(ExpressionKind kind){
+    size_t sz;
+    switch(kind){
+        case EXPR_ERROR: sz = sizeof(Expression); break;
+        case EXPR_NUMBER:          sz = sizeof(Number); break;
+        case EXPR_FUNCTION_CALL:   sz = sizeof(FunctionCall); break;
+        case EXPR_RANGE0D_FOREIGN: sz = sizeof(ForeignRange0D); break;
+        case EXPR_RANGE0D:         sz = sizeof(Range0D); break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
+            sz = sizeof(ForeignRange1DColumn);
+            break;
+        case EXPR_RANGE1D_COLUMN:  sz = sizeof(Range1DColumn); break;
+        case EXPR_GROUP:           sz = sizeof(Group); break;
+        case EXPR_BINARY:          sz = sizeof(Binary); break;
+        case EXPR_UNARY:           sz = sizeof(Unary); break;
+        case EXPR_STRING:          sz = sizeof(String); break;
+        case EXPR_NULL: sz = sizeof(Expression); break;
+        case EXPR_COMPUTED_COLUMN:
+            __builtin_trap();
+        default: __builtin_trap();
+    }
+    return sz;
+}
+
+union ExprU{
+    Expression e;
+    Number n;
+    FunctionCall fc;
+    ForeignRange0D fr0;
+    Range0D r0;
+    ForeignRange1DColumn fr1;
+    Range1DColumn r1;
+    Group g;
+    Binary b;
+    Unary u;
+    String s;
+};
+
 #if 0
+#ifdef __wasm__
+extern
+void
+logline(const char*, int);
+#else
+static inline
+void
+logline(const char* f, int l){
+    fprintf(stderr, "%s: %d\n", f, l);
+}
+#endif
+
 #pragma clang assume_nonnull end
 #include "debugging.h"
 #pragma clang assume_nonnull begin
-#define Error(ctx, mess) bt(), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR)
+#define Error(ctx, mess) (bt(), logline(__func__, __LINE__), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR))
 // #define Error(ctx, mess) bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR)
 #else
 #define Error(ctx, mess) expr_alloc(ctx, EXPR_ERROR)

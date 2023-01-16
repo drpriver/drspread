@@ -62,6 +62,7 @@ parse(SpreadContext* ctx, const char* txt, size_t length){
         buff_set(&ctx->a, bc);
         return Error(ctx, "");
     }
+    // fprintf(stderr, "%s:%d %zd bytes used\n", __func__, __LINE__, ctx->a.cursor - ctx->a.data);
     return root;
 }
 
@@ -226,6 +227,7 @@ PARSEFUNC(parse_terminal){
         #pragma clang diagnostic ignored "-Wgnu-case-range"
         case 'a' ... 'z':
         case 'A' ... 'Z':
+        case '_':
         #pragma clang diagnostic pop
             return parse_func_call(ctx, sv);
         case '0': case '1': case '2': case '3': case '4':

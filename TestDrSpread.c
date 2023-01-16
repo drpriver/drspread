@@ -10,6 +10,7 @@ static TestFunc TestSpreadsheet2;
 static TestFunc TestBinOps;
 static TestFunc TestUnOps;
 static TestFunc TestFuncs;
+static TestFunc TestFuncsV;
 static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
@@ -26,6 +27,7 @@ int main(int argc, char** argv){
     RegisterTest(TestBinOps);
     RegisterTest(TestUnOps);
     RegisterTest(TestFuncs);
+    RegisterTest(TestFuncsV);
     RegisterTest(TestMod);
     RegisterTest(TestBugs);
     RegisterTest(TestBugs2);
@@ -275,6 +277,10 @@ TestFunction(TestFuncs){
         "=eval('pow(2,4)')\n"
         "=call('pow', 3, 5)\n"
         "=sqrt(9)\n"
+        "=prod([b])\n"
+
+        "=if(1, 2, 3)\n"
+        "=if('', 2, 3)\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -319,6 +325,83 @@ TestFunction(TestFuncs){
         ROW("16"),
         ROW("243"),
         ROW("3"),
+        ROW("-3234"),
+
+        ROW("2"),
+        ROW("3"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+}
+TestFunction(TestFuncsV){
+    const char* input =
+        "=_f(_a(1))\n"
+        "=_f(mod(_a(13)))\n"
+
+        "=_f(trunc(_a(13.1)))\n"
+        "=_f(floor(_a(13.1)))\n"
+        "=_f(ceil( _a(13.1)))\n"
+        "=_f(round(_a(13.1)))\n"
+
+        "=_f(trunc(_a(-13.1)))\n"
+        "=_f(floor(_a(-13.1)))\n"
+        "=_f(ceil( _a(-13.1)))\n"
+        "=_f(round(_a(-13.1)))\n"
+
+        "=_f(trunc(_a(13.5)))\n"
+        "=_f(floor(_a(13.5)))\n"
+        "=_f(ceil( _a(13.5)))\n"
+        "=_f(round(_a(13.5)))\n"
+
+        "=_f(trunc(_a(-13.5)))\n"
+        "=_f(floor(_a(-13.5)))\n"
+        "=_f(ceil( _a(-13.5)))\n"
+        "=_f(round(_a(-13.5)))\n"
+
+        "=_f(pow(_a(2), 3))\n"
+        "=_f(pow(_a(3), _a(4)))\n"
+
+        "=prod(_a(1, 2, 3, 4))\n"
+        "=sum(_a(1, 2, 3, 4))\n"
+
+        "=sum(if(_a(0,1,0), 3, 4))\n"
+        "=sum(if(_a(0,1,0), _a(10, 11, 12), 4))\n"
+        "=sum(if(_a(0,1,0), 2, _a(41, 42, 43)))\n"
+        "=sum(if(_a(0,1,0), _a(31, 32, 33), _a(15, 25, 35)))\n"
+    ;
+    struct Row expected[] = {
+        ROW("1"),
+        ROW("1"),
+
+        ROW("13"),
+        ROW("13"),
+        ROW("14"),
+        ROW("13"),
+
+        ROW("-13"),
+        ROW("-14"),
+        ROW("-13"),
+        ROW("-13"),
+
+        ROW("13"),
+        ROW("13"),
+        ROW("14"),
+        ROW("14"),
+
+        ROW("-13"),
+        ROW("-14"),
+        ROW("-13"),
+        ROW("-14"),
+
+        ROW("8"),
+        ROW("81"),
+
+        ROW("24"),
+        ROW("10"),
+
+        ROW("11"),
+        ROW("19"),
+        ROW("86"),
+        ROW("82"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

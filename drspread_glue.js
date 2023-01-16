@@ -38,6 +38,11 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
     }
     const imports = {
         env: {
+            logline: function (p, l) {
+                const len = exports.strlen(p);
+                const s = wasm_string_to_js(p, len);
+                console.trace(`${s}: ${l}`);
+            },
             round: Math.round,
             pow: Math.pow,
             sheet_cell_text: function (id, row, col) {
