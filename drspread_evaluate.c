@@ -366,7 +366,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             if(!foreign) return Error(ctx, "");
             intptr_t r = rng->r.row;
             if(r == IDX_DOLLAR) r = caller_row;
-            intptr_t c = sv_equals(rng->r.col_name, SV("$"))?caller_col:sp_name_to_col_idx(ctx, hnd, rng->r.col_name.text, rng->r.col_name.length);
+            intptr_t c = sv_equals(rng->r.col_name, SV("$"))?caller_col:sp_name_to_col_idx(ctx, foreign, rng->r.col_name.text, rng->r.col_name.length);
             if(c == IDX_DOLLAR) c = caller_col;
             return evaluate(ctx, foreign, r, c);
         }
