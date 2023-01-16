@@ -483,27 +483,45 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
     if(argc != 1 && argc != 2) return Error(ctx, "");
     BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    double default_ = 0.;
+    if(argc == 2){
+        Expression* d = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+        if(!d || d->kind == EXPR_ERROR)
+            return d;
+        if(d->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        default_ = ((Number*)d)->value;
+        buff_set(&ctx->a, bc);
+    }
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    double value;
-    if(arg->kind == EXPR_NUMBER){
-        value = ((Number*)arg)->value;
-    }
-    else if(argc == 2){
-        Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
-        if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
-        if(arg2->kind != EXPR_NUMBER)
-            return Error(ctx, "");
-        value = ((Number*)arg2)->value;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR)
+            return arg;
+        ComputedColumn* cc = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < cc->length; i++){
+            Expression* e = cc->data[i];
+            if(e->kind == EXPR_NUMBER)
+                continue;
+            Number* n = expr_alloc(ctx, EXPR_NUMBER);
+            n->value = default_;
+            cc->data[i] = &n->e;
+        }
+        return arg;
     }
     else {
-        value = 0.;
+        double value;
+        if(arg->kind == EXPR_NUMBER)
+            value = ((Number*)arg)->value;
+        else
+            value = default_;
+        buff_set(&ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = value;
+        return &n->e;
     }
-    buff_set(&ctx->a, bc);
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    n->value = value;
-    return &n->e;
 }
 DRSP_INTERNAL
 FORMULAFUNC(drsp_try){

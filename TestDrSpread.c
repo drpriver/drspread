@@ -367,6 +367,8 @@ TestFunction(TestFuncsV){
         "=sum(if(_a(0,1,0), _a(10, 11, 12), 4))\n"
         "=sum(if(_a(0,1,0), 2, _a(41, 42, 43)))\n"
         "=sum(if(_a(0,1,0), _a(31, 32, 33), _a(15, 25, 35)))\n"
+
+        "=sum(num(_a('', 1), 2))\n"
     ;
     struct Row expected[] = {
         ROW("1"),
@@ -402,6 +404,8 @@ TestFunction(TestFuncsV){
         ROW("19"),
         ROW("86"),
         ROW("82"),
+
+        ROW("3"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

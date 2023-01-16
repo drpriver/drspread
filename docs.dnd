@@ -331,6 +331,8 @@
     default is given, default is returned. Finally, 0 is returned if none of
     the above conditions are met.
 
+    The first argument can also be a range/array.
+
     Arguments::dl
       maybe_number::def
         An expression that might be a number.
