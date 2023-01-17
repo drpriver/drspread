@@ -75,7 +75,7 @@
 
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(ARGS){
+drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen){
 #undef ARGS
     intptr_t row=-1, col=-1;
     int nerrs = 0;
@@ -116,6 +116,12 @@ drsp_evaluate_formulas(ARGS){
         nerrs++;
         sp_set_display_error(&ctx, sheethandle, row, col, "error", 5);
     }
+    if(sheetdeps)
+        for(size_t i = 0; i < arrlen(ctx.sheetcache.items) && i < sheetdepslen; i++){
+            if(!ctx.sheetcache.items[i].s.length)
+                break;
+            sheetdeps[i] = ctx.sheetcache.items[i].sheet;
+        }
     free_caches(&ctx);
     return nerrs;
 }

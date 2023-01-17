@@ -52,7 +52,7 @@ main(int argc, char** argv){
         }
     }
     else {
-        int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
+        int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops, NULL, 0);
         // printf("nerr: %d\n", nerr);
         (void)nerr;
         #ifdef BENCHMARKING

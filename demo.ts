@@ -217,7 +217,7 @@ declare function drspread(
     sheet_dims_:(id:number)=>[number, number],
     sheet_name_to_sheet_:(s:string)=>number,
 ):Promise<{
-    evaluate_formulas: (id: number) => void;
+    evaluate_formulas: (id: number) => Array<number>;
     evaluate_string: (id: number, s: string) => number|string;
     exports: WebAssembly.Exports;
 }>;

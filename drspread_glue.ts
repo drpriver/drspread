@@ -21,7 +21,7 @@ function drspread(
     sheet_dims_:(id:number)=>[number, number],
     sheet_name_to_sheet_:(s:string)=>number,
 ):Promise<{
-    evaluate_formulas: (id: number) => void;
+    evaluate_formulas: (id: number) => Array<number>;
     evaluate_string: (id: number, s: string) => number|string;
     exports: WebAssembly.Exports;
 }>
@@ -31,7 +31,7 @@ let winst: WebAssembly.Instance;
 let exports: WebAssembly.Exports;
 let malloc: (sz:number)=>number;
 let reset_memory:()=>void;
-let sheet_evaluate_formulas:(id:number)=>void;
+let sheet_evaluate_formulas:(id:number, phandles:number, phandleslen:number)=>void;
 let sheet_evaluate_string:(id:number, p:number, p2:number)=>number;
 let mem: Uint8Array;
 let memview: DataView;
@@ -109,11 +109,22 @@ const imports = {
     },
 };
 
-function evaluate_formulas(id:number){
+function evaluate_formulas(id:number):Array<number>{
     // const now = window.performance.now();
     reset_memory();
-    sheet_evaluate_formulas(id);
+    const enum _ {NHANDLES=8}
+    // @ts-ignore
+    const handles = exports.calloc(_.NHANDLES,4);
+    sheet_evaluate_formulas(id, handles, 8);
+    const deps = [];
+    for(let i = 0; i < _.NHANDLES; i++){
+        const hnd = read4(handles+i*4);
+        if(!hnd) break;
+        if(hnd == id) continue;
+        deps.push(hnd);
+    }
     reset_memory();
+    return deps;
     // const after = window.performance.now();
     // console.log('evaluate_formulas', after-now);
 }

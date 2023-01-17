@@ -15,6 +15,9 @@
 #ifndef _Nonnull
 #define _Nonnull
 #endif
+#ifndef _Null_unspecified
+#define _Null_unspecified
+#endif
 #endif
 
 #ifndef DRSP_EXPORT
@@ -56,7 +59,7 @@ struct SheetOps {
 
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops);
+drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
 
 typedef struct DrSpreadCellValue DrSpreadCellValue;
 struct  DrSpreadCellValue {
@@ -76,7 +79,7 @@ drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* t
 #else
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(SheetHandle sheethandle);
+drsp_evaluate_formulas(SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
 
 typedef struct DrSpreadCellValue DrSpreadCellValue;
 struct  DrSpreadCellValue {

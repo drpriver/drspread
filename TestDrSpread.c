@@ -83,7 +83,7 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
         .col_height=&get_col_height,
         .dims=&get_dims,
     };
-    int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops);
+    int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops, NULL, 0);
     TestExpectEquals(nerr, expected_nerr);
     for(size_t i = 0; i < expected_len; i++){
         const struct Row* display_row = &sheet.display[i];
@@ -527,8 +527,12 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
         .dims=&get_dims,
         .name_to_sheet = &collection_name_to_sheet,
     };
-    int nerr = drsp_evaluate_formulas((SheetHandle)&collection.sheets[0], &ops);
+    SheetHandle deps[1] = {0};
+    int nerr = drsp_evaluate_formulas((SheetHandle)&collection.sheets[0], &ops, deps, arrlen(deps));
     TestExpectEquals(nerr, expected_nerr);
+    for(size_t i = 0; i < arrlen(deps); i++){
+        TestAssert(deps[i]);
+    }
     for(size_t i = 0; i < expected_len; i++){
         const struct Row* display_row = &collection.sheets[0].display[i];
         const struct Row* expected_row = &expected[i];

@@ -12,8 +12,8 @@
 
 DRSP_EXPORT
 void
-sheet_evaluate_formulas(intptr_t id){
-    drsp_evaluate_formulas((void*)id);
+sheet_evaluate_formulas(intptr_t id, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen){
+    drsp_evaluate_formulas((void*)id, sheetdeps, sheetdepslen);
 }
 
 DRSP_EXPORT

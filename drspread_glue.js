@@ -82,8 +82,19 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
     };
     function evaluate_formulas(id) {
         reset_memory();
-        sheet_evaluate_formulas(id);
+        const handles = exports.calloc(8, 4);
+        sheet_evaluate_formulas(id, handles, 8);
+        const deps = [];
+        for (let i = 0; i < 8; i++) {
+            const hnd = read4(handles + i * 4);
+            if (!hnd)
+                break;
+            if (hnd == id)
+                continue;
+            deps.push(hnd);
+        }
         reset_memory();
+        return deps;
     }
     function evaluate_string(id, s) {
         reset_memory();

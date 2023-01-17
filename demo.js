@@ -191,7 +191,7 @@ drspread('/Bin/drspread.wasm', cell_text, col_height, row_width, display_number,
     ex = exports;
     ev_formulas = evaluate_formulas;
     for (let i = 0; i < 1; i++) {
-        evaluate_formulas(0);
+        const deps = evaluate_formulas(0);
     }
     ev_string = evaluate_string;
     if (document.readyState != 'complete') {
