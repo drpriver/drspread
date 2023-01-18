@@ -1,6 +1,7 @@
 //
 // Copyright © 2023, David Priver
 //
+#include "allstd.h"
 #include "drspread.h"
 #include "drspread_wasm.h"
 #include "drspread.c"
