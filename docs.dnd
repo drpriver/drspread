@@ -27,6 +27,9 @@
     a {
       color: rgb(0, 80, 200);
     }
+    body{
+      background-color: #202020;
+    }
   }
   @media (prefers-color-scheme: light) {
     body{
