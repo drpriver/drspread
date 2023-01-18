@@ -296,23 +296,39 @@
   max::def
     ::pre
       max(range)
+      max(num, num)
+      max(num, num, num)
+      max(num, num, num, num)
     Returns the largest number from range.
 
     Returns 0 for empty ranges (or ranges with no numbers).
+
+    Alternatively, returns the largest from among nums.
+
     Arguments::dl
       range::def
         A column range.
+      num::def
+        Any number of numbers.
 
   min::def
     ::pre
       min(range)
+      max(num, num)
+      max(num, num, num)
+      max(num, num, num, num)
     Returns the smallest number from range.
 
     Returns 0 for empty ranges (or ranges with no numbers).
 
+    Alternatively, returns the smallest from among nums.
+
     Arguments::dl
       range::def
         A column range.
+
+      num::def
+        Any number of numbers.
   mod::def
     ::pre
       mod(score)

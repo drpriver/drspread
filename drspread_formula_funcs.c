@@ -173,7 +173,24 @@ FORMULAFUNC(drsp_count){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_min){
-    if(argc != 1) return Error(ctx, "");
+    if(!argc) return Error(ctx, "");
+    if(argc > 1){
+        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        double v = 1e32;
+        for(;argc;argc--, argv++, buff_set(&ctx->a, bc)){
+            Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR)
+                return arg;
+            if(arg->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            double n = ((Number*)arg)->value;
+            if(n < v)
+                v = n;
+        }
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        n->value = v == 1e32?0:v;
+        return &n->e;
+    }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     BuffCheckpoint bc = buff_checkpoint(&ctx->a);
@@ -214,7 +231,24 @@ FORMULAFUNC(drsp_min){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_max){
-    if(argc != 1) return Error(ctx, "");
+    if(!argc) return Error(ctx, "");
+    if(argc > 1){
+        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        double v = -1e32;
+        for(;argc;argc--, argv++, buff_set(&ctx->a, bc)){
+            Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR)
+                return arg;
+            if(arg->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            double n = ((Number*)arg)->value;
+            if(n > v)
+                v = n;
+        }
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        n->value = v == -1e32?0:v;
+        return &n->e;
+    }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     BuffCheckpoint bc = buff_checkpoint(&ctx->a);

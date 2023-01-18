@@ -281,6 +281,14 @@ TestFunction(TestFuncs){
 
         "=if(1, 2, 3)\n"
         "=if('', 2, 3)\n"
+
+        "=max(1, 2)\n"
+        "=max(1, 2, 3)\n"
+        "=max(1, 2, 3, 4)\n"
+
+        "=min(-1, -2)\n"
+        "=min(-1, -2, -3)\n"
+        "=min(-1, -2, -3, -4)\n"
     ;
     struct Row expected[] = {
         ROW("60", "-1.5"),
@@ -329,6 +337,14 @@ TestFunction(TestFuncs){
 
         ROW("2"),
         ROW("3"),
+
+        ROW("2"),
+        ROW("3"),
+        ROW("4"),
+
+        ROW("-2"),
+        ROW("-3"),
+        ROW("-4"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
