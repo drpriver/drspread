@@ -1,6 +1,8 @@
 //
 // Copyright © 2023, David Priver
 //
+#ifndef DRSPREAD_CLI_C
+#define DRSPREAD_CLI_C
 #include "spreadsheet.h"
 #include "drspread.h"
 #include "get_input.h"
@@ -101,3 +103,4 @@ main(int argc, char** argv){
 }
 #include "drspread.c"
 #include "get_input.c"
+#endif

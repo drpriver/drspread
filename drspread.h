@@ -43,8 +43,6 @@ typedef struct SheetOps SheetOps;
 // Callbacks
 struct SheetOps {
     void* ctx;
-    CellKind (*_Nullable query_cell_kind)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col);
-    double (*cell_number)(void* ctx, SheetHandle sheet, intptr_t row, intptr_t col);
     const char*_Nullable (*_Nonnull cell_txt)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len);
     intptr_t (*col_height)(void* ctx, SheetHandle sheet, intptr_t col);
     intptr_t (*row_width)(void*ctx, SheetHandle sheet, intptr_t row);

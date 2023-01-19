@@ -1147,6 +1147,27 @@ FORMULAFUNC(drsp_if){
         return evaluate_expr(ctx, hnd, argv[2], caller_row, caller_col);
 }
 
+#ifdef DRSPREAD_CLI_C
+#ifdef __APPLE__
+#ifdef __clang__
+#pragma clang assume_nonnull end
+#endif
+#include <time.h>
+#ifdef __clang__
+#pragma clang assume_nonnull begin
+#endif
+DRSP_INTERNAL
+FORMULAFUNC(drsp_time){
+    if(argc != 1) return Error(ctx, "");
+    uint64_t start = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+    Expression* e = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+    uint64_t end = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+    fprintf(stderr, "Took %zu ns\n", (size_t)(end - start));
+    return e;
+}
+#endif
+#endif
+
 
 
 #ifndef SV
@@ -1181,6 +1202,11 @@ const FuncInfo FUNCTABLE[] = {
 #ifdef TESTING_H
     {SV("_f"),    &drsp_first},
     {SV("_a"),    &drsp_array},
+#endif
+#ifdef DRSPREAD_CLI_C
+#ifdef __APPLE__
+    {SV("time"), &drsp_time},
+#endif
 #endif
     {SV("prod"),  &drsp_prod},
 };
