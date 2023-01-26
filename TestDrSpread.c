@@ -14,6 +14,8 @@ static TestFunc TestFuncsV;
 static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
+static TestFunc TestBugs3;
+static TestFunc TestBugs4;
 static TestFunc TestMultisheet;
 static TestFunc TestColFunc;
 static TestFunc TestRanges;
@@ -31,6 +33,8 @@ int main(int argc, char** argv){
     RegisterTest(TestMod);
     RegisterTest(TestBugs);
     RegisterTest(TestBugs2);
+    RegisterTest(TestBugs3);
+    RegisterTest(TestBugs4);
     RegisterTest(TestMultisheet);
     RegisterTest(TestColFunc);
     int ret = test_main(argc, argv, NULL);
@@ -493,6 +497,26 @@ TestFunction(TestBugs2){
         ROW("Plate",   "5", "Plate", "5"),
         ROW("Chain" ,  "3", "",      "2"),
         ROW("Leather", "1", "error", "error"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
+}
+TestFunction(TestBugs3){
+    const char* input =
+        "=[a,$]\n"
+    ;
+    struct Row expected[] = {
+        ROW("error"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
+}
+TestFunction(TestBugs4){
+    const char* input =
+        "=[a,2]\n"
+        "=[a,1]\n"
+    ;
+    struct Row expected[] = {
+        ROW("error"),
+        ROW("error"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }

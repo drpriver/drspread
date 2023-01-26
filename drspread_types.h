@@ -369,6 +369,7 @@ struct SpreadContext {
     BuffAllocator a;
     Expression null;
     Expression error;
+    uintptr_t limit; // this sucks but is to avoid stack overflow;
 };
 
 static inline

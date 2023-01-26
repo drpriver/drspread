@@ -14,15 +14,22 @@
 DRSP_INTERNAL
 Expression*_Nullable
 evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
+    {
+        uintptr_t frm = (uintptr_t)__builtin_frame_address(0);
+        if(frm < ctx->limit) return NULL;
+    }
     // printf("Evaluate %zd, %zd\n", row, col);
     CellKind kind;
     size_t len = 0;
     const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
     StringView stxt = stripped2(txt, len);
     kind = classify_cell(stxt.text, stxt.length);
+
     switch(kind){
-        case CELL_EMPTY:
-            return expr_alloc(ctx, EXPR_NULL);
+        case CELL_EMPTY:{
+            Expression* e = expr_alloc(ctx, EXPR_NULL);
+            return e;
+        }
         case CELL_OTHER:{
             String* s = expr_alloc(ctx, EXPR_STRING);
             if(!s) return NULL;
@@ -102,7 +109,7 @@ double_bin_cmp(BinaryKind op, double l, double r){
 
 static inline
 Expression*_Nullable
-evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expression* lhs, Expression* rhs, intptr_t caller_row, intptr_t caller_col){
+evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
     Expression* result = NULL;
     BuffCheckpoint bc = buff_checkpoint(&ctx->a);
 #define BAD(x) do{result = x; goto cleanup;}while(0)

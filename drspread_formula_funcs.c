@@ -1023,6 +1023,7 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_array){
     if(!argc) return Error(ctx, "");
     ComputedColumn* cc = buff_alloc(&ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*argc);
+    if(!cc) return NULL;
     cc->e.kind = EXPR_COMPUTED_COLUMN;
     cc->length = argc;
     for(int i = 0; i < argc; i++){
@@ -1168,6 +1169,34 @@ FORMULAFUNC(drsp_time){
 #endif
 #endif
 
+#if 0
+#define DRSP_FRAME_FUNCS 1
+#endif
+
+#ifdef DRSP_FRAME_FUNCS
+DRSP_INTERNAL
+FORMULAFUNC(drsp_frame){
+    (void)argv; (void)argc;
+    (void)caller_row; (void)caller_col;
+    (void)hnd;
+    uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = sp;
+    return &n->e;
+}
+DRSP_INTERNAL
+FORMULAFUNC(drsp_limit){
+    (void)argv; (void)argc;
+    (void)caller_row; (void)caller_col;
+    (void)hnd;
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = ctx->limit;
+    return &n->e;
+}
+#endif
+
 
 
 #ifndef SV
@@ -1209,6 +1238,10 @@ const FuncInfo FUNCTABLE[] = {
 #endif
 #endif
     {SV("prod"),  &drsp_prod},
+#ifdef DRSP_FRAME_FUNCS
+    {SV("_frame"), &drsp_frame},
+    {SV("_limit"), &drsp_limit},
+#endif
 };
 
 DRSP_INTERNAL const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);

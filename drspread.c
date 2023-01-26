@@ -87,6 +87,11 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
         .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
+        #ifdef __wasm__
+        .limit = (uintptr_t)__builtin_frame_address(0) - 30000,
+        #else
+        .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
+        #endif
     };
     BuffCheckpoint bc = buff_checkpoint(&ctx.a);
     for(intptr_t i = 0; sp_next_cell(&ctx, sheethandle, i, &row, &col) == 0; i++){
@@ -146,6 +151,11 @@ drsp_evaluate_string(ARGS){
         .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
+        #ifdef __wasm__
+        .limit = (uintptr_t)__builtin_frame_address(0) - 30000,
+        #else
+        .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
+        #endif
     };
     Expression* e = evaluate_string(&ctx, sheethandle, txt, len, -1, -1);
     free_caches(&ctx);
