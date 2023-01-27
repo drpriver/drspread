@@ -41,7 +41,7 @@ main(int argc, char** argv){
                         if((intptr_t)val.d == val.d)
                             printf("%zd\n", (intptr_t)val.d);
                         else
-                            printf("%.1f\n", val.d);
+                            printf("%.2f\n", val.d);
                         break;
                     case CELL_OTHER:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);
@@ -86,7 +86,7 @@ main(int argc, char** argv){
                         if((intptr_t)val.d == val.d)
                             printf("%zd\n", (intptr_t)val.d);
                         else
-                            printf("%.1f\n", val.d);
+                            printf("%.2f\n", val.d);
                         break;
                     case CELL_OTHER:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);
