@@ -1,0 +1,13 @@
+Changelog::kv
+  created:  2023-01-11T07:24:47Z
+  updated:  2023-01-11T07:26:16Z
+  resolved: 2023-01-11T08:32:42Z
+Created Jan 10, 2023, 11:24PM::md .update
+Summary::md .summary
+  Probably use “$”?
+
+Updated Jan 10, 2023, 11:26PM::md .update
+  Could also use it to refer to “this column"
+
+Resolved Jan 11, 2023, 12:32AM::md .update
+  Implemented
