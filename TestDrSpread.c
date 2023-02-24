@@ -20,6 +20,7 @@ static TestFunc TestMultisheet;
 static TestFunc TestColFunc;
 static TestFunc TestRanges;
 static TestFunc TestBadRanges;
+static TestFunc TestNames;
 
 int main(int argc, char** argv){
     RegisterTest(TestRanges);
@@ -37,6 +38,7 @@ int main(int argc, char** argv){
     RegisterTest(TestBugs4);
     RegisterTest(TestMultisheet);
     RegisterTest(TestColFunc);
+    RegisterTest(TestNames);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -659,6 +661,27 @@ TestFunction(TestMultisheet){
         name2, input2,
         expected, arrlen(expected),
         1
+    );
+}
+TestFunction(TestNames){
+    const char* name1 = "root";
+    const char* input1 =
+        "=[foo/bar, b, 1]\n"
+    ;
+    const char* name2 = "foo/bar";
+    const char* input2 =
+        " 1 | 2\n"
+        " 3 | 4\n"
+    ;
+    struct Row expected[] = {
+        ROW("2"),
+    };
+    return test_multi_spreadsheet(
+        __func__,
+        name1, input1,
+        name2, input2,
+        expected, arrlen(expected),
+        0
     );
 }
 
