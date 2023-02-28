@@ -7,7 +7,7 @@ TestResults: ; mkdir -p $@
 %.dep: ;
 DEPFILES:=$(wildcard Depends/*.dep)
 include $(DEPFILES)
-WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments
+WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types
 WCC?=clang
 
 Bin/drspread: drspread_cli.c Makefile | Bin Depends
