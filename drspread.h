@@ -24,25 +24,24 @@
 #define DRSP_EXPORT extern __attribute__((visibility("default")))
 #endif
 
-enum CellKind: intptr_t {
-    CELL_EMPTY = 0, // Empty Cell
-    CELL_NUMBER = 1,
-    CELL_FORMULA = 2,
-    CELL_OTHER = 3,
-    CELL_UNKNOWN = 4, // caller doesn't know what this is, but can provide a string
+enum DrspResultKind: intptr_t {
+    DRSP_RESULT_NULL = 0, // Empty Cell
+    DRSP_RESULT_NUMBER = 1,
+    DRSP_RESULT_STRING = 2,
 };
-typedef enum CellKind CellKind;
+typedef enum DrspResultKind DrspResultKind;
 // Opaque Struct
 // Cast to your actual type in your implementation functions.
 // Safer than void*
 typedef struct _sheet_handle* SheetHandle;
 
-typedef struct DrSpreadCellValue DrSpreadCellValue;
-struct  DrSpreadCellValue {
-    CellKind kind; // oneof CELL_EMPTY, CELL_NUMBER, CELL_OTHER
+typedef struct DrSpreadResult DrSpreadResult;
+struct  DrSpreadResult {
+    // oneof DRSP_RESULT_NULL, DRSP_RESULT_NUMBER, DRSP_RESULT_STRING
+    DrspResultKind kind;
     union {
-        double d; // CELL_NUMBER
-        struct {  // CELL_OTHER
+        double d; // DRSP_RESULT_NUMBER
+        struct {  // DRSP_RESULT_STRING
             size_t length;
             // NOTE: when used as a return value, this is a malloced.
             // This sucks, but I can't figure out how else to support
@@ -78,7 +77,7 @@ drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops, SheetHandle
 
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col);
+drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col);
 #else
 DRSP_EXPORT
 int
@@ -86,7 +85,7 @@ drsp_evaluate_formulas(SheetHandle sheethandle, SheetHandle _Null_unspecified*_N
 
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col);
+drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col);
 #endif
 
 #ifdef __clang__

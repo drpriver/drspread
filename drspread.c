@@ -135,9 +135,9 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
 // Don't need the SheetOps* arg and as this is an export the
 // number of parameters matters.
 #ifdef __wasm__
-#define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col
+#define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col
 #else
-#define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col
+#define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col
 #endif
 
 DRSP_EXPORT
@@ -166,14 +166,14 @@ drsp_evaluate_string(ARGS){
     }
     switch(e->kind){
         case EXPR_NULL:
-            outval->kind = CELL_EMPTY;
+            outval->kind = DRSP_RESULT_NULL;
             break;
         case EXPR_NUMBER:
-            outval->kind = CELL_NUMBER;
+            outval->kind = DRSP_RESULT_NUMBER;
             outval->d = ((Number*)e)->value;
             break;
         case EXPR_STRING:{
-            outval->kind = CELL_OTHER;
+            outval->kind = DRSP_RESULT_STRING;
             StringView sv = ((String*)e)->sv;
             char* t = malloc(sv.length);
             __builtin_memcpy(t, sv.text, sv.length);

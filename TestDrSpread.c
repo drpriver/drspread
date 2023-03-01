@@ -115,21 +115,21 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
             StringView inp = stripped2(inp_txt, inp_len);
             if(!inp.length) continue;
             if(inp.text[0] != '=') continue;
-            DrSpreadCellValue val;
+            DrSpreadResult val;
             int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, inp_txt, inp_len, &val, i, col);
             nerr += err;
             if(!err){
                 switch(val.kind){
-                    case CELL_EMPTY:
+                    case DRSP_RESULT_NULL:
                         TestExpectEquals(expected.length, 0);
                         break;
-                    case CELL_NUMBER:{
+                    case DRSP_RESULT_NUMBER:{
                         DoubleResult dr = parse_double(expected.text, expected.length);
                         TestAssertFalse(dr.errored);
                         double n = dr.result;
                         TestExpectEquals(n, val.d);
                     }break;
-                    case CELL_OTHER:{
+                    case DRSP_RESULT_STRING:{
                         StringView v = {val.s.length, val.s.text};
                         TestExpectEquals2(sv_equals, v, expected);
                         free((char*)val.s.text);
@@ -638,21 +638,21 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
             StringView inp = stripped2(inp_txt, inp_len);
             if(!inp.length) continue;
             if(inp.text[0] != '=') continue;
-            DrSpreadCellValue val;
+            DrSpreadResult val;
             int err = drsp_evaluate_string((SheetHandle)&collection.sheets[0], &ops, inp_txt, inp_len, &val, i, col);
             nerr += err;
             if(!err){
                 switch(val.kind){
-                    case CELL_EMPTY:
+                    case DRSP_RESULT_NULL:
                         TestExpectEquals(expected.length, 0);
                         break;
-                    case CELL_NUMBER:{
+                    case DRSP_RESULT_NUMBER:{
                         DoubleResult dr = parse_double(expected.text, expected.length);
                         TestAssertFalse(dr.errored);
                         double n = dr.result;
                         TestExpectEquals(n, val.d);
                     }break;
-                    case CELL_OTHER:{
+                    case DRSP_RESULT_STRING:{
                         StringView v = {val.s.length, val.s.text};
                         TestExpectEquals2(sv_equals, v, expected);
                         free((char*)val.s.text);
@@ -837,11 +837,11 @@ TestFunction(TestComplexMultisheet){
     SpreadSheet* sheet = &ms.sheets[0];
     for(size_t i = 0; i < arrlen(cases); i++){
         struct test_case* c = &cases[i];
-        DrSpreadCellValue val = {0};
+        DrSpreadResult val = {0};
         StringView sv = c->sv;
         err = drsp_evaluate_string((SheetHandle)sheet, &ops, sv.text, sv.length, &val, -1, -1);
         TestExpectFalse(err);
-        TestExpectEquals(val.kind, CELL_NUMBER);
+        TestExpectEquals(val.kind, DRSP_RESULT_NUMBER);
         TestExpectEquals(val.d, c->value); // suck it, "always use an epsilon" bots.
     }
     err = drsp_evaluate_formulas((SheetHandle)sheet, &ops, NULL, 0);

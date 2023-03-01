@@ -15,10 +15,6 @@ DRSP_INTERNAL
 Expression*_Nullable
 parse(SpreadContext* ctx, const char* txt, size_t length);
 
-DRSP_INTERNAL
-CellKind
-classify_cell(const char* txt, size_t length);
-
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

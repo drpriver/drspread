@@ -107,7 +107,7 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
         switch (kind) {
             case 0: return "";
             case 1: return readdouble(p + 8);
-            case 3: return wasm_string_to_js(read4(p + 12), read4(p + 8));
+            case 2: return wasm_string_to_js(read4(p + 12), read4(p + 8));
             default: return "error";
         }
     }

@@ -99,23 +99,23 @@ main(int argc, char** argv){
     if(pos_args[1].num_parsed){
         for(int i = 0; i < pos_args[1].num_parsed; i++){
             StringView expr = expressions[i];
-            DrSpreadCellValue val;
+            DrSpreadResult val;
             int err = drsp_evaluate_string((SheetHandle)&ms.sheets[0], &ops, expr.text, expr.length, &val, -1, -1);
             if(err){
                 puts("err");
             }
             else{
                 switch(val.kind){
-                    case CELL_EMPTY:
+                    case DRSP_RESULT_NULL:
                         printf("\n");
                         break;
-                    case CELL_NUMBER:
+                    case DRSP_RESULT_NUMBER:
                         if((intptr_t)val.d == val.d)
                             printf("%zd\n", (intptr_t)val.d);
                         else
                             printf("%.2f\n", val.d);
                         break;
-                    case CELL_OTHER:
+                    case DRSP_RESULT_STRING:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);
                         break;
                     default:
@@ -158,21 +158,21 @@ main(int argc, char** argv){
                 continue;
             }
             gi_add_line_to_history_len(&gi, line, len);
-            DrSpreadCellValue val;
+            DrSpreadResult val;
             int err = drsp_evaluate_string((SheetHandle)&ms.sheets[0], &ops, line, len, &val, -1, -1);
             if(err) puts("err");
             else {
                 switch(val.kind){
-                    case CELL_EMPTY:
+                    case DRSP_RESULT_NULL:
                         printf("\n");
                         break;
-                    case CELL_NUMBER:
+                    case DRSP_RESULT_NUMBER:
                         if((intptr_t)val.d == val.d)
                             printf("%zd\n", (intptr_t)val.d);
                         else
                             printf("%.2f\n", val.d);
                         break;
-                    case CELL_OTHER:
+                    case DRSP_RESULT_STRING:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);
                         free((char*)val.s.text);
                         break;

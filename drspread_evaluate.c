@@ -18,62 +18,66 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
         uintptr_t frm = (uintptr_t)__builtin_frame_address(0);
         if(frm < ctx->limit) return NULL;
     }
-    // printf("Evaluate %zd, %zd\n", row, col);
-    CellKind kind;
     size_t len = 0;
     const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
-    StringView stxt = stripped2(txt, len);
-    kind = classify_cell(stxt.text, stxt.length);
-
-    switch(kind){
-        case CELL_EMPTY:{
-            Expression* e = expr_alloc(ctx, EXPR_NULL);
+    StringView sv = stripped2(txt, len);
+    // These `goto`s are a bit unorthodox, but it is basically a switch,
+    // with the ability of cell_number to jump to cell_other
+    if(!sv.length) goto cell_empty;
+    if(sv.text[0] == '=')
+        goto cell_formula;
+    if((sv.text[0] >= '0' && sv.text[0] <= '9') || sv.text[0] == '.' || sv.text[0] == '-')
+        goto cell_number;
+    goto cell_other;
+    {
+        cell_empty:;
+        Expression* e = expr_alloc(ctx, EXPR_NULL);
+        return e;
+    }
+    {
+        cell_other:;
+        String* s = expr_alloc(ctx, EXPR_STRING);
+        if(!s) return NULL;
+        s->sv = sv;
+        return &s->e;
+    }
+    {
+        cell_number:;
+        DoubleResult dr = parse_double(sv.text, sv.length);
+        if(dr.errored) goto cell_other;
+        double value = dr.result;
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = value;
+        return &n->e;
+    }
+    {
+        cell_formula:;
+        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        Expression *root = parse(ctx, sv.text, sv.length);
+        if(!root || root->kind == EXPR_ERROR){
+            buff_set(&ctx->a, bc);
+            return root;
+        }
+        Expression *e = evaluate_expr(ctx, hnd, root, row, col);
+        if(!e || e->kind == EXPR_ERROR) {
+            buff_set(&ctx->a, bc);
             return e;
         }
-        case CELL_OTHER:{
-            String* s = expr_alloc(ctx, EXPR_STRING);
-            if(!s) return NULL;
-            s->sv = stxt;
-            return &s->e;
-        }
-        case CELL_NUMBER:{
-            DoubleResult dr = parse_double(stxt.text, stxt.length);
-            assert(!dr.errored);
-            double value = dr.result;
-            Number* n = expr_alloc(ctx, EXPR_NUMBER);
-            if(!n) return NULL;
-            n->value = value;
-            return &n->e;
-        }
-        case CELL_FORMULA:{
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
-            Expression *root = parse(ctx, stxt.text, stxt.length);
-            if(!root || root->kind == EXPR_ERROR){
-                buff_set(&ctx->a, bc);
-                return root;
-            }
-            Expression *e = evaluate_expr(ctx, hnd, root, row, col);
-            if(!e || e->kind == EXPR_ERROR) {
-                buff_set(&ctx->a, bc);
+        unsigned char tmp[sizeof(union ExprU)];
+        ExpressionKind kind = e->kind;
+        switch(kind){
+            case EXPR_COMPUTED_COLUMN:
                 return e;
-            }
-            unsigned char tmp[sizeof(union ExprU)];
-            ExpressionKind kind = e->kind;
-            switch(kind){
-                case EXPR_COMPUTED_COLUMN:
-                    return e;
-                default:
-                    memcpy(tmp, e, expr_size(kind));
-                    break;
-            }
-            buff_set(&ctx->a, bc);
-            Expression* r = expr_alloc(ctx, kind);
-            if(expr_size(kind) != sizeof(Expression))
-                memcpy(r, tmp, expr_size(kind));
-            return r;
+            default:
+                memcpy(tmp, e, expr_size(kind));
+                break;
         }
-        case CELL_UNKNOWN:
-            __builtin_trap();
+        buff_set(&ctx->a, bc);
+        Expression* r = expr_alloc(ctx, kind);
+        if(expr_size(kind) != sizeof(Expression))
+            memcpy(r, tmp, expr_size(kind));
+        return r;
     }
 }
 

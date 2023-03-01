@@ -18,19 +18,6 @@
 #endif
 #endif
 
-// DRSP_INTERNAL
-force_inline
-CellKind
-classify_cell(const char* text, size_t length){
-    if(!length) return CELL_EMPTY;
-    char first = text[0];
-    if(first == '=') return CELL_FORMULA;
-    if((first >= '0' && first <= '9') || first == '.' || first == '-'){
-        if(!parse_double(text, length).errored) return CELL_NUMBER;
-    }
-    return CELL_OTHER;
-}
-
 #define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, StringView* sv)
 DRSP_INTERNAL PARSEFUNC(parse_comparison);
 DRSP_INTERNAL PARSEFUNC(parse_addplus);

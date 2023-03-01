@@ -995,30 +995,32 @@ columnar_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, i
     for(intptr_t i = 0; i < cneedle->length; i++){
         Expression* n = cneedle->data[i];
         ExpressionKind nkind = n->kind;
-        StringView sv;
-        double d;
         if(nkind == EXPR_NULL)
             continue;
         if(nkind != EXPR_NUMBER && nkind != EXPR_STRING)
             return Error(ctx, "");
-        if(nkind == EXPR_NUMBER)
-            d = ((Number*)n)->value;
-        else
-            sv = ((String*)n)->sv;
         intptr_t idx;
-        for(idx = 0; idx < chaystack->length; idx++){
-            Expression* h = chaystack->data[idx];
-            if(h->kind != nkind) continue;
-            if(nkind == EXPR_STRING){
-                if(sv_equals(sv, ((String*)h)->sv))
-                    break;
-            }
-            else {
+        const intptr_t haylength = chaystack->length;
+        Expression*_Nonnull* data = chaystack->data;
+        if(nkind == EXPR_NUMBER){
+            double d = ((Number*)n)->value;
+            for(idx = 0; idx < haylength; idx++){
+                const Expression* h = data[idx];
+                if(h->kind != EXPR_NUMBER) continue;
                 if(d == ((Number*)h)->value)
                     break;
             }
         }
-        if(idx == chaystack->length){
+        else {
+            StringView sv = ((String*)n)->sv;
+            for(idx = 0; idx < haylength; idx++){
+                const Expression* h = data[idx];
+                if(h->kind != EXPR_STRING) continue;
+                if(sv_equals(sv, ((String*)h)->sv))
+                    break;
+            }
+        }
+        if(idx == haylength){
             if(!argc) return Error(ctx, "");
             if(!default_){
                 default_ = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
