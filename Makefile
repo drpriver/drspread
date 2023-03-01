@@ -9,13 +9,14 @@ DEPFILES:=$(wildcard Depends/*.dep)
 include $(DEPFILES)
 WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types
 WCC?=clang
+SANITIZE=-fsanitize=address,nullability,undefined
 
 Bin/drspread: drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3
 Bin/drspread_bench: drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O1 -DBENCHMARKING=1
 Bin/drspread.o: drspread.c Makefile | Bin Depends
-	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O0 -fsanitize=address,nullability,undefined
+	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3
 .PHONY: clean
 clean:
 	rm -rf Bin
@@ -29,7 +30,7 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes
 
 Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -fsanitize=address,undefined,nullability -g
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE)
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@
@@ -39,6 +40,7 @@ ALL=TestResults/TestDrSpread \
     Bin/drspread \
     Bin/drspread.wasm \
     Bin/drspread_bench \
+    Bin/drspread.o \
     drspread_glue.js \
     demo.js
 all: $(ALL)
