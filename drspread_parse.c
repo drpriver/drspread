@@ -487,6 +487,8 @@ PARSEFUNC(parse_func_call){
         }
     }
     if(!func) return Error(ctx, "");
+    // This is pretty sloppy - always allocates space
+    // for exactly 4 args - can't do less or more.
     enum {argmax=4};
     Expression** argv = buff_alloc(&ctx->a, argmax * sizeof *argv);
     int argc;

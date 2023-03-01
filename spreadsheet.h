@@ -37,15 +37,16 @@
 
 // This code is only intended for testing and the demo cli app.
 // So it leaks memory all over the place.
-
-struct Row {
+typedef struct SheetRow SheetRow;
+struct SheetRow {
     int n;
     const char*_Nonnull*_Nonnull data;
     size_t* lengths;
 };
 
 static
-void row_push(struct Row* ro, const char* txt){
+void
+sheet_row_push(SheetRow* ro, const char* txt){
     ro->data = realloc(ro->data, ++ro->n*sizeof(txt));
     ro->data[ro->n-1] = txt;
     ro->lengths = realloc(ro->lengths, ro->n*sizeof txt);
@@ -54,14 +55,17 @@ void row_push(struct Row* ro, const char* txt){
 
 typedef struct SpreadSheet SpreadSheet;
 struct SpreadSheet {
-    struct Row* cells;
-    struct Row* display;
+    StringView name;
+    SheetRow colnames;
+    SheetRow* cells;
+    SheetRow* display;
     intptr_t rows;
     intptr_t maxcols;
 };
 
 static
-int next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
+int
+sheet_next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
     (void)m;
     (void)i;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
@@ -73,7 +77,7 @@ int next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
         return 0;
     }
     c++;
-    const struct Row* ro = &sheet->cells[r];
+    const SheetRow* ro = &sheet->cells[r];
     if(c >= ro->n) r++, c=0;
     if(unlikely(r >= sheet->rows)) return 1;
     *row = r;
@@ -82,14 +86,15 @@ int next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
 }
 
 static
-const char* txt(void*m, SheetHandle hnd, intptr_t row, intptr_t col, size_t* len){
+const char*
+sheet_txt(void*m, SheetHandle hnd, intptr_t row, intptr_t col, size_t* len){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(unlikely(row < 0 || row >= sheet->rows)){
         *len = 0;
         return "";
     }
-    const struct Row* ro = &sheet->cells[row];
+    const SheetRow* ro = &sheet->cells[row];
     if(unlikely(col < 0 || col >= ro->n)){
         *len = 0;
         return "";
@@ -101,11 +106,11 @@ const char* txt(void*m, SheetHandle hnd, intptr_t row, intptr_t col, size_t* len
 
 static
 int
-display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
+sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
-    struct Row* ro = &sheet->display[row];
+    SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     int printed;
     if((intptr_t)val == val)
@@ -119,11 +124,11 @@ display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val)
 
 static
 int
-display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
+sheet_set_display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
-    struct Row* ro = &sheet->display[row];
+    SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     (void)mess;
     (void)len;
@@ -133,11 +138,11 @@ display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* m
 }
 static
 int
-display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
+sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
-    struct Row* ro = &sheet->display[row];
+    SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     int printed = asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
     if(printed < 0) return 1;
@@ -147,7 +152,7 @@ display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, const char* 
 
 static
 intptr_t
-get_name_to_col_idx(void*m, SheetHandle hnd, const char* name, size_t length){
+sheet_get_name_to_col_idx(void*m, SheetHandle hnd, const char* name, size_t length){
     (void)m;
     (void)hnd;
     (void)length;
@@ -158,17 +163,17 @@ get_name_to_col_idx(void*m, SheetHandle hnd, const char* name, size_t length){
 
 static
 intptr_t
-get_row_width(void*m, SheetHandle hnd, intptr_t row){
+sheet_get_row_width(void*m, SheetHandle hnd, intptr_t row){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     if(unlikely(row < 0 || row >= sheet->rows)) return 0;
-    struct Row* ro = &sheet->display[row];
+    SheetRow* ro = &sheet->display[row];
     return ro->n;
 }
 
 static
 intptr_t
-get_col_height(void*m, SheetHandle hnd, intptr_t col){
+sheet_get_col_height(void*m, SheetHandle hnd, intptr_t col){
     (void)m;
     (void)col;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
@@ -177,7 +182,7 @@ get_col_height(void*m, SheetHandle hnd, intptr_t col){
 
 static
 int
-get_dims(void*m, SheetHandle hnd, intptr_t* ncols, intptr_t* nrows){
+sheet_get_dims(void*m, SheetHandle hnd, intptr_t* ncols, intptr_t* nrows){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
     *ncols = sheet->maxcols;
@@ -196,15 +201,15 @@ read_csv(SpreadSheet* sheet, const char* filename){
         size_t quant = 0;
         ssize_t len = getline(&line, &quant, fp);
         if(len <= -1) break;
-        struct Row ro = {0};
-        struct Row disp = {0};
+        SheetRow ro = {0};
+        SheetRow disp = {0};
         char* token;
         while((token = strsep(&line, "|"))){
             size_t len = strlen(token);
             if(len && token[len-1] == '\n')
                 token[len-1] = 0;
-            row_push(&ro, token);
-            row_push(&disp, "");
+            sheet_row_push(&ro, token);
+            sheet_row_push(&disp, "");
         }
         if(ro.n > max_cols) max_cols = ro.n;
         ++sheet->rows;
@@ -224,15 +229,15 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
     char* line;
     int max_cols = 0;
     for(;(line=strsep(&txt, "\n"));){
-        struct Row ro = {0};
-        struct Row disp = {0};
+        SheetRow ro = {0};
+        SheetRow disp = {0};
         char* token;
         while((token = strsep(&line, "|"))){
             size_t len = strlen(token);
             if(len && token[len-1] == '\n')
                 token[len-1] = 0;
-            row_push(&ro, token);
-            row_push(&disp, "");
+            sheet_row_push(&ro, token);
+            sheet_row_push(&disp, "");
         }
         if(ro.n > max_cols) max_cols = ro.n;
         ++sheet->rows;
@@ -253,7 +258,7 @@ write_display(SpreadSheet* sheet, FILE* out){
     intptr_t C = 0;
     int lens[12] = {4,4,4,4,4,4,4,4,4,4,4,4};
     for(intptr_t row = 0; row < sheet->rows; row++){
-        const struct Row* ro = &sheet->display[row];
+        const SheetRow* ro = &sheet->display[row];
         if(ro->n > C) C = ro->n;
         for(int i = 0; i < ro->n && i < 12; i++){
             int len = ro->lengths[i];
@@ -275,7 +280,7 @@ write_display(SpreadSheet* sheet, FILE* out){
     }
     fputc('\n', out);
     for(intptr_t row = 0; row < sheet->rows; row++){
-        const struct Row* ro = &sheet->display[row];
+        const SheetRow* ro = &sheet->display[row];
         fprintf(out, "%3zd | ", row+1);
         for(int col = 0; col < ro->n; col++){
             fprintf(out, " %4s%s", ro->data[col], " |");

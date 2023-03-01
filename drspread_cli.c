@@ -15,20 +15,20 @@ main(int argc, char** argv){
     if(e) return e;
     SheetOps ops = {
         .ctx = NULL,
-        .next_cell=&next,
-        .cell_txt=&txt,
-        .set_display_number=&display_number,
-        .set_display_error=&display_error,
-        .set_display_string=&display_string,
-        .name_to_col_idx=&get_name_to_col_idx,
-        .row_width=&get_row_width,
-        .col_height=&get_col_height,
-        .dims=&get_dims,
+        .next_cell=&sheet_next,
+        .cell_txt=&sheet_txt,
+        .set_display_number=&sheet_set_display_number,
+        .set_display_error=&sheet_set_display_error,
+        .set_display_string=&sheet_set_display_string,
+        .name_to_col_idx=&sheet_get_name_to_col_idx,
+        .row_width=&sheet_get_row_width,
+        .col_height=&sheet_get_col_height,
+        .dims=&sheet_get_dims,
     };
     if(argc > 2){
         for(int i = 2; i < argc; i++){
             DrSpreadCellValue val;
-            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, argv[i], strlen(argv[i]), &val);
+            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, argv[i], strlen(argv[i]), &val, -1, -1);
             if(err){
                 puts("err");
             }
@@ -75,7 +75,7 @@ main(int argc, char** argv){
             if(len == 1 && *line == 'q') break;
             gi_add_line_to_history_len(&gi, line, len);
             DrSpreadCellValue val;
-            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, line, len, &val);
+            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, line, len, &val, -1, -1);
             if(err) puts("err");
             else {
                 switch(val.kind){
@@ -90,6 +90,7 @@ main(int argc, char** argv){
                         break;
                     case CELL_OTHER:
                         printf("'%.*s'\n", (int)val.s.length, val.s.text);
+                        free((char*)val.s.text);
                         break;
                     default:
                         printf("err\n");
@@ -101,6 +102,7 @@ main(int argc, char** argv){
     }
     return 0;
 }
+#define DRSP_INTRINS 1
 #include "drspread.c"
 #include "get_input.c"
 #endif

@@ -127,6 +127,7 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
                 break;
             sheetdeps[i] = ctx.sheetcache.items[i].sheet;
         }
+    free_string_arenas(ctx.sarena);
     free_caches(&ctx);
     return nerrs;
 }
@@ -134,9 +135,9 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
 // Don't need the SheetOps* arg and as this is an export the
 // number of parameters matters.
 #ifdef __wasm__
-#define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval
+#define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col
 #else
-#define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval
+#define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col
 #endif
 
 DRSP_EXPORT
@@ -157,25 +158,36 @@ drsp_evaluate_string(ARGS){
         .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
         #endif
     };
-    Expression* e = evaluate_string(&ctx, sheethandle, txt, len, -1, -1);
-    free_caches(&ctx);
-    if(!e) return 1;
+    Expression* e = evaluate_string(&ctx, sheethandle, txt, len, row, col);
+    int error = 0;
+    if(!e){
+        error = 1;
+        goto finish;
+    }
     switch(e->kind){
         case EXPR_NULL:
             outval->kind = CELL_EMPTY;
-            return 0;
+            break;
         case EXPR_NUMBER:
             outval->kind = CELL_NUMBER;
             outval->d = ((Number*)e)->value;
-            return 0;
-        case EXPR_STRING:
+            break;
+        case EXPR_STRING:{
             outval->kind = CELL_OTHER;
-            outval->s.length = ((String*)e)->sv.length;
-            outval->s.text = ((String*)e)->sv.text;
-            return 0;
+            StringView sv = ((String*)e)->sv;
+            char* t = malloc(sv.length);
+            __builtin_memcpy(t, sv.text, sv.length);
+            outval->s.length = sv.length;
+            outval->s.text = t;
+        }break;
         default:
-            return 1;
+            error = 1;
+            break;
     }
+    finish:
+    free_string_arenas(ctx.sarena);
+    free_caches(&ctx);
+    return error;
 }
 
 

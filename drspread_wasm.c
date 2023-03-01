@@ -24,6 +24,6 @@ sheet_evaluate_string(intptr_t id, PString* p, DrSpreadCellValue* result){
     _Static_assert(__builtin_offsetof(DrSpreadCellValue, d)==8, "");
     _Static_assert(__builtin_offsetof(DrSpreadCellValue, s.length)==8, "");
     _Static_assert(__builtin_offsetof(DrSpreadCellValue, s.text)==12, "");
-    int err = drsp_evaluate_string((void*)id, (char*)p->text, p->length, result);
+    int err = drsp_evaluate_string((void*)id, (char*)p->text, p->length, result, -1, -1);
     return err;
 }

@@ -37,6 +37,23 @@ typedef enum CellKind CellKind;
 // Safer than void*
 typedef struct _sheet_handle* SheetHandle;
 
+typedef struct DrSpreadCellValue DrSpreadCellValue;
+struct  DrSpreadCellValue {
+    CellKind kind; // oneof CELL_EMPTY, CELL_NUMBER, CELL_OTHER
+    union {
+        double d; // CELL_NUMBER
+        struct {  // CELL_OTHER
+            size_t length;
+            // NOTE: when used as a return value, this is a malloced.
+            // This sucks, but I can't figure out how else to support
+            // cat('a', 'b') with the current API.
+            // I could hoist the lifetime of the context to the caller,
+            // which is probably the best way to handle it.
+            const char* text;
+        } s;
+    };
+};
+
 #ifndef __wasm__
 typedef struct SheetOps SheetOps;
 
@@ -59,40 +76,17 @@ DRSP_EXPORT
 int
 drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
 
-typedef struct DrSpreadCellValue DrSpreadCellValue;
-struct  DrSpreadCellValue {
-    CellKind kind; // oneof CELL_EMPTY, CELL_NUMBER, CELL_OTHER
-    union {
-        double d; // CELL_NUMBER
-        struct {  // CELL_OTHER
-            size_t length;
-            const char* text;
-        } s;
-    };
-};
-
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval);
+drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col);
 #else
 DRSP_EXPORT
 int
 drsp_evaluate_formulas(SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
 
-typedef struct DrSpreadCellValue DrSpreadCellValue;
-struct  DrSpreadCellValue {
-    CellKind kind; // oneof CELL_EMPTY, CELL_NUMBER, CELL_OTHER
-    union {
-        double d; // CELL_NUMBER
-        struct {  // CELL_OTHER
-            size_t length;
-            const char* text;
-        } s;
-    };
-};
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval);
+drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadCellValue* outval, intptr_t row, intptr_t col);
 #endif
 
 #ifdef __clang__

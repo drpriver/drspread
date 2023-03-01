@@ -189,6 +189,7 @@ struct SheetCache {
     } items[8];
 };
 
+// This is a hash table
 typedef struct StringCache StringCache;
 struct StringCache {
     SheetHandle handle;
@@ -197,6 +198,7 @@ struct StringCache {
     unsigned char* data;
 };
 
+// This is a hash table
 typedef struct ColCache ColCache;
 struct ColCache {
     SheetHandle handle;
@@ -357,12 +359,20 @@ get_cached_col_name(ColCache* cache, const char* name, size_t len){
     }
 }
 
+enum {STRING_ARENA_SIZE=8*1024 - sizeof(void*) - sizeof(size_t)};
+typedef struct StringArena StringArena;
+struct StringArena {
+    StringArena*_Nullable next;
+    size_t used;
+    char data[STRING_ARENA_SIZE];
+};
 
 
 struct SpreadContext {
 #ifndef __wasm__
     const SheetOps _ops; // don't call these directly
 #endif
+    StringArena* sarena;
     StringCache scache[4];
     ColCache colcache[4];
     SheetCache sheetcache;
@@ -371,6 +381,16 @@ struct SpreadContext {
     Expression error;
     uintptr_t limit; // this sucks but is to avoid stack overflow;
 };
+
+static inline
+void
+free_string_arenas(StringArena*_Nullable arena){
+    while(arena){
+        StringArena* to_free = arena;
+        arena = arena->next;
+        free(to_free);
+    }
+}
 
 static inline
 void
@@ -417,6 +437,57 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
     if(!result) return NULL;
     ((Expression*)result)->kind = kind;
     return result;
+}
+
+static inline
+char*_Nullable
+str_alloc(SpreadContext* ctx, size_t len){
+    // return buff_alloc(&ctx->a, len*8);
+    // return malloc(len);
+    if(len > STRING_ARENA_SIZE) return NULL;
+    StringArena* arena = ctx->sarena;
+    if(!arena || arena->used+len > STRING_ARENA_SIZE){
+        while(arena){
+            arena = arena->next;
+            if(arena->used+len <= STRING_ARENA_SIZE){
+                goto alloced;
+            }
+        }
+        arena = malloc(sizeof *arena);
+        if(!arena) return NULL;
+        arena->next = ctx->sarena;
+        arena->used = 0;
+        ctx->sarena = arena;
+    }
+    alloced:;
+    char* p = arena->data + arena->used;
+    arena->used += len;
+    return p;
+}
+
+
+static inline
+int
+sv_cat(SpreadContext* ctx, size_t n, const StringView* strs, StringView* out){
+    size_t len = 0;
+    for(size_t i = 0; i < n; i++)
+        len += strs[i].length;
+    if(!len) {
+        out->length = 0;
+        out->text = "";
+        return 0;
+    }
+    // char* data = malloc(len);
+    char* data = str_alloc(ctx, len);
+    if(!data) return 1;
+    char* p = data;
+    for(size_t i = 0; i < n; i++){
+        __builtin_memcpy(p, strs[i].text, strs[i].length);
+        p += strs[i].length;
+    }
+    out->text = data;
+    out->length = len;
+    return 0;
 }
 
 static inline

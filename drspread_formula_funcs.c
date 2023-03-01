@@ -14,6 +14,10 @@
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
 #endif
 
+#if defined(TESTING_H) && !defined(DRSP_INTRINS)
+#define DRSP_INTRINS 1
+#endif
+
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sum){
     if(argc != 1) return Error(ctx, "");
@@ -765,6 +769,203 @@ FORMULAFUNC(drsp_pow){
     }
 }
 
+DRSP_INTERNAL
+FORMULAFUNC(drsp_cat){
+    if(argc < 2) return Error(ctx, "");
+    StringView catbuff[4];
+    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    if(argc == 2){
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(expr_is_columnar(arg)){
+            arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+            if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
+            ComputedColumn* c = (ComputedColumn*)arg;
+            if(arg2->kind == EXPR_STRING){
+                catbuff[1] = ((String*)arg2)->sv;
+                for(intptr_t i = 0; i < c->length; i++){
+                    Expression* e = c->data[i];
+                    if(e->kind == EXPR_NULL) continue;
+                    if(e->kind != EXPR_STRING)
+                        return Error(ctx, "");
+                    String* s = (String*)e;
+                    catbuff[0] = s->sv;
+                    int err = sv_cat(ctx, 2, catbuff, &s->sv);
+                    if(err) return expr_alloc(ctx, EXPR_ERROR);
+                }
+            }
+            else if(expr_is_columnar(arg2)){
+                arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
+                if(!arg2 || arg2->kind == EXPR_NULL)
+                    return arg2;
+                ComputedColumn* rights = (ComputedColumn*)arg2;
+                if(c->length != rights->length)
+                    return Error(ctx, "");
+                for(intptr_t i = 0; i < c->length; i++){
+                    Expression* base = c->data[i];
+                    Expression* r = rights->data[i];
+                    if(base->kind == EXPR_NULL)
+                        continue;
+                    if(base->kind != EXPR_STRING)
+                        return Error(ctx, "");
+                    if(r->kind != EXPR_STRING)
+                        return Error(ctx, "");
+                    String* s = (String*)base;
+                    catbuff[0] = s->sv;
+                    catbuff[1] = ((String*)r)->sv;
+                    int err = sv_cat(ctx, 2, catbuff, &s->sv);
+                    if(err) return expr_alloc(ctx, EXPR_ERROR);
+                }
+            }
+            else {
+                return Error(ctx, "");
+            }
+            buff_set(&ctx->a, bc);
+            return arg;
+        }
+        else {
+            if(arg->kind != EXPR_STRING) {
+                buff_set(&ctx->a, bc);
+                return Error(ctx, "");
+            }
+            Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
+            if(!arg2 || arg2->kind == EXPR_ERROR){
+                buff_set(&ctx->a, bc);
+                return arg2;
+            }
+            if(expr_is_columnar(arg2)){
+                arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
+                if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
+                ComputedColumn* c = (ComputedColumn*)arg2;
+                catbuff[0] = ((String*)arg)->sv;
+                for(intptr_t i = 0; i < c->length; i++){
+                    Expression* e = c->data[i];
+                    if(e->kind == EXPR_NULL) continue;
+                    if(e->kind != EXPR_STRING)
+                        return Error(ctx, "");
+                    String* s = (String*)e;
+                    catbuff[1] = s->sv;
+                    int err = sv_cat(ctx, 2, catbuff, &s->sv);
+                    if(err) return expr_alloc(ctx, EXPR_ERROR);
+                }
+                return arg2;
+            }
+            else {
+                if(arg2->kind != EXPR_STRING){
+                    buff_set(&ctx->a, bc);
+                    return Error(ctx, "");
+                }
+                StringView v;
+                catbuff[0] = ((String*)arg)->sv;
+                catbuff[1] = ((String*)arg2)->sv;
+                int err = sv_cat(ctx, 2, catbuff, &v);
+                buff_set(&ctx->a, bc);
+                if(err) return Error(ctx, "");
+                String* s = expr_alloc(ctx, EXPR_STRING);
+                if(!s) return NULL;
+                s->sv = v;
+                return &s->e;
+            }
+        }
+    }
+    else {
+        _Bool is_columnar = false;
+        intptr_t column_length = 0;
+        for(int i = 0; i < argc; i++){
+            argv[i] = evaluate_expr(ctx, hnd, argv[i], caller_row, caller_col);
+            if(!argv[i] || argv[i]->kind == EXPR_ERROR){
+                buff_set(&ctx->a, bc);
+                return argv[i];
+            }
+            if(expr_is_columnar(argv[i])){
+                is_columnar = true;
+                argv[i] = convert_to_computed_column(ctx, hnd, argv[i], caller_row, caller_col);
+                if(!argv[i] || argv[i]->kind == EXPR_ERROR){
+                    buff_set(&ctx->a, bc);
+                    return argv[i];
+                }
+                ComputedColumn* c = (ComputedColumn*)argv[i];
+                if(c->length > column_length){
+                    column_length = c->length;
+                }
+            }
+            else if(argv[i]->kind != EXPR_STRING && argv[i]->kind != EXPR_NULL){
+                buff_set(&ctx->a, bc);
+                return Error(ctx, "");
+            }
+        }
+        if(is_columnar){
+            if(!column_length)
+                return Error(ctx, "");
+            ComputedColumn* result = buff_alloc(&ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*column_length);
+            if(!result) return Error(ctx, "oom");
+            result->e.kind = EXPR_COMPUTED_COLUMN;
+            result->length = column_length;
+            for(intptr_t r = 0; r < column_length; r++){
+                for(int i = 0; i < argc; i++){
+                    Expression* e = argv[i];
+                    if(e->kind == EXPR_STRING){
+                        catbuff[i] = ((String*)e)->sv;
+                    }
+                    else if(e->kind == EXPR_NULL){
+                        catbuff[i] = SV("");
+                    }
+                    else {
+                        ComputedColumn* c = (ComputedColumn*)argv[i];
+                        if(r >= c->length){
+                            catbuff[i] = SV("");
+                        }
+                        else {
+                            Expression* item = c->data[r];
+                            if(item->kind == EXPR_STRING){
+                                catbuff[i] = ((String*)item)->sv;
+                            }
+                            else if(item->kind == EXPR_NULL){
+                                catbuff[i] = SV("");
+                            }
+                            else {
+                                buff_set(&ctx->a, bc);
+                                return Error(ctx, "");
+                            }
+                        }
+                    }
+                }
+                String* s = expr_alloc(ctx, EXPR_STRING);
+                if(!s || s->e.kind == EXPR_ERROR) return &s->e;
+                int err = sv_cat(ctx, argc, catbuff, &s->sv);
+                if(err){
+                    buff_set(&ctx->a, bc);
+                    return Error(ctx, "oom");
+                }
+                result->data[r] = &s->e;
+            }
+            return &result->e;
+        }
+        else {
+            for(int i = 0; i < argc; i++){
+                Expression* e = argv[i];
+                if(e->kind == EXPR_NULL){
+                    catbuff[i] = SV("");
+                }
+                else {
+                    catbuff[i] = ((String*)e)->sv;
+                }
+            }
+            StringView sv;
+            int err = sv_cat(ctx, argc, catbuff, &sv);
+            buff_set(&ctx->a, bc);
+            if(err) return Error(ctx, "oom");
+            String* result = expr_alloc(ctx, EXPR_STRING);
+            if(!result) return NULL;
+            result->sv = sv;
+            return &result->e;
+        }
+    }
+}
+
 static inline
 Expression*_Nullable
 columnar_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, intptr_t caller_col, Expression* needle, int argc, Expression*_Nonnull*_Nonnull argv){
@@ -1000,7 +1201,7 @@ FORMULAFUNC(drsp_call){
     return func(ctx, hnd, caller_row, caller_col, argc, argv);
 }
 
-#ifdef TESTING_H
+#ifdef DRSP_INTRINS
 DRSP_INTERNAL
 FORMULAFUNC(drsp_first){
     if(argc != 1) return Error(ctx, "");
@@ -1228,7 +1429,9 @@ const FuncInfo FUNCTABLE[] = {
     {SV("call"),  &drsp_call},
     {SV("sqrt"),  &drsp_sqrt},
     {SV("array"), &drsp_array},
-#ifdef TESTING_H
+    {SV("cat"),   &drsp_cat},
+    {SV("concat"),&drsp_cat},
+#ifdef DRSP_INTRINS
     {SV("_f"),    &drsp_first},
     {SV("_a"),    &drsp_array},
 #endif

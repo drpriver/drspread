@@ -69,7 +69,7 @@ streq2(const char* a, const char* b, size_t blen){
 static
 struct
 TestStats
-test_spreadsheet(const char* caller, const char* input, const struct Row* expected, size_t expected_len, int expected_nerr){
+test_spreadsheet(const char* caller, const char* input, const SheetRow* expected, size_t expected_len, int expected_nerr){
 #define __func__ caller
     struct TestStats TEST_stats = {0};
     SpreadSheet sheet = {0};
@@ -79,21 +79,21 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
 
     SheetOps ops = {
         .ctx = NULL,
-        .next_cell=&next,
-        .cell_txt=&txt,
-        .set_display_number=&display_number,
-        .set_display_error=&display_error,
-        .set_display_string=&display_string,
-        .name_to_col_idx=&get_name_to_col_idx,
-        .row_width=&get_row_width,
-        .col_height=&get_col_height,
-        .dims=&get_dims,
+        .next_cell=&sheet_next,
+        .cell_txt=&sheet_txt,
+        .set_display_number=&sheet_set_display_number,
+        .set_display_error=&sheet_set_display_error,
+        .set_display_string=&sheet_set_display_string,
+        .name_to_col_idx=&sheet_get_name_to_col_idx,
+        .row_width=&sheet_get_row_width,
+        .col_height=&sheet_get_col_height,
+        .dims=&sheet_get_dims,
     };
     int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops, NULL, 0);
     TestExpectEquals(nerr, expected_nerr);
     for(size_t i = 0; i < expected_len; i++){
-        const struct Row* display_row = &sheet.display[i];
-        const struct Row* expected_row = &expected[i];
+        const SheetRow* display_row = &sheet.display[i];
+        const SheetRow* expected_row = &expected[i];
         TestAssertEquals(display_row->n, expected_row->n);
         for(int j = 0; j < display_row->n; j++){
             TEST_stats.executed++;
@@ -110,6 +110,47 @@ test_spreadsheet(const char* caller, const char* input, const struct Row* expect
             }
         }
     }
+
+    nerr = 0;
+    for(int i = 0; i < sheet.rows; i++){
+        const SheetRow* expected_row = &expected[i];
+        const SheetRow* inp_row = &sheet.cells[i];
+        TestAssertEquals(inp_row->n, expected_row->n);
+        for(int col = 0; col < expected_row->n; col++){
+            const char* expected_text = expected_row->data[col];
+            StringView expected = {strlen(expected_text), expected_text};
+            const char* inp_txt = inp_row->data[col];
+            size_t inp_len = inp_row->lengths[col];
+            StringView inp = stripped2(inp_txt, inp_len);
+            if(!inp.length) continue;
+            if(inp.text[0] != '=') continue;
+            DrSpreadCellValue val;
+            int err = drsp_evaluate_string((SheetHandle)&sheet, &ops, inp_txt, inp_len, &val, i, col);
+            nerr += err;
+            if(!err){
+                switch(val.kind){
+                    case CELL_EMPTY:
+                        TestExpectEquals(expected.length, 0);
+                        break;
+                    case CELL_NUMBER:{
+                        DoubleResult dr = parse_double(expected.text, expected.length);
+                        TestAssertFalse(dr.errored);
+                        double n = dr.result;
+                        TestExpectEquals(n, val.d);
+                    }break;
+                    case CELL_OTHER:{
+                        StringView v = {val.s.length, val.s.text};
+                        TestExpectEquals2(sv_equals, v, expected);
+                        free((char*)val.s.text);
+                    } break;
+                    default:
+                        TestExpectFalse(1);
+                        break;
+                }
+            }
+        }
+    }
+    TestExpectEquals(nerr, expected_nerr);
 #undef __func__
     return TEST_stats;
 }
@@ -134,7 +175,7 @@ TestFunction(TestRanges){
         " 9 | =sum(['a', 2:])\n"
         "10 | =sum([a, 2:])\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("0", "0"),
         ROW("1", "0"),
         ROW("2", "2"),
@@ -161,7 +202,7 @@ TestFunction(TestBadRanges){
         " 6 | =sum(['a', '3':'3'])\n"
         " 7 | =sum([3, 1:2])\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW( "0", "error"),
         ROW( "1", "error"),
         ROW( "2", "error"),
@@ -181,7 +222,7 @@ TestFunction(TestSpreadsheet1){
         "=tlu('Plate Armor', [b], [c]) | Plate Armor | 50\n"
         "=min([c, :2])                 | Food        | 1 per potato\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("61", "Axe",         "10"),
         ROW( "4", "Torch",        "1"),
         ROW("50", "Plate Armor", "50"),
@@ -199,7 +240,7 @@ TestFunction(TestSpreadsheet2){
         "=[a,3]*[b,1] | 4              | =1-2---3*4/2-8-1 | = sum([a, :11])\n"
         "=sum([a,:4]) | = sum([d])     | = sum([b])\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("2", "2", "3", "36"),
         ROW("4", "6", "4",  "4"),
         ROW("2", "-1", "3", "36"),
@@ -215,7 +256,7 @@ TestFunction(TestBinOps){
         "=2 = 1 | =2 == 1 | =2 != 1\n"
         "=1 < 2 | =1 > 2  | =1 >= 1    | =1 <= 2\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("2", "0", "2", "12"),
         ROW("0", "0", "1"),
         ROW("1", "0", "1", "1"),
@@ -230,7 +271,7 @@ TestFunction(TestUnOps){
         "=-!-!-!1 | =-!+!1 | =+!-!2\n"
         "=-!-!-! | =-!+! | =+!-!\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("0", "-2", "2"),
         ROW("1",  "0", "0"),
         ROW("0", "-1", "1"),
@@ -295,62 +336,76 @@ TestFunction(TestFuncs){
         "=min(-1, -2)\n"
         "=min(-1, -2, -3)\n"
         "=min(-1, -2, -3, -4)\n"
+
+        "=cat('a', 'b')\n"
+        "=cat('1234567890', 'abcdefghijklmnopqrstuvwxyz')\n"
+        "=cat('12345678901234567890', 'abcdefghijklmnopqrstuvwxyz')\n"
+        "=cat('a', cat('b', cat('c', cat('d', 'e'))))\n"
+        "=cat('a', 'b', 'c')\n"
+        "=cat('a', 'b', 'c', 'd')\n"
     ;
-    struct Row expected[] = {
-        ROW("60", "-1.5"),
-        ROW("15", "3.5"),
-        ROW("-1.5", "44", "hello"),
-        ROW("44", "14"),
-        ROW("2", ""),
-        ROW("1.5", ""),
-        ROW("-2", ""),
-        ROW("-1", ""),
-        ROW("-1", ""),
-        ROW("-2", ""),
-        ROW("hello", ""),
-        // NOTE: find returns an OFFSET, not an index
-        ROW("3", ""),
-        ROW(""),
-        ROW("-12"),
-        ROW("-13"),
-        ROW("-12"),
-        ROW("-12"),
-        ROW(""),
-        ROW("-12"),
-        ROW("-13"),
-        ROW("-13"),
-        ROW("-12"),
-        ROW(""),
-        ROW("13"),
-        ROW("12"),
-        ROW("12"),
-        ROW("12"),
-        ROW(""),
-        ROW("13"),
-        ROW("12"),
-        ROW("13"),
-        ROW("12"),
-        ROW(""),
-        ROW("1"),
-        ROW("2"),
-        ROW("0"),
-        ROW("b"),
-        ROW("8"),
-        ROW("16"),
-        ROW("243"),
-        ROW("3"),
-        ROW("-3234"),
+    SheetRow expected[] = {
+        [ 0] = ROW("60", "-1.5"),
+        [ 1] = ROW("15", "3.5"),
+        [ 2] = ROW("-1.5", "44", "hello"),
+        [ 3] = ROW("44", "14"),
+        [ 4] = ROW("2", ""),
+        [ 5] = ROW("1.5", ""),
+        [ 6] = ROW("-2", ""),
+        [ 7] = ROW("-1", ""),
+        [ 8] = ROW("-1", ""),
+        [ 9] = ROW("-2", ""),
+        [10] = ROW("hello", ""),
+              // NOTE: find returns an OFFSET, not an index
+        [11] = ROW("3", ""),
+        [12] = ROW(""),
+        [13] = ROW("-12"),
+        [14] = ROW("-13"),
+        [15] = ROW("-12"),
+        [16] = ROW("-12"),
+        [17] = ROW(""),
+        [18] = ROW("-12"),
+        [19] = ROW("-13"),
+        [20] = ROW("-13"),
+        [21] = ROW("-12"),
+        [22] = ROW(""),
+        [23] = ROW("13"),
+        [24] = ROW("12"),
+        [25] = ROW("12"),
+        [26] = ROW("12"),
+        [27] = ROW(""),
+        [28] = ROW("13"),
+        [29] = ROW("12"),
+        [30] = ROW("13"),
+        [31] = ROW("12"),
+        [32] = ROW(""),
+        [33] = ROW("1"),
+        [34] = ROW("2"),
+        [35] = ROW("0"),
+        [36] = ROW("b"),
+        [37] = ROW("8"),
+        [38] = ROW("16"),
+        [39] = ROW("243"),
+        [40] = ROW("3"),
+        [41] = ROW("-3234"),
 
-        ROW("2"),
-        ROW("3"),
+        [42] = ROW("2"),
+        [43] = ROW("3"),
 
-        ROW("2"),
-        ROW("3"),
-        ROW("4"),
+        [44] = ROW("2"),
+        [45] = ROW("3"),
+        [46] = ROW("4"),
 
-        ROW("-2"),
-        ROW("-3"),
-        ROW("-4"),
+        [47] = ROW("-2"),
+        [48] = ROW("-3"),
+        [49] = ROW("-4"),
+
+        [50] = ROW("ab"),
+        [51] = ROW("1234567890abcdefghijklmnopqrstuvwxyz"),
+        [52] = ROW("12345678901234567890abcdefghijklmnopqrstuvwxyz"),
+        [53] = ROW("abcde"),
+        [54] = ROW("abc"),
+        [55] = ROW("abcd"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -391,43 +446,57 @@ TestFunction(TestFuncsV){
         "=sum(if(_a(0,1,0), _a(31, 32, 33), _a(15, 25, 35)))\n"
 
         "=sum(num(_a('', 1), 2))\n"
+
+        "=_f(cat(_a('a'), _a('b')))\n"
+        "=_f(cat('a', _a('b')))\n"
+        "=_f(cat(_a('a'), 'b'))\n"
+        "=_f(cat('a', _a('b'), 'c'))\n"
+        "=_f(cat('a', _a('b'), 'c', _a('d')))\n"
     ;
-    struct Row expected[] = {
-        ROW("1"),
-        ROW("1"),
+    SheetRow expected[] = {
+        // Designated initializers are so you can figure out which row
+        // when a test fails.
+        [ 0] = ROW("1"),
+        [ 1] = ROW("1"),
 
-        ROW("13"),
-        ROW("13"),
-        ROW("14"),
-        ROW("13"),
+        [ 2] = ROW("13"),
+        [ 3] = ROW("13"),
+        [ 4] = ROW("14"),
+        [ 5] = ROW("13"),
 
-        ROW("-13"),
-        ROW("-14"),
-        ROW("-13"),
-        ROW("-13"),
+        [ 6] = ROW("-13"),
+        [ 7] = ROW("-14"),
+        [ 8] = ROW("-13"),
+        [ 9] = ROW("-13"),
 
-        ROW("13"),
-        ROW("13"),
-        ROW("14"),
-        ROW("14"),
+        [10] = ROW("13"),
+        [11] = ROW("13"),
+        [12] = ROW("14"),
+        [13] = ROW("14"),
 
-        ROW("-13"),
-        ROW("-14"),
-        ROW("-13"),
-        ROW("-14"),
+        [14] = ROW("-13"),
+        [15] = ROW("-14"),
+        [16] = ROW("-13"),
+        [17] = ROW("-14"),
 
-        ROW("8"),
-        ROW("81"),
+        [18] = ROW("8"),
+        [19] = ROW("81"),
 
-        ROW("24"),
-        ROW("10"),
+        [20] = ROW("24"),
+        [21] = ROW("10"),
 
-        ROW("11"),
-        ROW("19"),
-        ROW("86"),
-        ROW("82"),
+        [22] = ROW("11"),
+        [23] = ROW("19"),
+        [24] = ROW("86"),
+        [25] = ROW("82"),
 
-        ROW("3"),
+        [26] = ROW("3"),
+
+        [27] = ROW("ab"),
+        [28] = ROW("ab"),
+        [29] = ROW("ab"),
+        [30] = ROW("abc"),
+        [31] = ROW("abcd"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -453,7 +522,7 @@ TestFunction(TestMod){
         "=mod(19)\n"
         "=mod(20)\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("-4"),
         ROW("-3"),
         ROW("-3"),
@@ -482,7 +551,7 @@ TestFunction(TestBugs){
         "Chain   | 3 |       | =tlu([c,2], [a], [b], 2)\n"
         "Leather | 1 | =     | =tlu([c,3], [a], [b], 4)\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
         ROW("Chain" ,  "3", "",      "2"),
         ROW("Leather", "1", "error", "error"),
@@ -495,7 +564,7 @@ TestFunction(TestBugs2){
         "Chain   | 3 |       | =tlu([c,$], [a], [b], 2)\n"
         "Leather | 1 | =     | =tlu([c,$], [a], [b], 4)\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
         ROW("Chain" ,  "3", "",      "2"),
         ROW("Leather", "1", "error", "error"),
@@ -506,7 +575,7 @@ TestFunction(TestBugs3){
     const char* input =
         "=[a,$]\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("error"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
@@ -516,7 +585,7 @@ TestFunction(TestBugs4){
         "=[a,2]\n"
         "=[a,1]\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("error"),
         ROW("error"),
     };
@@ -543,7 +612,7 @@ collection_name_to_sheet(void* ctx, const char* name, size_t len){
 static
 struct
 TestStats
-test_multi_spreadsheet(const char* caller, const char* name1, const char* input1, const char* name2, const char* input2, const struct Row* expected, size_t expected_len, int expected_nerr){
+test_multi_spreadsheet(const char* caller, const char* name1, const char* input1, const char* name2, const char* input2, const SheetRow* expected, size_t expected_len, int expected_nerr){
 #define __func__ caller
     struct TestStats TEST_stats = {0};
     struct SheetCollection collection = {0};
@@ -558,15 +627,15 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
 
     SheetOps ops = {
         .ctx = &collection,
-        .next_cell=&next,
-        .cell_txt=&txt,
-        .set_display_number=&display_number,
-        .set_display_error=&display_error,
-        .set_display_string=&display_string,
-        .name_to_col_idx=&get_name_to_col_idx,
-        .row_width=&get_row_width,
-        .col_height=&get_col_height,
-        .dims=&get_dims,
+        .next_cell=&sheet_next,
+        .cell_txt=&sheet_txt,
+        .set_display_number=&sheet_set_display_number,
+        .set_display_error=&sheet_set_display_error,
+        .set_display_string=&sheet_set_display_string,
+        .name_to_col_idx=&sheet_get_name_to_col_idx,
+        .row_width=&sheet_get_row_width,
+        .col_height=&sheet_get_col_height,
+        .dims=&sheet_get_dims,
         .name_to_sheet = &collection_name_to_sheet,
     };
     SheetHandle deps[1] = {0};
@@ -576,8 +645,8 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
         TestAssert(deps[i]);
     }
     for(size_t i = 0; i < expected_len; i++){
-        const struct Row* display_row = &collection.sheets[0].display[i];
-        const struct Row* expected_row = &expected[i];
+        const SheetRow* display_row = &collection.sheets[0].display[i];
+        const SheetRow* expected_row = &expected[i];
         TestAssertEquals(display_row->n, expected_row->n);
         for(int j = 0; j < display_row->n; j++){
             TEST_stats.executed++;
@@ -594,6 +663,47 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
             }
         }
     }
+    nerr = 0;
+    for(int i = 0; i < collection.sheets[0].rows; i++){
+        const SheetRow* expected_row = &expected[i];
+        const SheetRow* inp_row = &collection.sheets[0].cells[i];
+        TestAssertEquals(inp_row->n, expected_row->n);
+        for(int col = 0; col < expected_row->n; col++){
+            const char* expected_text = expected_row->data[col];
+            StringView expected = {strlen(expected_text), expected_text};
+            const char* inp_txt = inp_row->data[col];
+            size_t inp_len = inp_row->lengths[col];
+            StringView inp = stripped2(inp_txt, inp_len);
+            if(!inp.length) continue;
+            if(inp.text[0] != '=') continue;
+            DrSpreadCellValue val;
+            int err = drsp_evaluate_string((SheetHandle)&collection.sheets[0], &ops, inp_txt, inp_len, &val, i, col);
+            nerr += err;
+            if(!err){
+                switch(val.kind){
+                    case CELL_EMPTY:
+                        TestExpectEquals(expected.length, 0);
+                        break;
+                    case CELL_NUMBER:{
+                        DoubleResult dr = parse_double(expected.text, expected.length);
+                        TestAssertFalse(dr.errored);
+                        double n = dr.result;
+                        TestExpectEquals(n, val.d);
+                    }break;
+                    case CELL_OTHER:{
+                        StringView v = {val.s.length, val.s.text};
+                        TestExpectEquals2(sv_equals, v, expected);
+                        free((char*)val.s.text);
+                    } break;
+                    default:
+                        TestExpectFalse(1);
+                        break;
+                }
+            }
+        }
+    }
+    TestExpectEquals(nerr, expected_nerr);
+
 #undef __func__
     return TEST_stats;
 }
@@ -612,7 +722,7 @@ TestFunction(TestColFunc){
         " 1\n"
         " 2\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("3", "3"),
         ROW("4", "2"),
         ROW("", "1"),
@@ -645,7 +755,7 @@ TestFunction(TestMultisheet){
         " 1 | 2\n"
         " 3 | 4\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("0"),
         ROW("3"),
         ROW("3"),
@@ -673,7 +783,7 @@ TestFunction(TestNames){
         " 1 | 2\n"
         " 3 | 4\n"
     ;
-    struct Row expected[] = {
+    SheetRow expected[] = {
         ROW("2"),
     };
     return test_multi_spreadsheet(
