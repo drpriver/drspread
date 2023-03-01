@@ -21,6 +21,7 @@ static TestFunc TestColFunc;
 static TestFunc TestRanges;
 static TestFunc TestBadRanges;
 static TestFunc TestNames;
+static TestFunc TestComplexMultisheet;
 
 int main(int argc, char** argv){
     RegisterTest(TestRanges);
@@ -39,6 +40,7 @@ int main(int argc, char** argv){
     RegisterTest(TestMultisheet);
     RegisterTest(TestColFunc);
     RegisterTest(TestNames);
+    RegisterTest(TestComplexMultisheet);
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -77,18 +79,7 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
     TestAssertFalse(err);
     TestAssertEquals(sheet.rows, expected_len);
 
-    SheetOps ops = {
-        .ctx = NULL,
-        .next_cell=&sheet_next,
-        .cell_txt=&sheet_txt,
-        .set_display_number=&sheet_set_display_number,
-        .set_display_error=&sheet_set_display_error,
-        .set_display_string=&sheet_set_display_string,
-        .name_to_col_idx=&sheet_get_name_to_col_idx,
-        .row_width=&sheet_get_row_width,
-        .col_height=&sheet_get_col_height,
-        .dims=&sheet_get_dims,
-    };
+    SheetOps ops = sheet_ops();
     int nerr = drsp_evaluate_formulas((SheetHandle)&sheet, &ops, NULL, 0);
     TestExpectEquals(nerr, expected_nerr);
     for(size_t i = 0; i < expected_len; i++){
@@ -592,51 +583,23 @@ TestFunction(TestBugs4){
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
 
-struct SheetCollection {
-    SpreadSheet sheets[2];
-    const char* names[2];
-};
-
-static
-void*_Nullable
-collection_name_to_sheet(void* ctx, const char* name, size_t len){
-    struct SheetCollection* collection = ctx;
-    if(streq2(collection->names[0], name, len))
-        return &collection->sheets[0];
-    if(streq2(collection->names[1], name, len))
-        return &collection->sheets[1];
-    return NULL;
-}
-
 static
 struct
 TestStats
 test_multi_spreadsheet(const char* caller, const char* name1, const char* input1, const char* name2, const char* input2, const SheetRow* expected, size_t expected_len, int expected_nerr){
 #define __func__ caller
     struct TestStats TEST_stats = {0};
-    struct SheetCollection collection = {0};
+    MultiSpreadSheet collection = {0};
     int err;
-    err = read_csv_from_string(&collection.sheets[0], input1);
+    err = read_csv_from_string(multisheet_alloc(&collection), input1);
     TestAssertFalse(err);
-    collection.names[0] = name1;
-    err = read_csv_from_string(&collection.sheets[1], input2);
+    collection.sheets[0].name = (StringView){strlen(name1), name1};
+    err = read_csv_from_string(multisheet_alloc(&collection), input2);
     TestAssertFalse(err);
-    collection.names[1] = name2;
+    collection.sheets[1].name = (StringView){strlen(name2), name2};
     TestAssertEquals(collection.sheets[0].rows, expected_len);
 
-    SheetOps ops = {
-        .ctx = &collection,
-        .next_cell=&sheet_next,
-        .cell_txt=&sheet_txt,
-        .set_display_number=&sheet_set_display_number,
-        .set_display_error=&sheet_set_display_error,
-        .set_display_string=&sheet_set_display_string,
-        .name_to_col_idx=&sheet_get_name_to_col_idx,
-        .row_width=&sheet_get_row_width,
-        .col_height=&sheet_get_col_height,
-        .dims=&sheet_get_dims,
-        .name_to_sheet = &collection_name_to_sheet,
-    };
+    SheetOps ops = multisheet_ops(&collection);
     SheetHandle deps[1] = {0};
     int nerr = drsp_evaluate_formulas((SheetHandle)&collection.sheets[0], &ops, deps, arrlen(deps));
     TestExpectEquals(nerr, expected_nerr);
@@ -792,6 +755,112 @@ TestFunction(TestNames){
         expected, arrlen(expected),
         0
     );
+}
+
+TestFunction(TestComplexMultisheet){
+    TESTBEGIN();
+    #define FORMULA "sum(tlu(col(cat([Character, $], '/Inventory'), 'Item'), [Items, Item], [Items, Weight])*num(col(cat([Character, $], '/Inventory'), 'Quant'), 1))"
+    const char* input =
+
+        "Summary\n"
+        // -------
+        "Character | Encumbrance | Encumbrance2\n"
+        "Gandalf   | =" FORMULA "  | =eval(tlu('Encumbrance', [Formula, Name], [Formula, Formula]))\n"
+        "Frodo     | =" FORMULA "  | =eval(tlu('Encumbrance', [Formula, Name], [Formula, Formula]))\n"
+        "Strider   | =" FORMULA "  | =eval(tlu('Encumbrance', [Formula, Name], [Formula, Formula]))\n"
+        "---\n"
+
+        "Items\n"
+        // -------
+        "Item    | Weight\n"
+        "Axe     | 1\n"
+        "Hammer  | 2\n"
+        "Maul    | 4\n"
+        "Plate   | 8\n"
+        "Chain   | 6\n"
+        "Mithril | 1\n"
+        "Leather | 3\n"
+        "Sword   | 1\n"
+        "Torch   | 0.1\n"
+        "Staff   | 1\n"
+        "Shield  | 1\n"
+        "---\n"
+
+        "Gandalf/Inventory\n"
+        // -------
+        "Item  | Quant\n"
+        "Axe\n"
+        "Staff\n"
+        "---\n"
+
+        "Frodo/Inventory\n"
+        // -------
+        "Item  | Quant\n"
+        "Sword\n"
+        "Torch | 12\n"
+        "Mithril\n"
+        "---\n"
+
+        "Strider/Inventory\n"
+        // -------
+        "Item  | Quant\n"
+        "Sword\n"
+        "Shield\n"
+        "Leather\n"
+        "Torch | 20\n"
+        "Axe\n"
+        "---\n"
+
+        "Formula\n"
+        // -------
+        "Name        | Formula\n"
+        "Encumbrance | " FORMULA "\n"
+        ;
+    #undef FORMULA
+    MultiSpreadSheet ms = {0};
+    int err = read_multi_csv_from_string(&ms, input);
+    TestAssertFalse(err);
+    SheetOps ops = multisheet_ops(&ms);
+    struct test_case {
+        StringView sv;
+        double value;
+    } cases [] = {
+        { SV("tlu('Gandalf', [Character], [Encumbrance])"),   2. },
+        { SV("tlu('Frodo',   [Character], [Encumbrance])"),   3.2},
+        { SV("tlu('Strider', [Character], [Encumbrance])"),   8. },
+        { SV("sum([Encumbrance])"),                          13.2},
+        { SV("tlu('Gandalf', [Character], [Encumbrance2])"),  2. },
+        { SV("tlu('Frodo',   [Character], [Encumbrance2])"),  3.2},
+        { SV("tlu('Strider', [Character], [Encumbrance2])"),  8. },
+        { SV("sum([Encumbrance2])"),                         13.2},
+    };
+    SpreadSheet* sheet = &ms.sheets[0];
+    for(size_t i = 0; i < arrlen(cases); i++){
+        struct test_case* c = &cases[i];
+        DrSpreadCellValue val = {0};
+        StringView sv = c->sv;
+        err = drsp_evaluate_string((SheetHandle)sheet, &ops, sv.text, sv.length, &val, -1, -1);
+        TestExpectFalse(err);
+        TestExpectEquals(val.kind, CELL_NUMBER);
+        TestExpectEquals(val.d, c->value); // suck it, "always use an epsilon" bots.
+    }
+    err = drsp_evaluate_formulas((SheetHandle)sheet, &ops, NULL, 0);
+    TestExpectEquals(err, 0);
+    StringView expected[] = {
+        SV("2"),
+        SV("3.2"),
+        SV("8"),
+    };
+    for(size_t i = 0; i < arrlen(expected); i++){
+        const SheetRow* disp = &sheet->display[i];
+        TestAssertEquals(disp->n, 3);
+        StringView weight = {strlen(disp->data[1]), disp->data[1]};
+        TestExpectEquals2(sv_equals, weight, expected[i]);
+        weight = (StringView){strlen(disp->data[2]), disp->data[2]};
+        TestExpectEquals2(sv_equals, weight, expected[i]);
+    }
+
+    TESTEND();
 }
 
 
