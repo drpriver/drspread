@@ -448,10 +448,10 @@ str_alloc(SpreadContext* ctx, size_t len){
     StringArena* arena = ctx->sarena;
     if(!arena || arena->used+len > STRING_ARENA_SIZE){
         while(arena){
-            arena = arena->next;
             if(arena->used+len <= STRING_ARENA_SIZE){
                 goto alloced;
             }
+            arena = arena->next;
         }
         arena = malloc(sizeof *arena);
         if(!arena) return NULL;
