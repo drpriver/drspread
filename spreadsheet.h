@@ -154,11 +154,17 @@ static
 intptr_t
 sheet_get_name_to_col_idx(void*m, SheetHandle hnd, const char* name, size_t length){
     (void)m;
-    (void)hnd;
-    (void)length;
-    assert(length);
-    assert(name[0] >= 'a');
-    return name[0] - 'a';
+    SpreadSheet* sheet =(SpreadSheet*)hnd;
+    for(int i = 0; i < sheet->colnames.n; i++){
+        if(length == sheet->colnames.lengths[i]){
+            if(memcmp(name, sheet->colnames.data[i], length) == 0){
+                return i;
+            }
+        }
+    }
+    if(length && name[0] >= 'a')
+        return name[0] - 'a';
+    return -1;
 }
 
 static

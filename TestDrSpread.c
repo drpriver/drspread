@@ -600,7 +600,6 @@ struct SheetCollection {
 static
 void*_Nullable
 collection_name_to_sheet(void* ctx, const char* name, size_t len){
-    (void)len;
     struct SheetCollection* collection = ctx;
     if(streq2(collection->names[0], name, len))
         return &collection->sheets[0];
