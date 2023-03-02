@@ -784,36 +784,53 @@ FORMULAFUNC(drsp_cat){
             Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
             ComputedColumn* c = (ComputedColumn*)arg;
-            if(arg2->kind == EXPR_STRING){
+            if(arg2->kind == EXPR_NULL){
+                for(intptr_t i = 0; i < c->length; i++){
+                    Expression* e = c->data[i];
+                    if(e->kind == EXPR_NULL || e->kind == EXPR_STRING)
+                        continue;
+                    return Error(ctx, "");
+                }
+            }
+            else if(arg2->kind == EXPR_STRING){
                 catbuff[1] = ((String*)arg2)->sv;
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
-                    if(e->kind == EXPR_NULL) continue;
+                    if(e->kind == EXPR_NULL){
+                        c->data[i] = arg2;
+                        continue;
+                    }
                     if(e->kind != EXPR_STRING)
                         return Error(ctx, "");
                     String* s = (String*)e;
                     catbuff[0] = s->sv;
                     int err = sv_cat(ctx, 2, catbuff, &s->sv);
-                    if(err) return expr_alloc(ctx, EXPR_ERROR);
+                    if(err) return Error(ctx, "");
                 }
             }
             else if(expr_is_columnar(arg2)){
                 arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
-                if(!arg2 || arg2->kind == EXPR_NULL)
+                if(!arg2 || arg2->kind == EXPR_ERROR)
                     return arg2;
                 ComputedColumn* rights = (ComputedColumn*)arg2;
                 if(c->length != rights->length)
                     return Error(ctx, "");
                 for(intptr_t i = 0; i < c->length; i++){
-                    Expression* base = c->data[i];
+                    Expression* l = c->data[i];
                     Expression* r = rights->data[i];
-                    if(base->kind == EXPR_NULL)
+                    if(l->kind != EXPR_NULL && l->kind != EXPR_STRING)
+                        return Error(ctx, "");
+                    if(r->kind != EXPR_NULL && r->kind != EXPR_STRING)
+                        return Error(ctx, "");
+                    if(l->kind == EXPR_NULL){
+                        c->data[i] = r;
                         continue;
-                    if(base->kind != EXPR_STRING)
-                        return Error(ctx, "");
-                    if(r->kind != EXPR_STRING)
-                        return Error(ctx, "");
-                    String* s = (String*)base;
+                    }
+                    if(r->kind == EXPR_NULL)
+                        continue;
+                    assert(l->kind == EXPR_STRING);
+                    assert(r->kind == EXPR_STRING);
+                    String* s = (String*)l;
                     catbuff[0] = s->sv;
                     catbuff[1] = ((String*)r)->sv;
                     int err = sv_cat(ctx, 2, catbuff, &s->sv);

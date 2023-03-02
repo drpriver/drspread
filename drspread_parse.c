@@ -155,7 +155,7 @@ PARSEFUNC(parse_unary){
         case '-': op = UN_NEG; break;
         default: return parse_terminal(ctx, sv);
     }
-    if(op != -1){
+    if(op != (UnaryKind)-1){
         sv->text++, sv->length--;
         lstrip(sv);
     }
@@ -170,7 +170,7 @@ PARSEFUNC(parse_unary){
     }
     Expression* e = parse_unary(ctx, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
-    if(op != -1){
+    if(op != (UnaryKind)-1){
         _Bool handled = 0;
         if(e->kind == EXPR_NUMBER){
             Number* n = (Number*)e;

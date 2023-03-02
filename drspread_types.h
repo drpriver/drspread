@@ -51,8 +51,10 @@
 
 typedef struct SpreadContext SpreadContext;
 
-enum ExpressionKind: intptr_t {
+enum ExpressionKind: uintptr_t {
     EXPR_ERROR = 0,
+    EXPR_STRING,
+    EXPR_NULL,
     EXPR_NUMBER,
     EXPR_FUNCTION_CALL,
     EXPR_RANGE0D,
@@ -62,8 +64,6 @@ enum ExpressionKind: intptr_t {
     EXPR_GROUP,
     EXPR_BINARY,
     EXPR_UNARY,
-    EXPR_STRING,
-    EXPR_NULL,
     EXPR_COMPUTED_COLUMN,
     // EXPR_TYPED_COLUMN,
 };
@@ -71,12 +71,12 @@ typedef enum ExpressionKind ExpressionKind;
 
 typedef struct Expression Expression;
 struct Expression {
-    _Alignas(intptr_t) ExpressionKind kind;
+    _Alignas(uintptr_t) ExpressionKind kind;
 };
 
 
 
-enum BinaryKind: intptr_t {
+enum BinaryKind: uintptr_t {
     BIN_ADD,
     BIN_SUB,
     BIN_MUL,
@@ -90,7 +90,7 @@ enum BinaryKind: intptr_t {
 };
 typedef enum BinaryKind BinaryKind;
 
-enum UnaryKind: intptr_t {
+enum UnaryKind: uintptr_t {
     UN_PLUS,
     UN_NEG,
     UN_NOT,
@@ -178,7 +178,7 @@ typedef struct ComputedColumn ComputedColumn;
 struct ComputedColumn {
     Expression e;
     intptr_t length;
-    _Alignas(intptr_t) Expression*_Nonnull data[];
+    _Alignas(uintptr_t) Expression*_Nonnull data[];
 };
 
 typedef struct SheetCache SheetCache;
