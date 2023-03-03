@@ -35,9 +35,7 @@ Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O2 -g
-Bin/testspread_glue.js: testspread_glue.ts
-	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --outFile $@
-test.html: Bin/testspread_glue.js Bin/TestDrSpread.wasm
+test.html: testspread_glue.js Bin/TestDrSpread.wasm
 
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
