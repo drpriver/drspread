@@ -73,7 +73,6 @@ fetch('Bin/TestDrSpread.wasm')
     memview = new DataView(mem.buffer);
     malloc = exports.malloc;
     const main = exports.main;
-    let number = 0;
     function run() {
         const args = ['TestWeb'];
         const txt = document.getElementById('args').value.split(' ');
@@ -90,7 +89,7 @@ fetch('Bin/TestDrSpread.wasm')
         const deets = document.createElement('details');
         deets.open = true;
         const summ = document.createElement('summary');
-        summ.innerText = `Run ${++number}\n`;
+        summ.innerText = `${args.join(' ')}`;
         active = document.createElement('pre');
         deets.append(summ, active);
         out.insertAdjacentElement('afterbegin', deets);
