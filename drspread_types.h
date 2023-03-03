@@ -222,7 +222,7 @@ __attribute__((no_sanitize("nullability")))
 static inline
 StringView*_Nullable
 get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
-#if 1 && !defined(__wasm__)
+#if 1 && !defined(DRSPREAD_DIRECT_OPS)
     // In native code the string accessors actually get inlined so this is
     // unnecessary.
     //
@@ -233,7 +233,7 @@ get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
     if(cache->n*2 >= cache->cap){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
-        #ifdef __wasm__
+        #ifdef DRSPREAD_DIRECT_OPS
             unsigned char* new_data = sane_realloc(cache->data, old_cap*(4*sizeof(intptr_t)+sizeof(uint32_t)), new_cap*(4*sizeof(intptr_t)+sizeof(uint32_t)));
         #else
             unsigned char* new_data = realloc(cache->data, new_cap*(4*sizeof(intptr_t)+sizeof(uint32_t)));
@@ -282,7 +282,7 @@ get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
 static inline
 SheetHandle _Nullable*_Nullable
 get_cached_sheet(SheetCache* cache, const char* name, size_t len){
-#if 0 && !defined(__wasm__)
+#if 0 && !defined(DRSPREAD_DIRECT_OPS)
     return NULL;
 #endif
     if(!len) return NULL;
@@ -308,13 +308,13 @@ struct ColName {
 static inline
 intptr_t*_Nullable
 get_cached_col_name(ColCache* cache, const char* name, size_t len){
-#if 0 && !defined(__wasm__)
+#if 0 && !defined(DRSPREAD_DIRECT_OPS)
     return NULL;
 #endif
     if(cache->n*2 >= cache->cap){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
-        #ifdef __wasm__
+        #ifdef DRSPREAD_DIRECT_OPS
             unsigned char* new_data = sane_realloc(cache->data, old_cap*(3*sizeof(intptr_t)+sizeof(uint32_t)), new_cap*(3*sizeof(intptr_t)+sizeof(uint32_t)));
         #else
             unsigned char* new_data = realloc(cache->data, new_cap*(3*sizeof(intptr_t)+sizeof(uint32_t)));
@@ -369,7 +369,7 @@ struct StringArena {
 
 
 struct SpreadContext {
-#ifndef __wasm__
+#ifndef DRSPREAD_DIRECT_OPS
     const SheetOps _ops; // don't call these directly
 #endif
     StringArena* sarena;
@@ -559,7 +559,7 @@ struct FuncInfo {
 };
 
 
-#ifdef __wasm__
+#ifdef DRSPREAD_DIRECT_OPS
 #define SP_ARGS SheetHandle sheet
 #define SP_CALL(func, ...) sheet_##func(sheet, __VA_ARGS__)
 #else
@@ -584,7 +584,7 @@ sp_cell_text(SpreadContext* ctx, SheetHandle sheet, intptr_t row, intptr_t col, 
     }
     size_t l;
     const char* s;
-    #ifdef __wasm__
+    #ifdef DRSPREAD_DIRECT_OPS
         PString* p = sheet_cell_text(sheet, row, col);
         l = p->length;
         s = (char*)p->text;
@@ -621,7 +621,7 @@ sp_dims(SP_ARGS, intptr_t* ncols, intptr_t* nrows){
 force_inline
 int
 sp_set_display_number(SP_ARGS, intptr_t row, intptr_t col, double value){
-    #ifdef __wasm__
+    #ifdef DRSPREAD_DIRECT_OPS
         SP_CALL(set_display_number, row, col, value);
         return 0;
     #else
@@ -632,7 +632,7 @@ sp_set_display_number(SP_ARGS, intptr_t row, intptr_t col, double value){
 force_inline
 int
 sp_set_display_error(SP_ARGS, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len){
-    #ifdef __wasm__
+    #ifdef DRSPREAD_DIRECT_OPS
         (void)errmess;
         (void)errmess_len;
         SP_CALL(set_display_error, row, col);
@@ -645,7 +645,7 @@ sp_set_display_error(SP_ARGS, intptr_t row, intptr_t col, const char* errmess, s
 force_inline
 int
 sp_set_display_string(SP_ARGS, intptr_t row, intptr_t col, const char* txt, size_t len){
-    #ifdef __wasm__
+    #ifdef DRSPREAD_DIRECT_OPS
         SP_CALL(set_display_string, row, col, txt, len);
         return 0;
     #else
@@ -682,7 +682,7 @@ sp_name_to_sheet(SpreadContext* ctx, const char* name, size_t len){
     SheetHandle* h = get_cached_sheet(cache, name, len);
     if(h && *h) return *h;
     SheetHandle hnd;
-    #ifdef __wasm__
+    #ifdef DRSPREAD_DIRECT_OPS
         hnd = sheet_name_to_sheet(name, len);
     #else
         hnd = ctx->_ops.name_to_sheet(ctx->_ops.ctx, name, len);
@@ -691,7 +691,7 @@ sp_name_to_sheet(SpreadContext* ctx, const char* name, size_t len){
     return hnd;
 }
 
-#ifdef __wasm__
+#ifdef DRSPREAD_DIRECT_OPS
 // alias these so the ctx is unused.
 #define sp_query_cell_number(ctx, ...) ((void)ctx, sp_query_cell_number(__VA_ARGS__))
 #define sp_col_height(ctx, ...) ((void)ctx, sp_col_height(__VA_ARGS__))

@@ -1,9 +1,15 @@
 //
 // Copyright © 2023, David Priver
 //
+
 #include "drspread.h"
 #include "spreadsheet.h"
 #include "testing.h"
+#ifdef __wasm__
+#pragma push_macro("__FILE__")
+#pragma clang diagnostic ignored "-Wbuiltin-macro-redefined"
+#define __FILE__ "<a href=TestDrSpread.c>TestDrSpread.c</a>"
+#endif
 
 static TestFunc TestSpreadsheet1;
 static TestFunc TestSpreadsheet2;
@@ -14,8 +20,8 @@ static TestFunc TestFuncsV;
 static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
-static TestFunc TestBugs3;
-static TestFunc TestBugs4;
+static TestFunc TestDirectlyRecursiveShouldError;
+static TestFunc TestIndirectlyRecursiveShouldError;
 static TestFunc TestMultisheet;
 static TestFunc TestColFunc;
 static TestFunc TestRanges;
@@ -24,23 +30,26 @@ static TestFunc TestNames;
 static TestFunc TestComplexMultisheet;
 
 int main(int argc, char** argv){
-    RegisterTest(TestRanges);
-    RegisterTest(TestBadRanges);
-    RegisterTest(TestSpreadsheet1);
-    RegisterTest(TestSpreadsheet2);
-    RegisterTest(TestBinOps);
-    RegisterTest(TestUnOps);
-    RegisterTest(TestFuncs);
-    RegisterTest(TestFuncsV);
-    RegisterTest(TestMod);
-    RegisterTest(TestBugs);
-    RegisterTest(TestBugs2);
-    RegisterTest(TestBugs3);
-    RegisterTest(TestBugs4);
-    RegisterTest(TestMultisheet);
-    RegisterTest(TestColFunc);
-    RegisterTest(TestNames);
-    RegisterTest(TestComplexMultisheet);
+
+    if(!test_funcs_count){ // wasm calls main more than once.
+        RegisterTest(TestRanges);
+        RegisterTest(TestBadRanges);
+        RegisterTest(TestSpreadsheet1);
+        RegisterTest(TestSpreadsheet2);
+        RegisterTest(TestBinOps);
+        RegisterTest(TestUnOps);
+        RegisterTest(TestFuncs);
+        RegisterTest(TestFuncsV);
+        RegisterTest(TestMod);
+        RegisterTest(TestBugs);
+        RegisterTest(TestBugs2);
+        RegisterTest(TestDirectlyRecursiveShouldError);
+        RegisterTest(TestIndirectlyRecursiveShouldError);
+        RegisterTest(TestMultisheet);
+        RegisterTest(TestColFunc);
+        RegisterTest(TestNames);
+        RegisterTest(TestComplexMultisheet);
+    }
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
@@ -574,7 +583,7 @@ TestFunction(TestBugs2){
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
-TestFunction(TestBugs3){
+TestFunction(TestDirectlyRecursiveShouldError){
     const char* input =
         "=[a,$]\n"
     ;
@@ -583,7 +592,7 @@ TestFunction(TestBugs3){
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
 }
-TestFunction(TestBugs4){
+TestFunction(TestIndirectlyRecursiveShouldError){
     const char* input =
         "=[a,2]\n"
         "=[a,1]\n"
@@ -878,5 +887,8 @@ TestFunction(TestComplexMultisheet){
 
 
 #pragma clang diagnostic pop
+#ifdef __wasm__
+#pragma pop_macro("__FILE__")
+#endif
 
 #include "drspread.c"

@@ -48,11 +48,20 @@ get_terminal_size(void){
     }
     return (TermSize){80, 24};
 }
-#elif defined(WASM)
+#elif defined(__wasm__)
 static inline
 TermSize
 get_terminal_size(void){
     return (TermSize){80, 24};
+}
+static inline
+int isatty(int fd){
+    (void)fd;
+    return 1;
+}
+static inline
+int fileno(FILE* stream){
+    return (int)(long long)(stream);
 }
 #else
 #include <unistd.h>

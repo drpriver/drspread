@@ -39,7 +39,12 @@ function drspread(wasm_path, sheet_cell_text_, sheet_col_height, sheet_row_width
                 const s = wasm_string_to_js(p, len);
                 console.trace(`${s}: ${l}`);
             },
-            round: Math.round,
+            round: (num) => {
+                return Math.sign(num) * Math.round(Math.abs(num));
+            },
+            abort: () => {
+                throw new Error();
+            },
             pow: Math.pow,
             sheet_cell_text: function (id, row, col) {
                 return js_string_to_wasm(sheet_cell_text_(id, row, col));

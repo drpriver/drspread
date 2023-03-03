@@ -23,7 +23,7 @@ clean:
 	rm -rf Depends
 .DEFAULT_GOAL:=Bin/drspread
 
-WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mreference-types -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext
+WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mreference-types -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
 Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WFLAGS) -iquote. $(WASMCFLAGS) -O3
 %.js: %.ts
@@ -31,6 +31,14 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 
 Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE)
+
+# codegen bugs with -O3
+Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
+	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O2 -g
+Bin/testspread_glue.js: testspread_glue.ts
+	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --outFile $@
+test.html: Bin/testspread_glue.js Bin/TestDrSpread.wasm
+
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@

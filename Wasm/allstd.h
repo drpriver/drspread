@@ -5,10 +5,15 @@
 #define ALLSTD_H
 // Just put everything in one header and have
 // the other headers just include this one.
+typedef struct FILE FILE;
+#define stdout (FILE*)0x1
+#define stdin (FILE*)0x2
+#define stderr (FILE*)0x3
 typedef __builtin_va_list va_list;
 #define va_start(ap, param) __builtin_va_start(ap, param)
 #define va_end(ap)          __builtin_va_end(ap)
 #define va_arg(ap, type)    __builtin_va_arg(ap, type)
+#define va_copy(ap1, ap2)   __builtin_va_copy(ap1, ap2)
 extern unsigned char __heap_base[];
 static unsigned char*_Nonnull _base_ptr = __heap_base;
 typedef typeof(sizeof(1)) size_t;
@@ -54,7 +59,7 @@ _Static_assert(sizeof(uint64_t)==8, "");
 #define true 1
 #define false 0
 
-#define assert(x) (__builtin_expect(!(x), 0), (void)0)
+#define assert(x) (__builtin_expect(!(x), 0), !(x)?abort():(void)0)
 
 #define NULL ((void*)0)
 
@@ -70,6 +75,7 @@ memchr(const void*_Nonnull pointer, int c, size_t nbytes){
     return NULL;
 }
 
+static inline
 size_t strlen(const char* p){
     for(size_t i = 0; ; i++){
         if(p[i] == 0)
@@ -88,7 +94,7 @@ strchr(const char*_Nonnull pointer, int c){
     return NULL;
 }
 
-// static inline
+extern
 void*_Null_unspecified
 memcpy(void*_Nonnull dst, const void*_Nonnull src, size_t nbytes){
     return __builtin_memcpy(dst, src, nbytes);
@@ -99,7 +105,7 @@ memcpy(void*_Nonnull dst, const void*_Nonnull src, size_t nbytes){
     return dst;
 }
 
-// static inline
+static inline
 void
 bzero(void*_Nonnull s, size_t nbytes){
     __builtin_memset(s, 0, nbytes);
@@ -112,6 +118,7 @@ bzero(void*_Nonnull s, size_t nbytes){
         *d++ = 0;
 }
 
+static inline
 void*
 memset(void*_Nonnull s, int c, size_t n){
     return __builtin_memset(s, c, n);
@@ -154,11 +161,13 @@ reset_memory(void){
     _base_ptr = __heap_base;
 }
 
+extern
 void*_Nonnull
 malloc(size_t size){
     return alloc(size, 8);
 }
 
+extern
 void*
 calloc(size_t n_items, size_t item_size){
     void* result = malloc(n_items*item_size);
@@ -166,49 +175,59 @@ calloc(size_t n_items, size_t item_size){
     return result;
 }
 
+extern
 void
 free(void* p){
     (void)p;
 }
 
-int printf(const char*_Nonnull fmt, ...){
-    (void)fmt;
-    return 0;
-}
-typedef struct FILE FILE;
+static inline
+int 
+vfprintf(FILE* fp, const char*_Nonnull fmt, va_list vargs);
 
+static inline
+int printf(const char*_Nonnull fmt, ...){
+    __builtin_va_list vap;
+    __builtin_va_start(vap, fmt);
+    int ret = vfprintf(stdout, fmt, vap);
+    __builtin_va_end(vap);
+    return ret;
+}
+static inline
 int puts(const char* str){
     (void)str;
     return 0;
 }
 
+static inline
 int fputs(const char* str, FILE*stream){
     (void)str;
     (void)stream;
     return 0;
 }
-int putchar(int c){
-    (void)c;
-    return c;
-}
 
+static inline
 int
 fprintf(FILE*_Nonnull fp, const char*_Nonnull fmt, ...){
-    (void)fp;
-    (void)fmt;
-    return 0;
+    __builtin_va_list vap;
+    __builtin_va_start(vap, fmt);
+    int ret = vfprintf(stdout, fmt, vap);
+    __builtin_va_end(vap);
+    return ret;
 }
+static inline
 size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream){
     (void)ptr, (void)size, (void)nitems, (void)stream;
     return 0;
 }
 
+static inline
 void
 perror(const char* s){
     (void)s;
 }
 
-static
+static inline
 void*
 sane_realloc(void* p, size_t orig_size, size_t size){
     void* result = malloc(size);
@@ -223,6 +242,7 @@ extern
 void __attribute__((noreturn))
 abort(void);
 
+static inline
 int
 memcmp(const void* s1, const void* s2, size_t n){
     const unsigned char* pa = s1;
@@ -237,6 +257,7 @@ memcmp(const void* s1, const void* s2, size_t n){
     return 0;
 }
 
+static inline
 int
 strcmp(const char* s1, const char* s2){
     const unsigned char* pa = s1;
@@ -253,6 +274,7 @@ strcmp(const char* s1, const char* s2){
     return 0;
 }
 
+static inline
 void*
 memmove(void* dst, const void* src, size_t len){
     return __builtin_memmove(dst,src, len);
@@ -269,12 +291,10 @@ memmove(void* dst, const void* src, size_t len){
         return memcpy(dst, src, len);
 }
 
+static inline
 int abs(int i){
     return i < 0 ? -i : i;
 }
 
-#define stdout (FILE*)0xcafebabe
-#define stdin (FILE*)0xcafebabe
-#define stderr (FILE*)0xcafebabe
 
 #endif

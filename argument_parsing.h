@@ -971,21 +971,22 @@ parse_arg(ArgToParse* arg, StringView s){
 #define APPEND_ARG(type, value_) do { \
     if(arg->append_proc){ \
         int fail = arg->append_proc(arg->dest.pointer, &value_); \
-        if(fail) {\
-            return ARGPARSE_CONVERSION_ERROR; \
-        } \
+        if(fail)return ARGPARSE_CONVERSION_ERROR; \
         arg->num_parsed += 1; \
     } \
     else { \
         type* dest = arg->dest.pointer; \
-        dest += arg->num_parsed; \
-        *dest = value_; \
-        arg->num_parsed += 1; \
+        dest[arg->num_parsed++] = value_; \
     } \
 }while(0)
     switch(arg->dest.type){
         case ARG_INTEGER64:{
+            #ifndef __wasm__
             struct Int64Result e = parse_int64(s.text, s.length);
+            #else
+            // XXX Getting bad codegen with int64
+            struct Int32Result e = parse_int32(s.text, s.length);
+            #endif
             if(e.errored){
                 return ARGPARSE_CONVERSION_ERROR;
             }
@@ -993,7 +994,12 @@ parse_arg(ArgToParse* arg, StringView s){
             APPEND_ARG(int64_t, value);
         }break;
         case ARG_UINTEGER64:{
+            #ifndef __wasm__
             struct Uint64Result e = parse_unsigned_human(s.text, s.length);
+            #else
+            // XXX Getting bad codegen with uint64
+            struct Uint32Result e = parse_unsigned_human(s.text, s.length);
+            #endif
             if(e.errored) {
                 return ARGPARSE_CONVERSION_ERROR;
             }
@@ -1052,7 +1058,12 @@ parse_arg(ArgToParse* arg, StringView s){
             if(!s.length) return ARGPARSE_CONVERSION_ERROR;
             const ArgParseEnumType* enu = arg->dest.enum_pointer;
             // allow specifying enums by numeric value.
+            #ifndef __wasm__
             struct Uint64Result uint_res = parse_unsigned_human(s.text, s.length);
+            #else
+            // XXX bad codegen with the uint64 version
+            struct Uint32Result uint_res = parse_unsigned_human(s.text, s.length);
+            #endif
             if(!uint_res.errored){
                 if(uint_res.result >= enu->enum_count)
                     return ARGPARSE_CONVERSION_ERROR;

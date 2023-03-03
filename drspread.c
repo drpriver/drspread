@@ -67,7 +67,7 @@
 //   (group)
 
 // This sucks, but not many languages have any way of abstracting over arity at all.
-#ifdef __wasm__
+#ifdef DRSPREAD_DIRECT_OPS
 #define ARGS SheetHandle sheethandle
 #else
 #define ARGS SheetHandle sheethandle, const SheetOps* ops
@@ -81,14 +81,14 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
     int nerrs = 0;
     _Alignas(intptr_t) char evalbuff [30000];
     SpreadContext ctx = {
-        #ifndef __wasm__
+        #ifndef DRSPREAD_DIRECT_OPS
             ._ops=*ops,
         #endif
         .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
         #ifdef __wasm__
-        .limit = (uintptr_t)__builtin_frame_address(0) - 30000,
+        .limit = 10000,
         #else
         .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
         #endif
@@ -134,7 +134,7 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
 // Again, this sucks.
 // Don't need the SheetOps* arg and as this is an export the
 // number of parameters matters.
-#ifdef __wasm__
+#ifdef DRSPREAD_DIRECT_OPS
 #define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col
 #else
 #define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col
@@ -146,14 +146,14 @@ drsp_evaluate_string(ARGS){
 #undef ARGS
     _Alignas(intptr_t) char evalbuff [30000];
     SpreadContext ctx = {
-#ifndef __wasm__
+#ifndef DRSPREAD_DIRECT_OPS
         ._ops=*ops,
 #endif
         .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
         .null={EXPR_NULL},
         .error={EXPR_ERROR},
         #ifdef __wasm__
-        .limit = (uintptr_t)__builtin_frame_address(0) - 30000,
+        .limit = 10000,
         #else
         .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
         #endif

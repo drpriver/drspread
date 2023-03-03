@@ -261,7 +261,11 @@ parse_binary(const char* str, size_t length);
 // Accepts 0x hexes, 0b binary, plain decimals, and also # hexes.
 static inline
 warn_unused
+#ifdef __wasm__
+struct Uint32Result
+#else
 struct Uint64Result
+#endif
 parse_unsigned_human(const char* str, size_t length);
 
 //
@@ -687,8 +691,14 @@ parse_binary_inner(const char* str, size_t length){
 
 static inline
 warn_unused
+#ifdef __wasm__
+// XXX bad codegen with the uint64 version
+struct Uint32Result
+#else
 struct Uint64Result
+#endif
 parse_unsigned_human(const char* str, size_t length){
+    #ifndef __wasm__
     struct Uint64Result result = {0};
     if(!length){
         result.errored = PARSENUMBER_UNEXPECTED_END;
@@ -703,6 +713,9 @@ parse_unsigned_human(const char* str, size_t length){
             return parse_binary(str, length);
     }
     return parse_uint64(str, length);
+    #else
+    return parse_uint32(str, length);
+    #endif
 }
 
 #if PARSE_NUMBER_PARSE_FLOATS

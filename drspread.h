@@ -53,7 +53,7 @@ struct  DrSpreadResult {
     };
 };
 
-#ifndef __wasm__
+#ifndef DRSPREAD_DIRECT_OPS
 typedef struct SheetOps SheetOps;
 
 // Callbacks

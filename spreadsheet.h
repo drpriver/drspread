@@ -242,6 +242,7 @@ sheet_get_dims(void*m, SheetHandle hnd, intptr_t* ncols, intptr_t* nrows){
     return 0;
 }
 
+#ifndef __wasm__
 static
 char*_Nullable
 read_file(const char* filename){
@@ -271,6 +272,7 @@ read_file(const char* filename){
     fclose(fp);
     return NULL;
 }
+#endif
 
 static
 int
@@ -296,6 +298,7 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
 }
 
 
+#ifndef __wasm__
 static
 int
 read_csv(SpreadSheet* sheet, const char* filename){
@@ -305,6 +308,7 @@ read_csv(SpreadSheet* sheet, const char* filename){
     free(txt);
     return result;
 }
+#endif
 
 static
 int
@@ -364,6 +368,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
 }
 
 
+#ifndef __wasm__
 static
 int
 read_multi_csv(MultiSpreadSheet* ms, const char* filename){
@@ -373,7 +378,9 @@ read_multi_csv(MultiSpreadSheet* ms, const char* filename){
     free(txt);
     return result;
 }
+#endif
 
+#ifndef __wasm__
 static
 int
 write_display(SpreadSheet* sheet, FILE* out){
@@ -428,7 +435,9 @@ write_display(SpreadSheet* sheet, FILE* out){
     fflush(out);
     return 0;
 }
+#endif
 
+#ifndef DRSPREAD_DIRECT_OPS
 static
 SheetOps
 multisheet_ops(MultiSpreadSheet* ms){
@@ -466,6 +475,7 @@ sheet_ops(void){
     };
     return ops;
 }
+#endif
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

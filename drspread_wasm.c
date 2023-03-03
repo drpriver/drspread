@@ -1,6 +1,7 @@
 //
 // Copyright © 2023, David Priver
 //
+#define DRSPREAD_DIRECT_OPS 1
 #include "allstd.h"
 #include "drspread.h"
 #include "drspread_wasm.h"

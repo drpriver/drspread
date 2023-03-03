@@ -91,6 +91,7 @@ TestPrintf(const char* fmt, ...){
     // Some C compiler don't support multiple va_starts, but do
     // support va_copy, so just do that.
     va_start(arg_, fmt);
+    assert(TestOutFileCount < arrlen(TestOutFiles));
     for(size_t i = 0; i < TestOutFileCount; i++){
         va_list arg;
         va_copy(arg, arg_);
@@ -186,7 +187,7 @@ TestPrintf(const char* fmt, ...){
 #define TestPrintImpl_(suffix, type, fmt, ...) \
     force_inline void \
     TestPrintImpl_##suffix(const char* file, const char* func, int line, const char* str, type x){ \
-        TestPrintf("%s%s:%s:%d%s %s = " fmt "\n",\
+        TestPrintf("%s%s %s:%d%s %s = " fmt "\n",\
                 _test_color_gray, file, func, line, _test_color_reset, str, __VA_ARGS__); \
         }
 TestPrintFuncs(TestPrintImpl_)
@@ -236,8 +237,8 @@ struct TestStats {
     unsigned long long assert_failures;
 };
 
-static inline 
-struct TestStats 
+static inline
+struct TestStats
 merge_stats(struct TestStats a, struct TestStats b){
     a.funcs_executed += b.funcs_executed;
     a.failures += b.failures;
@@ -826,7 +827,6 @@ run_the_tests(size_t*_Nonnull which_tests, int test_count, struct TestResults* r
 #ifndef SUPPRESS_TEST_MAIN
 #include "argument_parsing.h"
 #include "term_util.h"
-#include <inttypes.h>
 
 // shuffling stuff
 #ifdef __linux__
@@ -837,6 +837,8 @@ run_the_tests(size_t*_Nonnull which_tests, int test_count, struct TestResults* r
 #elif defined(_WIN32)
 //
 #include <ntsecapi.h> // RtlGenRandom
+#elif defined(__wasm__)
+
 #else
 #error "Don't know how to get entropy on this system"
 #endif
@@ -861,6 +863,8 @@ testing_seed_rng(uint64_t*_Nonnull seed_){
 #elif defined(__linux__)
         ssize_t r = getrandom(&seed, sizeof seed, 0);
         (void)r;
+#elif defined(__wasm__)
+        seed = 1234;
 #elif defined(_WIN32)
         // Apparently this has to be dynamically loaded
         HMODULE lib = LoadLibraryW(L"Advapi32.dll");
@@ -1087,7 +1091,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         }
         TestRegisterOutFile(fp);
     }
-    else if(!silent){
+    if(!TestOutFileCount && !silent){
         TestRegisterOutFile(stderr);
     }
     // Register extras
@@ -1165,32 +1169,32 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     const char* text = result.funcs_executed == 1?
         "test function executed"
         : "test functions executed";
-    TestPrintf("%s%s: %s%zu%s %s\n",
-            gray, filename,
+    TestPrintf("%s%s%s: %s%zu%s %s\n",
+            gray, filename, reset,
             blue, result.funcs_executed,
             reset, text);
 
     text = result.executed == 1? "test executed" : "tests executed";
-    TestPrintf("%s%s: %s%zu%s %s\n",
-            gray, filename,
-            blue, result.executed,
-            reset, text);
+    TestPrintf("%s%s%s: %s%zu%s %s\n",
+            gray, filename, reset,
+            blue, result.executed, reset,
+            text);
 
     text = result.assert_failures == 1?
         "test function aborted early"
         : "test functions aborted early";
     const char* color = result.assert_failures?red:green;
-    TestPrintf("%s%s: %s%zu%s %s\n",
-            gray, filename,
-            color, result.assert_failures,
-            reset, text);
+    TestPrintf("%s%s%s: %s%zu%s %s\n",
+            gray, filename, reset,
+            color, result.assert_failures, reset,
+            text);
 
     color = result.failures?red:green;
     text = result.failures == 1? "test failed" : "tests failed";
-    TestPrintf("%s%s: %s%zu%s %s\n",
-            gray, filename,
-            color, result.failures,
-            reset, text);
+    TestPrintf("%s%s%s: %s%zu%s %s\n",
+            gray, filename, reset,
+            color, result.failures, reset,
+            text);
     for(size_t i = 0 ; i < TestOutFileCount; i++){
         if(TestOutFiles[i] != stderr)
             fclose(TestOutFiles[i]);
@@ -1202,7 +1206,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     if(result.n_failed_tests && argc){
         fprintf(stderr, "To rerun the failed test%s, run:\n", result.n_failed_tests==1?"":"s");
         if(shuffle){
-            fprintf(stdout, "'%s' --shuffle --seed %"PRIu64, argv[0], seed);
+            fprintf(stdout, "'%s' --shuffle --seed %llu", argv[0], (unsigned long long)seed);
         }
         else {
             fprintf(stdout, "'%s' -t", argv[0]);

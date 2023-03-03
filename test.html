@@ -1,0 +1,108 @@
+<style>
+:root{
+  color-scheme: light dark;
+}
+.gray { color: gray; }
+.red {color: red;}
+.green {color: green;}
+.blue {color: blue;}
+.bold {font-weight: bold;}
+.italic {font-style: italic;}
+input { width: 40ch;}
+#stdout {
+  background-color: #efefef;
+}
+details {
+  background-color: #eee;
+  margin: 12px;
+}
+summary {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+  padding: 8px;
+}
+summary:hover {
+  background-color: #ddd;
+}
+pre {
+  background-color: #eee;
+  font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+}
+@media (prefers-color-scheme: dark) {
+html {
+  color: #fff;
+  background-color: #000;
+}
+#stdout {
+  background-color: #222;
+}
+details {
+  background-color: #333;
+}
+summary:hover {
+  background-color: #444;
+}
+pre {
+  background-color: #333;
+}
+.gray { color: lightgray; }
+.red {color: red;}
+.green {color: #0f0;}
+.blue {color: #0af;}
+a {color: #0af;}
+}
+@media (prefers-color-scheme: light) {
+html {
+  color: #000;
+  background-color: #fff;
+}
+}
+#stdout {
+  grid-row: 2;
+  grid-column: 1/-1;
+  overflow: scroll;
+}
+pre {
+  padding: 16px;
+}
+input {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 8px;
+}
+button {
+  grid-row: 1;
+  margin: 8px;
+}
+#row {
+  grid-column: 2;
+}
+#close {
+  grid-column: 3;
+}
+#open {
+  grid-column: 4;
+}
+body {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  margin: 0;
+  padding: 8px;
+  grid-template-rows: max-content auto;
+  grid-template-columns: max-content max-content max-content max-content auto;
+}
+* {
+  box-sizing: border-box;
+}
+</style>
+<input id=args placeholder="cli args">
+<button id=run>Run</button>
+<button id=close>Close Runs</button>
+<button id=open>Open Runs</button>
+<div id=stdout>
+</div>
+<script src=Bin/testspread_glue.js>
+</script>

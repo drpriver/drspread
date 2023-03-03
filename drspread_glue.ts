@@ -65,7 +65,13 @@ const imports = {
             const s = wasm_string_to_js(p, len);
             console.trace(`${s}: ${l}`);
         },
-        round: Math.round,
+        // bizarrely, Math.round doesn't round correctly
+        round: (num:number):number => {
+            return Math.sign(num) * Math.round(Math.abs(num))
+        },
+        abort:():void =>{
+            throw new Error();
+        },
         pow: Math.pow,
         sheet_cell_text:function(id:number, row:number, col:number):number{
             return js_string_to_wasm(sheet_cell_text_(id, row, col));
