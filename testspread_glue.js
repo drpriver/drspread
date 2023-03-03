@@ -95,7 +95,7 @@ fetch('Bin/TestDrSpread.wasm')
         out.insertAdjacentElement('afterbegin', deets);
         main(args.length, argv);
     }
-    if (document.readyState === "complete" || document.readyState === 'interactive') {
+    function do_run() {
         const button = document.getElementById('run');
         button.onclick = function () {
             run();
@@ -108,21 +108,10 @@ fetch('Bin/TestDrSpread.wasm')
         input.focus();
         run();
     }
-    else {
-        document.addEventListener('DOMContentLoaded', function () {
-            const button = document.getElementById('run');
-            button.onclick = function () {
-                run();
-            };
-            const input = document.getElementById('args');
-            input.onkeydown = function (e) {
-                if (e.key == 'Enter')
-                    button.click();
-            };
-            input.focus();
-            run();
-        });
-    }
+    if (document.readyState === "complete" || document.readyState === 'interactive')
+        do_run();
+    else
+        document.addEventListener('DOMContentLoaded', do_run);
 });
 document.addEventListener('DOMContentLoaded', function () {
     const close = document.getElementById('close');
