@@ -252,12 +252,19 @@ PARSEFUNC(parse_string){
     }
     const char* end = sv->text;
     if(!sv->length) return Error(ctx, "");
-    String* s = expr_alloc(ctx, EXPR_STRING);
-    if(!s) return NULL;
-    s->sv.text = begin;
-    s->sv.length = end - begin;
+    Expression* result;
+    if(end != begin){
+        String* s = expr_alloc(ctx, EXPR_STRING);
+        if(!s) return NULL;
+        s->sv.text = begin;
+        s->sv.length = end - begin;
+        result = &s->e;
+    }
+    else {
+        result = expr_alloc(ctx, EXPR_NULL);
+    }
     sv->length--, sv->text++;
-    return &s->e;
+    return result;
 }
 
 static inline

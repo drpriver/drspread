@@ -334,6 +334,9 @@ TestFunction(TestFuncs){
         "=cat('a', cat('b', cat('c', cat('d', 'e'))))\n"
         "=cat('a', 'b', 'c')\n"
         "=cat('a', 'b', 'c', 'd')\n"
+        "=cat('a', '')\n"
+        "=cat('', 'b')\n"
+        "=cat('', '')\n"
     ;
     SheetRow expected[] = {
         [ 0] = ROW("60", "-1.5"),
@@ -397,6 +400,9 @@ TestFunction(TestFuncs){
         [53] = ROW("abcde"),
         [54] = ROW("abc"),
         [55] = ROW("abcd"),
+        [56] = ROW("a"),
+        [57] = ROW("b"),
+        [58] = ROW(""),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -443,6 +449,9 @@ TestFunction(TestFuncsV){
         "=_f(cat(_a('a'), 'b'))\n"
         "=_f(cat('a', _a('b'), 'c'))\n"
         "=_f(cat('a', _a('b'), 'c', _a('d')))\n"
+
+        "=_f(eval(_a('pow(2,4)')))\n"
+        "=sum(eval(_a('pow(2,4)', 'pow(2, 3)', '')))\n"
     ;
     SheetRow expected[] = {
         // Designated initializers are so you can figure out which row
@@ -488,6 +497,9 @@ TestFunction(TestFuncsV){
         [29] = ROW("ab"),
         [30] = ROW("abc"),
         [31] = ROW("abcd"),
+
+        [32] = ROW("16"),
+        [33] = ROW("24"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

@@ -689,6 +689,21 @@ FORMULAFUNC(drsp_eval){
     if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(expr_is_columnar(arg)){
+        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedColumn* c = (ComputedColumn*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_NULL) continue;
+            if(e->kind != EXPR_STRING) return Error(ctx, "");
+            StringView sv = ((String*)e)->sv;
+            Expression* ev = evaluate_string(ctx, hnd, sv.text, sv.length, caller_row, caller_col);
+            if(!ev || ev->kind == EXPR_ERROR) return ev;
+            c->data[i] = ev;
+        }
+        return &c->e;
+    }
     if(arg->kind != EXPR_STRING) return Error(ctx, "");
     StringView sv = ((String*)arg)->sv;
     Expression* result = evaluate_string(ctx, hnd, sv.text, sv.length, caller_row, caller_col);
@@ -844,7 +859,7 @@ FORMULAFUNC(drsp_cat){
             return arg;
         }
         else {
-            if(arg->kind != EXPR_STRING) {
+            if(arg->kind != EXPR_STRING && arg->kind != EXPR_NULL) {
                 buff_set(&ctx->a, bc);
                 return Error(ctx, "");
             }
@@ -857,12 +872,14 @@ FORMULAFUNC(drsp_cat){
                 arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
                 if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
                 ComputedColumn* c = (ComputedColumn*)arg2;
-                catbuff[0] = ((String*)arg)->sv;
+                if(arg->kind != EXPR_NULL)
+                    catbuff[0] = ((String*)arg)->sv;
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
                     if(e->kind == EXPR_NULL) continue;
                     if(e->kind != EXPR_STRING)
                         return Error(ctx, "");
+                    if(arg->kind == EXPR_NULL) continue;
                     String* s = (String*)e;
                     catbuff[1] = s->sv;
                     int err = sv_cat(ctx, 2, catbuff, &s->sv);
@@ -871,9 +888,29 @@ FORMULAFUNC(drsp_cat){
                 return arg2;
             }
             else {
+                if(arg2->kind == EXPR_NULL){
+                    if(arg->kind == EXPR_NULL){
+                        buff_set(&ctx->a, bc);
+                        return arg;
+                    }
+                    StringView v = ((String*)arg)->sv;
+                    buff_set(&ctx->a, bc);
+                    String* s = expr_alloc(ctx, EXPR_STRING);
+                    if(!s) return NULL;
+                    s->sv = v;
+                    return &s->e;
+                }
                 if(arg2->kind != EXPR_STRING){
                     buff_set(&ctx->a, bc);
                     return Error(ctx, "");
+                }
+                if(arg->kind == EXPR_NULL){
+                    StringView v = ((String*)arg2)->sv;
+                    buff_set(&ctx->a, bc);
+                    String* s = expr_alloc(ctx, EXPR_STRING);
+                    if(!s) return NULL;
+                    s->sv = v;
+                    return &s->e;
                 }
                 StringView v;
                 catbuff[0] = ((String*)arg)->sv;
