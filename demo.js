@@ -190,9 +190,16 @@ function show() {
 drspread('/Bin/drspread.wasm', cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims, function (s) { return 0; }).then(({ evaluate_formulas, evaluate_string, exports }) => {
     ex = exports;
     ev_formulas = evaluate_formulas;
-    for (let i = 0; i < 1; i++) {
-        const deps = evaluate_formulas(0);
+    const N = 1;
+    window.performance.mark('evaluate');
+    const before = window.performance.now();
+    for (let i = 0; i < N; i++) {
+        evaluate_formulas(0);
     }
+    window.performance.mark('done-evaluate');
+    window.performance.measure('evaluate', 'evaluate', 'done-evaluate');
+    const after = window.performance.now();
+    console.log('after-before', after - before);
     ev_string = evaluate_string;
     if (document.readyState != 'complete') {
         document.addEventListener('DOMContentLoaded', () => { make_elems(); show(); });

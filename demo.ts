@@ -237,9 +237,17 @@ drspread(
 ).then(({evaluate_formulas, evaluate_string, exports}) =>{
     ex = exports;
     ev_formulas = evaluate_formulas;
-    for(let i = 0; i < 1; i++){
+    // const N = 1000;
+    const N = 1;
+    window.performance.mark('evaluate');
+    const before = window.performance.now()
+    for(let i = 0; i < N; i++){
         evaluate_formulas(0);
     }
+    window.performance.mark('done-evaluate');
+    window.performance.measure('evaluate', 'evaluate', 'done-evaluate');
+    const after = window.performance.now();
+    console.log('after-before', after-before);
     ev_string = evaluate_string;
     if(document.readyState != 'complete'){
         document.addEventListener('DOMContentLoaded', ()=>{make_elems(); show();});
