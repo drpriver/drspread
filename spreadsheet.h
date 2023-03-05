@@ -304,7 +304,7 @@ int
 read_csv(SpreadSheet* sheet, const char* filename){
     char* txt = read_file(filename);
     if(!txt) return 1;
-    int result = read_csv_from_string(sheet, filename);
+    int result = read_csv_from_string(sheet, txt);
     free(txt);
     return result;
 }

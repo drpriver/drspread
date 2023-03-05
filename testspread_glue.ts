@@ -97,7 +97,10 @@ fetch('Bin/TestDrSpread.wasm')
             active = document.createElement('pre');
             deets.append(summ, active);
             out.insertAdjacentElement('afterbegin', deets);
+            const before = window.performance.now();
             main(args.length, argv);
+            const after = window.performance.now();
+            active.insertAdjacentText('afterbegin', `executed in ${(after-before).toFixed(2)}ms\n`);
         }
         function do_run():void{
             const button = document.getElementById('run')!;
@@ -110,7 +113,8 @@ fetch('Bin/TestDrSpread.wasm')
                     button.click();
             };
             input.focus();
-            run();
+            for(let i = 0; i < 3; i++)
+                run();
         }
         if(document.readyState === "complete" || document.readyState === 'interactive')
             do_run();
