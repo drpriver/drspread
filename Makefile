@@ -47,8 +47,11 @@ ALL=TestResults/TestDrSpread \
     Bin/drspread.wasm \
     Bin/drspread_bench \
     Bin/drspread.o \
+    Bin/TestDrSpread.wasm \
     drspread_glue.js \
-    demo.js
+    demo.js \
+    testspread_glue.js \
+
 all: $(ALL)
 .DEFAULT_GOAL:=all
 

@@ -1245,13 +1245,8 @@ FORMULAFUNC(drsp_call){
         return Error(ctx, "");
     StringView name = ((String*)arg)->sv;
 
-    FormulaFunc* func = NULL;
-    for(size_t i = 0; i < FUNCTABLE_LENGTH; i++){
-        if(sv_equals(FUNCTABLE[i].name, name)){
-            func = FUNCTABLE[i].func;
-            break;
-        }
-    }
+    FormulaFunc* func = lookup_func(name);
+        NULL;
     if(!func) return Error(ctx, "");
     argc--, argv++;
     return func(ctx, hnd, caller_row, caller_col, argc, argv);
@@ -1426,84 +1421,121 @@ FORMULAFUNC(drsp_time){
 #endif
 #endif
 
-#if 0
-#define DRSP_FRAME_FUNCS 1
-#endif
-
-#ifdef DRSP_FRAME_FUNCS
-DRSP_INTERNAL
-FORMULAFUNC(drsp_frame){
-    (void)argv; (void)argc;
-    (void)caller_row; (void)caller_col;
-    (void)hnd;
-    uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    n->value = sp;
-    return &n->e;
-}
-DRSP_INTERNAL
-FORMULAFUNC(drsp_limit){
-    (void)argv; (void)argc;
-    (void)caller_row; (void)caller_col;
-    (void)hnd;
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
-    if(!n) return NULL;
-    n->value = ctx->limit;
-    return &n->e;
-}
-#endif
-
-
-
 #ifndef SV
 #define SV(x) {sizeof(x)-1, x}
 #endif
 
+#ifdef DRSP_INTRINS
 DRSP_INTERNAL
-const FuncInfo FUNCTABLE[] = {
+const FuncInfo FUNC1[] = {
+    {SV("a"),    &drsp_array},
+    {SV("f"),    &drsp_first},
+};
+#endif
+DRSP_INTERNAL
+const FuncInfo FUNC2[] = {
+    {SV("if"),    &drsp_if},
+};
+DRSP_INTERNAL
+const FuncInfo FUNC3[] = {
     {SV("sum"),   &drsp_sum},
     {SV("tlu"),   &drsp_tablelookup},
     {SV("mod"),   &drsp_mod},
-    {SV("if"),    &drsp_if},
-    {SV("count"), &drsp_count},
     {SV("avg"),   &drsp_avg},
     {SV("min"),   &drsp_min},
     {SV("max"),   &drsp_max},
     {SV("abs"),   &drsp_abs},
-    {SV("floor"), &drsp_floor},
-    {SV("ceil"),  &drsp_ceil},
-    {SV("trunc"), &drsp_trunc},
-    {SV("round"), &drsp_round},
-    {SV("find"),  &drsp_find},
     {SV("num"),   &drsp_num},
     {SV("try"),   &drsp_try},
     {SV("pow"),   &drsp_pow},
+    {SV("col"),   &drsp_col},
+    {SV("cat"),   &drsp_cat},
+};
+DRSP_INTERNAL
+const FuncInfo FUNC4[] = {
+    {SV("ceil"),  &drsp_ceil},
+    {SV("find"),  &drsp_find},
     {SV("cell"),  &drsp_cell},
     {SV("eval"),  &drsp_eval},
-    {SV("col"),   &drsp_col},
     {SV("call"),  &drsp_call},
     {SV("sqrt"),  &drsp_sqrt},
-    {SV("array"), &drsp_array},
-    {SV("cat"),   &drsp_cat},
-    {SV("concat"),&drsp_cat},
-#ifdef DRSP_INTRINS
-    {SV("_f"),    &drsp_first},
-    {SV("_a"),    &drsp_array},
-#endif
 #ifdef DRSPREAD_CLI_C
 #ifdef __APPLE__
     {SV("time"), &drsp_time},
 #endif
 #endif
     {SV("prod"),  &drsp_prod},
-#ifdef DRSP_FRAME_FUNCS
-    {SV("_frame"), &drsp_frame},
-    {SV("_limit"), &drsp_limit},
-#endif
+};
+DRSP_INTERNAL
+const FuncInfo FUNC5[] = {
+    {SV("count"), &drsp_count},
+    {SV("floor"), &drsp_floor},
+    {SV("trunc"), &drsp_trunc},
+    {SV("round"), &drsp_round},
+    {SV("array"), &drsp_array},
 };
 
-DRSP_INTERNAL const size_t FUNCTABLE_LENGTH = arrlen(FUNCTABLE);
+
+static inline
+_Bool sv_iequals(StringView a, StringView b){
+    if(a.length != b.length) return 0;
+    size_t length = a.length;
+    const uint8_t* ap = (const uint8_t*)a.text;
+    const uint8_t* bp = (const uint8_t*)b.text;
+    for(size_t i = 0; i < length; i++){
+        uint8_t l = ap[i];
+        // l |= 0x20u; // lhs is already lower
+        uint8_t r = bp[i];
+        r |= 0x20u;
+        if(l != r) return 0;
+    }
+    return 1;
+}
+DRSP_INTERNAL
+FormulaFunc*_Nullable
+lookup_func(StringView name){
+    switch(name.length){
+        #ifdef DRSP_INTRINS
+        case 1:
+            for(size_t i = 0; i < arrlen(FUNC1); i++){
+                if(sv_iequals(FUNC1[i].name, name)){
+                    return FUNC1[i].func;
+                }
+            }
+            return NULL;
+        #endif
+        case 2:
+            for(size_t i = 0; i < arrlen(FUNC2); i++){
+                if(sv_iequals(FUNC2[i].name, name)){
+                    return FUNC2[i].func;
+                }
+            }
+            return NULL;
+        case 3:
+            for(size_t i = 0; i < arrlen(FUNC3); i++){
+                if(sv_iequals(FUNC3[i].name, name)){
+                    return FUNC3[i].func;
+                }
+            }
+            return NULL;
+        case 4:
+            for(size_t i = 0; i < arrlen(FUNC4); i++){
+                if(sv_iequals(FUNC4[i].name, name)){
+                    return FUNC4[i].func;
+                }
+            }
+            return NULL;
+        case 5:
+            for(size_t i = 0; i < arrlen(FUNC5); i++){
+                if(sv_iequals(FUNC5[i].name, name)){
+                    return FUNC5[i].func;
+                }
+            }
+            return NULL;
+    }
+    return NULL;
+}
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

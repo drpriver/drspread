@@ -346,6 +346,11 @@ TestFunction(TestFuncs){
         "=cat('a', '')\n"
         "=cat('', 'b')\n"
         "=cat('', '')\n"
+        "=CAT('', '')\n"
+        "=CaT('', '')\n"
+
+        "=MiN(mAX(-1, -2), 1)\n"
+
     ;
     SheetRow expected[] = {
         [ 0] = ROW("60", "-1.5"),
@@ -412,55 +417,61 @@ TestFunction(TestFuncs){
         [56] = ROW("a"),
         [57] = ROW("b"),
         [58] = ROW(""),
+        [59] = ROW(""),
+        [60] = ROW(""),
+
+        [61] = ROW("-1"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
 TestFunction(TestFuncsV){
     const char* input =
-        "=_f(_a(1))\n"
-        "=_f(mod(_a(13)))\n"
+        "=f(a(1))\n"
+        "=f(mod(a(13)))\n"
 
-        "=_f(trunc(_a(13.1)))\n"
-        "=_f(floor(_a(13.1)))\n"
-        "=_f(ceil( _a(13.1)))\n"
-        "=_f(round(_a(13.1)))\n"
+        "=f(trunc(a(13.1)))\n"
+        "=f(floor(a(13.1)))\n"
+        "=f(ceil( a(13.1)))\n"
+        "=f(round(a(13.1)))\n"
 
-        "=_f(trunc(_a(-13.1)))\n"
-        "=_f(floor(_a(-13.1)))\n"
-        "=_f(ceil( _a(-13.1)))\n"
-        "=_f(round(_a(-13.1)))\n"
+        "=f(trunc(a(-13.1)))\n"
+        "=f(floor(a(-13.1)))\n"
+        "=f(ceil( a(-13.1)))\n"
+        "=f(round(a(-13.1)))\n"
 
-        "=_f(trunc(_a(13.5)))\n"
-        "=_f(floor(_a(13.5)))\n"
-        "=_f(ceil( _a(13.5)))\n"
-        "=_f(round(_a(13.5)))\n"
+        "=f(trunc(a(13.5)))\n"
+        "=f(floor(a(13.5)))\n"
+        "=f(ceil( a(13.5)))\n"
+        "=f(round(a(13.5)))\n"
 
-        "=_f(trunc(_a(-13.5)))\n"
-        "=_f(floor(_a(-13.5)))\n"
-        "=_f(ceil( _a(-13.5)))\n"
-        "=_f(round(_a(-13.5)))\n"
+        "=f(trunc(a(-13.5)))\n"
+        "=f(floor(a(-13.5)))\n"
+        "=f(ceil( a(-13.5)))\n"
+        "=f(round(a(-13.5)))\n"
 
-        "=_f(pow(_a(2), 3))\n"
-        "=_f(pow(_a(3), _a(4)))\n"
+        "=f(pow(a(2), 3))\n"
+        "=f(pow(a(3), a(4)))\n"
 
-        "=prod(_a(1, 2, 3, 4))\n"
-        "=sum(_a(1, 2, 3, 4))\n"
+        "=prod(a(1, 2, 3, 4))\n"
+        "=sum(a(1, 2, 3, 4))\n"
 
-        "=sum(if(_a(0,1,0), 3, 4))\n"
-        "=sum(if(_a(0,1,0), _a(10, 11, 12), 4))\n"
-        "=sum(if(_a(0,1,0), 2, _a(41, 42, 43)))\n"
-        "=sum(if(_a(0,1,0), _a(31, 32, 33), _a(15, 25, 35)))\n"
+        "=sum(if(a(0,1,0), 3, 4))\n"
+        "=sum(if(a(0,1,0), a(10, 11, 12), 4))\n"
+        "=sum(if(a(0,1,0), 2, a(41, 42, 43)))\n"
+        "=sum(if(a(0,1,0), a(31, 32, 33), a(15, 25, 35)))\n"
 
-        "=sum(num(_a('', 1), 2))\n"
+        "=sum(num(a('', 1), 2))\n"
 
-        "=_f(cat(_a('a'), _a('b')))\n"
-        "=_f(cat('a', _a('b')))\n"
-        "=_f(cat(_a('a'), 'b'))\n"
-        "=_f(cat('a', _a('b'), 'c'))\n"
-        "=_f(cat('a', _a('b'), 'c', _a('d')))\n"
+        "=f(cat(a('a'), a('b')))\n"
+        "=f(cat('a', a('b')))\n"
+        "=f(cat(a('a'), 'b'))\n"
+        "=f(cat('a', a('b'), 'c'))\n"
+        "=f(cat('a', a('b'), 'c', a('d')))\n"
 
-        "=_f(eval(_a('pow(2,4)')))\n"
-        "=sum(eval(_a('pow(2,4)', 'pow(2, 3)', '')))\n"
+        "=f(eval(a('pow(2,4)')))\n"
+        "=sum(eval(a('pow(2,4)', 'pow(2, 3)', '')))\n"
+
+        "=count(a(1, 0, 'a', ''))\n"
     ;
     SheetRow expected[] = {
         // Designated initializers are so you can figure out which row
@@ -509,6 +520,8 @@ TestFunction(TestFuncsV){
 
         [32] = ROW("16"),
         [33] = ROW("24"),
+
+        [34] = ROW("3"), // skips the empty string, includes 0
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -854,6 +867,7 @@ TestFunction(TestComplexMultisheet){
         { SV("tlu('Frodo',   [Character], [Encumbrance2])"),  3.2},
         { SV("tlu('Strider', [Character], [Encumbrance2])"),  8. },
         { SV("sum([Encumbrance2])"),                         13.2},
+        { SV("sum([Items, Weight] > 2)"),                     4. },
     };
     SpreadSheet* sheet = &ms.sheets[0];
     for(size_t i = 0; i < arrlen(cases); i++){

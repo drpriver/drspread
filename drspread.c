@@ -22,26 +22,6 @@
 // null and 0 are false
 // everything else is true
 
-// functions:
-//    sum(array)
-//    avg(array)
-//    min(array)
-//    max(array)
-//    mod(score) (3.5 style ability mode)
-//    abs(x)
-//    floor(x)
-//    ceil(x)
-//    trunc(x)
-//    round(x)
-//    tlu(needle, haystack, values, ?default) - table look up (
-//    find(needle, haystack)
-//    num(num, ?default) - coerce to a number, use default if impossible
-//    try(fallible, default) - if first arg errors, use default, otherwise use
-//                             first arg
-//    pow(base, power)
-//    cell(?sheet, col, row)
-//    count(array)
-
 // unary:
 //   -
 //   +
@@ -58,6 +38,7 @@
 //   <=
 //   =, ==
 //   !=
+//   ~ for cat?
 
 // Terminals:
 //   function call
@@ -99,7 +80,7 @@ drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, 
         Expression* e = evaluate(&ctx, sheethandle, row, col);
         // benchmarking
         #ifdef BENCHMARKING
-            for(int i = 0; i < 100000; i++){
+            for(int i = 0; i < 1000000; i++){
                 buff_set(&ctx.a, bc);
                 e = evaluate(&ctx, sheethandle, row, col);
             }

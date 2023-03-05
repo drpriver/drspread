@@ -472,14 +472,7 @@ PARSEFUNC(parse_func_call){
     sv->length--, sv->text++;
     StringView name = {end-begin, begin};
     rstrip(&name);
-    FormulaFunc* func = NULL;
-
-    for(size_t i = 0; i < FUNCTABLE_LENGTH; i++){
-        if(sv_equals(FUNCTABLE[i].name, name)){
-            func = FUNCTABLE[i].func;
-            break;
-        }
-    }
+    FormulaFunc* func = lookup_func(name);
     if(!func) return Error(ctx, "");
     // This is pretty sloppy - always allocates space
     // for exactly 4 args - can't do less or more.
