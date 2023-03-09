@@ -54,6 +54,17 @@ drsp_set_sheet_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char*rest
 
 DRSP_EXPORT
 int
+drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char*restrict name, size_t length){
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    DrspStr* str = drsp_create_str(ctx, name, length);
+    if(!str) return 1;
+    sd->alias = str;
+    return 0;
+}
+
+DRSP_EXPORT
+int
 drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*restrict text, size_t length){
     SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
     if(!sd) return 1;

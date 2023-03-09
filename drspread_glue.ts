@@ -22,6 +22,7 @@ type DrSpreadExports = {
     drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
     drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
+    drsp_set_sheet_alias:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_col_name:(ctx:number, sheet:number, idx:number, ptxt:number, txtlen:number) => number;
     drsp_del_sheet:(ctx:number, sheet:number) => number;
     reset_memory: () => void;
@@ -166,6 +167,12 @@ return fetch(wasm_path)
                     const encoded = encoder.encode(name);
                     mem.set(encoded, exports.wasm_str_buff.value);
                     exports.drsp_set_sheet_name(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                },
+                set_sheet_alias: (sheet:number, name:string):void=>{
+                    const ctx = result.id;
+                    const encoded = encoder.encode(name);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    exports.drsp_set_sheet_alias(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
                 },
                 set_col_name: (sheet:number, idx:number, name:string):void => {
                     const ctx = result.id;

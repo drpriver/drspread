@@ -121,6 +121,12 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                     mem.set(encoded, exports.wasm_str_buff.value);
                     exports.drsp_set_sheet_name(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
                 },
+                set_sheet_alias: (sheet, name) => {
+                    const ctx = result.id;
+                    const encoded = encoder.encode(name);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    exports.drsp_set_sheet_alias(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                },
                 set_col_name: (sheet, idx, name) => {
                     const ctx = result.id;
                     const encoded = encoder.encode(name);

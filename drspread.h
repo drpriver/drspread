@@ -96,6 +96,11 @@ DRSP_EXPORT
 int
 drsp_set_sheet_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* name, size_t length);
 
+// We support 1 alias
+DRSP_EXPORT
+int
+drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* name, size_t length);
+
 DRSP_EXPORT
 int
 drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* restrict text, size_t length);

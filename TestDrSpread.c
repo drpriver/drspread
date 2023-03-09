@@ -941,9 +941,16 @@ TestFunction(TestComplexMultisheet){
         { SV("tlu('Strider', [Character], [Encumbrance2])"),  8. },
         { SV("sum([Encumbrance2])"),                         13.2},
         { SV("sum([Items, Weight] > 2)"),                     4. },
+        // test the alias
+        { SV("[Overview, Encumbrance, 1]"),                   2. },
     };
     SpreadSheet* sheet = &ms.sheets[0];
     DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    {
+        // can't alias a sheet that doesn't already exist
+        int err = drsp_set_sheet_alias(ctx, (SheetHandle)sheet, "Overview", sizeof("Overview")-1);
+        TestExpectTrue(err);
+    }
     for(int i = 0; i < ms.n; i++){
         SpreadSheet* sheet = &ms.sheets[i];
         int e = drsp_set_sheet_name(ctx, (SheetHandle)sheet, sheet->name.text, sheet->name.length);
@@ -963,6 +970,10 @@ TestFunction(TestComplexMultisheet){
                 }
             }
         }
+    }
+    {
+        int err = drsp_set_sheet_alias(ctx, (SheetHandle)sheet, "Overview", sizeof("Overview")-1);
+        TestAssertFalse(err);
     }
     for(size_t i = 0; i < arrlen(cases); i++){
         struct test_case* c = &cases[i];
