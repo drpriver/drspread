@@ -106,7 +106,7 @@ reset_memory(void){
 static
 unsigned char zed[64];
 
-static
+extern
 void*_Nonnull
 malloc(size_t size){
     if(!size) return zed;
@@ -135,7 +135,7 @@ malloc(size_t size){
     return a->memory;
 }
 
-static
+extern
 void*
 calloc(size_t n_items, size_t item_size){
     size_t sz = n_items * item_size;
