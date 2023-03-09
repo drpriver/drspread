@@ -14,7 +14,7 @@ SANITIZE=-fsanitize=address,nullability,undefined
 Bin/drspread: drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3
 Bin/drspread_bench: drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O1 -DBENCHMARKING=1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3
 .PHONY: clean
@@ -27,14 +27,14 @@ WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-ent
 Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WFLAGS) -iquote. $(WASMCFLAGS) -O3
 %.js: %.ts
-	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes
+	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
 Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE)
 
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
-	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O2 -g
+	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O3 -g
 test.html: testspread_glue.js Bin/TestDrSpread.wasm
 
 

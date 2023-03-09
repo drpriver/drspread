@@ -64,7 +64,7 @@ vfprintf(FILE* fp, const char*_Nonnull fmt, va_list vargs){
 }
 static inline
 int vprintf(const char*_Nonnull fmt, va_list vargs){
-    return fprintf(stdout, fmt, vargs);
+    return vfprintf(stdout, fmt, vargs);
 }
 static inline
 int vsnprintf(char* buff, size_t bufflen, const char*_Nonnull fmt, va_list vargs){
@@ -190,3 +190,10 @@ test_main(int argc, char** argv, void* unused){
 
 // #define __FILE__ ""
 #include "TestDrSpread.c"
+
+static void logit(const char* fmt, ...){
+    __builtin_va_list vap;
+    __builtin_va_start(vap, fmt);
+    vprintf(fmt, vap);
+    __builtin_va_end(vap);
+}

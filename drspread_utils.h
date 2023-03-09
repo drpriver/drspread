@@ -13,9 +13,10 @@ get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* co
         return 1;
     if(arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         StringView sheet_name = ((ForeignRange1DColumn*)arg)->sheet_name;
-        hnd = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
-        if(!hnd) return 1;
-        *rhnd = hnd;
+        SheetHandle _Nullable h = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
+        if(!h) return 1;
+        hnd = h;
+        *rhnd = h;
     }
     Range1DColumn* rng = (Range1DColumn*)arg;
     intptr_t start = rng->row_start;
@@ -111,7 +112,7 @@ convert_to_computed_column(SpreadContext* ctx, SheetHandle hnd, Expression* e, i
     intptr_t len = rend - rstart + 1;
     // Can't express a zero-length range
     if(len <= 0) return Error(ctx, "");
-    ComputedColumn* cc = buff_alloc(&ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*len);
+    ComputedColumn* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*len);
     if(!cc) return NULL;
     cc->e.kind = EXPR_COMPUTED_COLUMN;
     Expression** data = cc->data;

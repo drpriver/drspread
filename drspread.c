@@ -48,98 +48,67 @@
 //   (group)
 
 // This sucks, but not many languages have any way of abstracting over arity at all.
-#ifdef DRSPREAD_DIRECT_OPS
-#define ARGS SheetHandle sheethandle
-#else
-#define ARGS SheetHandle sheethandle, const SheetOps* ops
-#endif
 
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(ARGS, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen){
-#undef ARGS
+drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen){
+    if(sheetdeps)
+        __builtin_memset(sheetdeps, 0, sheetdepslen * sizeof *sheetdeps);
     intptr_t row=-1, col=-1;
     int nerrs = 0;
-    _Alignas(intptr_t) char evalbuff [30000];
-    SpreadContext ctx = {
-        #ifndef DRSPREAD_DIRECT_OPS
-            ._ops=*ops,
-        #endif
-        .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
-        .null={EXPR_NULL},
-        .error={EXPR_ERROR},
-        #ifdef __wasm__
-        .limit = 10000,
-        #else
-        .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
-        #endif
-    };
-    BuffCheckpoint bc = buff_checkpoint(&ctx.a);
-    for(intptr_t i = 0; sp_next_cell(&ctx, sheethandle, i, &row, &col) == 0; i++){
-        buff_set(&ctx.a, bc);
-        Expression* e = evaluate(&ctx, sheethandle, row, col);
+    #ifndef __wasm__
+    ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
+    #endif
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    for(intptr_t i = 0; sp_next_cell(ctx, sheethandle, i, &row, &col) == 0; i++){
+        buff_set(ctx->a, bc);
+        Expression* e = evaluate(ctx, sheethandle, row, col);
         // benchmarking
         #ifdef BENCHMARKING
             for(int i = 0; i < 1000000; i++){
-                buff_set(&ctx.a, bc);
-                e = evaluate(&ctx, sheethandle, row, col);
+                buff_set(ctx->a, bc);
+                e = evaluate(ctx, sheethandle, row, col);
             }
         #endif
         if(e){
             switch(e->kind){
                 case EXPR_NUMBER:
-                    sp_set_display_number(&ctx, sheethandle, row, col, ((Number*)e)->value);
+                    sp_set_display_number(ctx, sheethandle, row, col, ((Number*)e)->value);
                     continue;
                 case EXPR_STRING:
-                    sp_set_display_string(&ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                    sp_set_display_string(ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
                     continue;
                 case EXPR_NULL:
-                    sp_set_display_string(&ctx, sheethandle, row, col, "", 0);
+                    sp_set_display_string(ctx, sheethandle, row, col, "", 0);
                     continue;
                 default: break;
             }
         }
         nerrs++;
-        sp_set_display_error(&ctx, sheethandle, row, col, "error", 5);
+        sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
     }
+#if 0
     if(sheetdeps)
         for(size_t i = 0; i < arrlen(ctx.sheetcache.items) && i < sheetdepslen; i++){
             if(!ctx.sheetcache.items[i].s.length)
                 break;
             sheetdeps[i] = ctx.sheetcache.items[i].sheet;
         }
-    free_string_arenas(ctx.sarena);
-    free_caches(&ctx);
+#else
+    (void)sheetdeps, (void)sheetdepslen;
+#endif
+    buff_set(ctx->a, bc);
     return nerrs;
 }
-// Again, this sucks.
-// Don't need the SheetOps* arg and as this is an export the
-// number of parameters matters.
-#ifdef DRSPREAD_DIRECT_OPS
-#define ARGS SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col
-#else
-#define ARGS SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col
-#endif
 
 DRSP_EXPORT
 int
-drsp_evaluate_string(ARGS){
-#undef ARGS
-    _Alignas(intptr_t) char evalbuff [30000];
-    SpreadContext ctx = {
-#ifndef DRSPREAD_DIRECT_OPS
-        ._ops=*ops,
-#endif
-        .a={evalbuff, evalbuff, evalbuff+sizeof evalbuff},
-        .null={EXPR_NULL},
-        .error={EXPR_ERROR},
-        #ifdef __wasm__
-        .limit = 10000,
-        #else
-        .limit = (uintptr_t)__builtin_frame_address(0) - 300000,
-        #endif
-    };
-    Expression* e = evaluate_string(&ctx, sheethandle, txt, len, row, col);
+drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col){
+    #ifndef __wasm__
+    ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
+    #endif
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    Expression* e = evaluate_string(ctx, sheethandle, txt, len, row, col);
     int error = 0;
     if(!e){
         error = 1;
@@ -156,18 +125,20 @@ drsp_evaluate_string(ARGS){
         case EXPR_STRING:{
             outval->kind = DRSP_RESULT_STRING;
             StringView sv = ((String*)e)->sv;
-            char* t = malloc(sv.length);
-            __builtin_memcpy(t, sv.text, sv.length);
-            outval->s.length = sv.length;
-            outval->s.text = t;
+            DrspStr* s = drsp_create_str(ctx, sv.text, sv.length);
+            if(!s){
+                error = 1;
+                goto finish;
+            }
+            outval->s.length = s->length;
+            outval->s.text = s->data;
         }break;
         default:
             error = 1;
             break;
     }
     finish:
-    free_string_arenas(ctx.sarena);
-    free_caches(&ctx);
+    buff_set(ctx->a, bc);
     return error;
 }
 
@@ -178,4 +149,5 @@ drsp_evaluate_string(ARGS){
 #include "drspread_parse.c"
 #include "drspread_formula_funcs.c"
 #include "drspread_evaluate.c"
+#include "drspread_types.c"
 #endif

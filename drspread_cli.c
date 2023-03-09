@@ -96,38 +96,56 @@ main(int argc, char** argv){
         fprintf(stderr, "No sheets.\n");
         return 1;
     }
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    for(int i = 0; i < ms.n; i++){
+        SpreadSheet* sheet = &ms.sheets[i];
+        int e = drsp_set_sheet_name(ctx, (SheetHandle)sheet, sheet->name.text, sheet->name.length);
+        if(e) return e;
+        for(int i = 0; i < sheet->colnames.n; i++){
+            int e = drsp_set_col_name(ctx, (SheetHandle)sheet, i, sheet->colnames.data[i], sheet->colnames.lengths[i]);
+            if(e) return e;
+        }
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++){
+                const char* txt = row->data[c];
+                size_t len = row->lengths[c];
+                int e = drsp_set_cell_str(ctx, (SheetHandle)sheet, r, c, txt, len);
+                if(e) return e;
+            }
+        }
+    }
     if(pos_args[1].num_parsed){
         for(int i = 0; i < pos_args[1].num_parsed; i++){
             StringView expr = expressions[i];
             DrSpreadResult val;
-            int err = drsp_evaluate_string((SheetHandle)&ms.sheets[0], &ops, expr.text, expr.length, &val, -1, -1);
+            int err = drsp_evaluate_string(ctx, (SheetHandle)&ms.sheets[0], expr.text, expr.length, &val, -1, -1);
             if(err){
                 puts("err");
+                continue;
             }
-            else{
-                switch(val.kind){
-                    case DRSP_RESULT_NULL:
-                        printf("\n");
-                        break;
-                    case DRSP_RESULT_NUMBER:
-                        if((intptr_t)val.d == val.d)
-                            printf("%zd\n", (intptr_t)val.d);
-                        else
-                            printf("%.2f\n", val.d);
-                        break;
-                    case DRSP_RESULT_STRING:
-                        printf("'%.*s'\n", (int)val.s.length, val.s.text);
-                        break;
-                    default:
-                        printf("err\n");
-                        break;
-                }
+            switch(val.kind){
+                case DRSP_RESULT_NULL:
+                    printf("\n");
+                    break;
+                case DRSP_RESULT_NUMBER:
+                    if((intptr_t)val.d == val.d)
+                        printf("%zd\n", (intptr_t)val.d);
+                    else
+                        printf("%.2f\n", val.d);
+                    break;
+                case DRSP_RESULT_STRING:
+                    printf("'%.*s'\n", (int)val.s.length, val.s.text);
+                    break;
+                default:
+                    printf("err\n");
+                    break;
             }
         }
     }
     else {
         for(int i = 0; i < ms.n; i++){
-            int nerr = drsp_evaluate_formulas((SheetHandle)&ms.sheets[i], &ops, NULL, 0);
+            int nerr = drsp_evaluate_formulas(ctx, (SheetHandle)&ms.sheets[i], NULL, 0);
             // printf("nerr: %d\n", nerr);
             (void)nerr;
         }
@@ -139,8 +157,7 @@ main(int argc, char** argv){
             write_display(sheet, stdout);
         }
         GetInputCtx gi = {
-            .prompt.text = "> ",
-            .prompt.length = 2,
+            .prompt = SV("> "),
         };
         gi_load_history(&gi, "spread.history");
         for(;;){
@@ -159,27 +176,27 @@ main(int argc, char** argv){
             }
             gi_add_line_to_history_len(&gi, line, len);
             DrSpreadResult val;
-            int err = drsp_evaluate_string((SheetHandle)&ms.sheets[0], &ops, line, len, &val, -1, -1);
-            if(err) puts("err");
-            else {
-                switch(val.kind){
-                    case DRSP_RESULT_NULL:
-                        printf("\n");
-                        break;
-                    case DRSP_RESULT_NUMBER:
-                        if((intptr_t)val.d == val.d)
-                            printf("%zd\n", (intptr_t)val.d);
-                        else
-                            printf("%.2f\n", val.d);
-                        break;
-                    case DRSP_RESULT_STRING:
-                        printf("'%.*s'\n", (int)val.s.length, val.s.text);
-                        free((char*)val.s.text);
-                        break;
-                    default:
-                        printf("err\n");
-                        break;
-                }
+            int err = drsp_evaluate_string(ctx, (SheetHandle)&ms.sheets[0], line, len, &val, -1, -1);
+            if(err){
+                puts("err");
+                continue;
+            }
+            switch(val.kind){
+                case DRSP_RESULT_NULL:
+                    printf("\n");
+                    break;
+                case DRSP_RESULT_NUMBER:
+                    if((intptr_t)val.d == val.d)
+                        printf("%zd\n", (intptr_t)val.d);
+                    else
+                        printf("%.2f\n", val.d);
+                    break;
+                case DRSP_RESULT_STRING:
+                    printf("'%.*s'\n", (int)val.s.length, val.s.text);
+                    break;
+                default:
+                    printf("err\n");
+                    break;
             }
         }
         gi_dump_history(&gi, "spread.history");

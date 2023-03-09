@@ -16,10 +16,17 @@ Expression*_Nullable
 evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
     {
         uintptr_t frm = (uintptr_t)__builtin_frame_address(0);
-        if(frm < ctx->limit) return NULL;
+        uintptr_t limit;
+        #ifdef __wasm__
+            limit = 10000;
+        #else
+            limit = ctx->limit;
+        #endif
+        if(frm < limit) return NULL;
     }
     size_t len = 0;
     const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
+    if(!txt) return NULL;
     StringView sv = stripped2(txt, len);
     // These `goto`s are a bit unorthodox, but it is basically a switch,
     // with the ability of cell_number to jump to cell_other
@@ -53,15 +60,15 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
     }
     {
         cell_formula:;
-        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        BuffCheckpoint bc = buff_checkpoint(ctx->a);
         Expression *root = parse(ctx, sv.text, sv.length);
         if(!root || root->kind == EXPR_ERROR){
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             return root;
         }
         Expression *e = evaluate_expr(ctx, hnd, root, row, col);
         if(!e || e->kind == EXPR_ERROR) {
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             return e;
         }
         unsigned char tmp[sizeof(union ExprU)];
@@ -73,7 +80,7 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
                 memcpy(tmp, e, expr_size(kind));
                 break;
         }
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Expression* r = expr_alloc(ctx, kind);
         if(expr_size(kind) != sizeof(Expression))
             memcpy(r, tmp, expr_size(kind));
@@ -115,7 +122,7 @@ static inline
 Expression*_Nullable
 evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
     Expression* result = NULL;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
 #define BAD(x) do{result = x; goto cleanup;}while(0)
     {
         lhs = evaluate_expr(ctx, hnd, lhs, caller_row, caller_col);
@@ -267,7 +274,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                 if(rend - rstart +1 != l->length)
                     BAD(Error(ctx, ""));
                 for(intptr_t row = rstart, i = 0; row <= rend; row++, i++){
-                    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+                    BuffCheckpoint bc = buff_checkpoint(ctx->a);
                     Expression* ld = l->data[i];
                     if(ld->kind == EXPR_NULL)
                         continue;
@@ -278,7 +285,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                     }
                     if(ld->kind == EXPR_NUMBER){
                         ((Number*)ld)->value = double_bin_cmp(op, ((Number*)ld)->value, ((Number*)e)->value);
-                        buff_set(&ctx->a, bc);
+                        buff_set(ctx->a, bc);
                         continue;
                     }
                     if(ld->kind == EXPR_STRING){
@@ -293,7 +300,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                             default:
                                 BAD(Error(ctx, ""));
                         }
-                        buff_set(&ctx->a, bc);
+                        buff_set(ctx->a, bc);
                         Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
                         res->value = cmp;
                         l->data[i] = &res->e;
@@ -330,7 +337,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                     default:
                         BAD(Error(ctx, ""));
                 }
-                buff_set(&ctx->a, bc);
+                buff_set(ctx->a, bc);
                 Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
                 res->value = cmp;
                 return &res->e;
@@ -342,7 +349,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
             double l = ((Number*)lhs)->value;
             double r = ((Number*)rhs)->value;
             double value = double_bin_cmp(op, l, r);
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
             if(!res) return NULL;
             res->value = value;
@@ -351,7 +358,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
     }
 #undef BAD
     cleanup:
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     return result;
 }
 
@@ -392,7 +399,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
         case EXPR_BINARY:{
             Binary* b = (Binary*)expr;
             return evaluate_binary_op(ctx, hnd, b->op, b->lhs, b->rhs, caller_row, caller_col);
-            char* chk = ctx->a.cursor;
+            char* chk = ctx->a->cursor;
             Expression* lhs = evaluate_expr(ctx, hnd, b->lhs, caller_row, caller_col);
             if(!lhs) return NULL;
             if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING) return Error(ctx, "");
@@ -414,7 +421,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
                     default:
                         return Error(ctx, "");
                 }
-                ctx->a.cursor = chk;
+                ctx->a->cursor = chk;
                 Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
                 res->value = cmp;
                 return &res->e;
@@ -437,14 +444,14 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
                 case BIN_NE:  value = l != r; break;
                 default: __builtin_trap();
             }
-            ctx->a.cursor = chk;
+            ctx->a->cursor = chk;
             Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
             if(!res) return NULL;
             res->value = value;
             return &res->e;
         }
         case EXPR_UNARY:{
-            char* chk = ctx->a.cursor;
+            char* chk = ctx->a->cursor;
             Unary* u = (Unary*)expr;
             Expression* v = evaluate_expr(ctx, hnd, u->expr, caller_row, caller_col);
             if(!v) return NULL;
@@ -458,7 +465,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
                 case UN_PLUS: __builtin_unreachable();
                 default: __builtin_trap();
             }
-            ctx->a.cursor = chk;
+            ctx->a->cursor = chk;
             Number* r = (Number*)expr_alloc(ctx, EXPR_NUMBER);
             if(!r) return NULL;
             r->value = value;

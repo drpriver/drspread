@@ -43,50 +43,71 @@ struct  DrSpreadResult {
         double d; // DRSP_RESULT_NUMBER
         struct {  // DRSP_RESULT_STRING
             size_t length;
-            // NOTE: when used as a return value, this is a malloced.
-            // This sucks, but I can't figure out how else to support
-            // cat('a', 'b') with the current API.
-            // I could hoist the lifetime of the context to the caller,
-            // which is probably the best way to handle it.
+            // NOTE: This is a pointer to an interned string and will
+            //       live as long as the context.
             const char* text;
         } s;
     };
 };
 
+typedef struct DrSpreadCtx DrSpreadCtx;
 #ifndef DRSPREAD_DIRECT_OPS
 typedef struct SheetOps SheetOps;
 
 // Callbacks
 struct SheetOps {
     void* ctx;
-    const char*_Nullable (*_Nonnull cell_txt)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len);
     intptr_t (*col_height)(void* ctx, SheetHandle sheet, intptr_t col);
     intptr_t (*row_width)(void*ctx, SheetHandle sheet, intptr_t row);
-    int (*dims)(void*ctx, SheetHandle sheet, intptr_t* ncols, intptr_t* nrows);
     int (*set_display_number)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
     int (*set_display_error)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
     int (*set_display_string)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*, size_t);
     int (*next_cell)(void*ctx, SheetHandle sheet, intptr_t nth, intptr_t* row, intptr_t* col);
-    intptr_t(*name_to_col_idx)(void*ctx, SheetHandle sheet, const char*, size_t);
-    void*_Nullable (*_Nullable name_to_sheet)(void* ctx, const char*, size_t);
 };
+#endif
 
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(SheetHandle sheethandle, const SheetOps* ops, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
+drsp_evaluate_formulas(DrSpreadCtx*, SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
 
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const SheetOps* ops, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col);
+drsp_evaluate_string(DrSpreadCtx*, SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col);
+
+
+#ifdef DRSPREAD_DIRECT_OPS
+DRSP_EXPORT
+DrSpreadCtx* _Nullable
+drsp_create_ctx(void);
 #else
 DRSP_EXPORT
-int
-drsp_evaluate_formulas(SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
+DrSpreadCtx* _Nullable
+drsp_create_ctx(const SheetOps* ops);
+#endif
 
 DRSP_EXPORT
 int
-drsp_evaluate_string(SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col);
-#endif
+drsp_destroy_ctx(DrSpreadCtx*_Nullable);
+
+typedef struct DrspStr DrspStr;
+
+// This has to be called before any other usage of that sheet.
+DRSP_EXPORT
+int
+drsp_set_sheet_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* name, size_t length);
+
+DRSP_EXPORT
+int
+drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* restrict text, size_t length);
+
+DRSP_EXPORT
+int
+drsp_set_col_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t idx, const char* restrict text, size_t length);
+
+// Delete all data associated with a sheet.
+DRSP_EXPORT
+int
+drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

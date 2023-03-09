@@ -39,15 +39,15 @@ parse(SpreadContext* ctx, const char* txt, size_t length){
         sv.text++, sv.length--;
     lstrip(&sv);
     // printf("'%s'\n", sv.text);
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* root = parse_comparison(ctx, &sv);
     if(!root || root->kind == EXPR_ERROR) {
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         return root;
     }
     lstrip(&sv);
     if(sv.length != 0) {
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         return Error(ctx, "");
     }
     // fprintf(stderr, "%s:%d %zd bytes used\n", __func__, __LINE__, ctx->a.cursor - ctx->a.data);
@@ -477,7 +477,7 @@ PARSEFUNC(parse_func_call){
     // This is pretty sloppy - always allocates space
     // for exactly 4 args - can't do less or more.
     enum {argmax=4};
-    Expression** argv = buff_alloc(&ctx->a, argmax * sizeof *argv);
+    Expression** argv = buff_alloc(ctx->a, argmax * sizeof *argv);
     int argc;
     for(argc = 0; argc < argmax; argc++){
         lstripc(sv);

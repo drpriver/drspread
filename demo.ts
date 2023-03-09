@@ -27,18 +27,6 @@ function prep():void{
 }
 prep();
 
-function cell_text(i:number, row:number, col:number):string{
-    return cells[row][col] as string;
-}
-
-function col_height(i:number, c:number):number{
-    return cells.length;
-}
-
-function row_width(i:number, r:number):number{
-    return cells[r].length;
-}
-
 function display_number(i:number, row:number, col:number, val:number):void{
     if((val | 0) == val)
         display[row][col] = ""+val;
@@ -55,7 +43,7 @@ function display_error(i:number, row:number, col:number):void{
 }
 
 function name_to_col_idx(i:number, s:string):number{
-    return column_names.indexOf(s.toLowerCase());
+    return -1;
 }
 
 function next_cell(id:number, i:number, pr:number, pc:number):[number, number]{
@@ -64,19 +52,28 @@ function next_cell(id:number, i:number, pr:number, pc:number):[number, number]{
     return to_iterate[i];
 }
 
-function dims(i:number):[number, number]{
-    return [cells[0].length, cells.length];
-}
-
 let table:HTMLTableElement;
 let raw:HTMLTableElement;
 let pre:HTMLPreElement;
-let ev_string:(_:number, s:string)=>string|number;
-let ev_formulas:(_:number)=>void;
-let ex:WebAssembly.Exports;
+let ex:DrSpreadExports;
+let mk_ctx: () => DrSpreadCtx;
+let ctx: DrSpreadCtx | undefined;
+function get_ctx(): DrSpreadCtx{
+    if(ctx) return ctx;
+    // ex.reset_memory();
+    ctx = mk_ctx();
+    ctx.make_sheet(0, '$this');
+    for(let i = 0; i < cells.length; i++){
+        for(let j = 0; j < cells[i].length; j++){
+            const s = cells[i][j];
+            ctx.set_str(0, i, j, ""+s);
+        }
+    }
+    return ctx;
+}
 
 function process(v:string):void{
-  let n = ev_string(0, v);
+  const n = get_ctx().evaluate_string(0, v);
   pre.textContent += '\n> '+v;
   pre.textContent += '\n' + n;
 }
@@ -196,59 +193,85 @@ function show():void{
                 if(!t) cells[r][c] = t;
                 // @ts-ignore
                 else   cells[r][c] = !isNaN(t)?+t:t;
+                get_ctx().set_str(0, r, c, t);
                 prep();
-                ev_formulas(0);
+                const N = 1;
+                // const N = 1000;
+                const before = window.performance.now()
+                for(let i = 0; i < N; i++){
+                  get_ctx().evaluate_formulas(0);
+                }
+                const after = window.performance.now();
+                console.log('after-before', after-before);
+                // @ts-ignore
+                console.log('bytes used:', ex.bytes_used());
+                if(ctx){
+                    // @ts-ignore
+                    ex.drsp_destroy_ctx(ctx.id);
+                    ctx = undefined;
+                }
                 show();
             };
             inp.focus();
         };
     }
 }
+type DrSpreadCtx = {
+    evaluate_formulas: (sheet:number) => Array<number>;
+    evaluate_string: (sheet:number, s:string) => number | string;
+    set_str:(sheet:number, row:number, col:number, s:string) => void;
+    make_sheet:(sheet:number, name:string) => void;
+    set_col_name:(sheet:number, idx: number, name:string) => void;
+};
+type DrSpreadExports = {
+    memory: WebAssembly.Memory;
+    strlen: (p:number) => number;
+    drsp_create_ctx: () => number;
+    drsp_destroy_ctx: (ctx:number) => number;
+    drsp_evaluate_formulas: (ctx:number, sheet:number, handles: number, nhandles:number) => number;
+    drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
+    drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
+    drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
+    drsp_set_col_name:(ctx:number, sheet:number, idx:number, ptxt:number, txtlen:number) => number;
+    drsp_del_sheet:(ctx:number, sheet:number) => number;
+    reset_memory: () => void;
+    wasm_str_buff: {value:number};
+    wasm_deps_buff: {value:number};
+    wasm_result: {value:number};
+};
 declare function drspread(
     wasm_path:string,
-    sheet_cell_text_:(id:number, row:number, col:number) => string,
-    sheet_col_height:(id:number, col:number)=>number,
-    sheet_row_width:(id:number, row:number)=>number,
     sheet_set_display_number:(id:number, row:number, col:number, val:number)=>void,
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
     sheet_set_display_error:(id:number, row:number, col:number)=>void,
-    sheet_name_to_col_idx_:(id:number, s:string) => number,
     sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
-    sheet_dims_:(id:number)=>[number, number],
-    sheet_name_to_sheet_:(s:string)=>number,
 ):Promise<{
-    evaluate_formulas: (id: number) => Array<number>;
-    evaluate_string: (id: number, s: string) => number|string;
-    exports: WebAssembly.Exports;
+    make_ctx: () => DrSpreadCtx;
+    exports: DrSpreadExports;
 }>;
 
 drspread(
     '/Bin/drspread.wasm', 
-    cell_text,
-    col_height,
-    row_width,
     display_number,
     display_string,
     display_error,
-    name_to_col_idx,
     next_cell,
-    dims,
-    function(s:string){return 0;},
-).then(({evaluate_formulas, evaluate_string, exports}) =>{
+).then(({exports, make_ctx}) =>{
     ex = exports;
-    ev_formulas = evaluate_formulas;
+    mk_ctx = make_ctx;
     // const N = 1000;
     const N = 1;
     window.performance.mark('evaluate');
     const before = window.performance.now()
     for(let i = 0; i < N; i++){
-        evaluate_formulas(0);
+        get_ctx().evaluate_formulas(0);
     }
     window.performance.mark('done-evaluate');
     window.performance.measure('evaluate', 'evaluate', 'done-evaluate');
     const after = window.performance.now();
     console.log('after-before', after-before);
-    ev_string = evaluate_string;
+    // @ts-ignore
+    console.log('bytes used:', ex.bytes_used());
     if(document.readyState != 'complete'){
         document.addEventListener('DOMContentLoaded', ()=>{make_elems(); show();});
     }
@@ -282,9 +305,11 @@ document.addEventListener('DOMContentLoaded', function(){
               }
             }
           }
+          ex.reset_memory();
+          ctx = undefined;
           cells = result;
           prep();
-          ev_formulas(0);
+          get_ctx().evaluate_formulas(0);
           show();
         });
 

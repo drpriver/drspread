@@ -21,7 +21,7 @@
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sum){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double sum = 0;
@@ -41,16 +41,16 @@ FORMULAFUNC(drsp_sum){
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
             if(evaled_is_not_scalar(e)) return Error(ctx, "");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
         }
     }
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     n->value = sum;
@@ -59,7 +59,7 @@ FORMULAFUNC(drsp_sum){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_prod){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double prod = 1;
@@ -79,16 +79,16 @@ FORMULAFUNC(drsp_prod){
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
             if(evaled_is_not_scalar(e)) return Error(ctx, "");
             if(e->kind != EXPR_NUMBER) continue;
             prod *= ((Number*)e)->value;
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
         }
     }
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     n->value = prod;
@@ -100,7 +100,7 @@ FORMULAFUNC(drsp_avg){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double sum = 0.;
@@ -121,17 +121,17 @@ FORMULAFUNC(drsp_avg){
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
             if(evaled_is_not_scalar(e)) return Error(ctx, "");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
             count += 1.0;
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
         }
     }
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     n->value = count!=0.?sum/count:0;
     return &n->e;
 }
@@ -141,7 +141,7 @@ FORMULAFUNC(drsp_count){
     if(argc != 1) return Error(ctx, "");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     intptr_t count = 0;
@@ -161,16 +161,16 @@ FORMULAFUNC(drsp_count){
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
             if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
                 continue;
             count += 1;
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
         }
     }
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     n->value = (double)count;
     return &n->e;
 }
@@ -179,9 +179,9 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_min){
     if(!argc) return Error(ctx, "");
     if(argc > 1){
-        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = 1e32;
-        for(;argc;argc--, argv++, buff_set(&ctx->a, bc)){
+        for(;argc;argc--, argv++, buff_set(ctx->a, bc)){
             Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
             if(!arg || arg->kind == EXPR_ERROR)
                 return arg;
@@ -197,7 +197,7 @@ FORMULAFUNC(drsp_min){
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double v = 1e32;
@@ -217,18 +217,18 @@ FORMULAFUNC(drsp_min){
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
             if(evaled_is_not_scalar(e)) return Error(ctx, "");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value < v)
                 v = ((Number*)e)->value;
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
         }
     }
     if(v == 1e32) v = 0.;
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     n->value = v;
     return &n->e;
 }
@@ -237,9 +237,9 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_max){
     if(!argc) return Error(ctx, "");
     if(argc > 1){
-        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = -1e32;
-        for(;argc;argc--, argv++, buff_set(&ctx->a, bc)){
+        for(;argc;argc--, argv++, buff_set(ctx->a, bc)){
             Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
             if(!arg || arg->kind == EXPR_ERROR)
                 return arg;
@@ -255,7 +255,7 @@ FORMULAFUNC(drsp_max){
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double v = -1e32;
@@ -275,18 +275,18 @@ FORMULAFUNC(drsp_max){
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
             if(evaled_is_not_scalar(e)) return Error(ctx, "");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value > v)
                 v = ((Number*)e)->value;
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
         }
     }
     if(v == -1e32) v = 0.;
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     n->value = v;
     return &n->e;
 }
@@ -294,7 +294,7 @@ FORMULAFUNC(drsp_max){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_mod){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -317,7 +317,7 @@ FORMULAFUNC(drsp_mod){
             return Error(ctx, "");
         double score = ((Number*)arg)->value;
         double mod = __builtin_floor((score - 10)/2);
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = mod;
@@ -328,7 +328,7 @@ FORMULAFUNC(drsp_mod){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_floor){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -349,7 +349,7 @@ FORMULAFUNC(drsp_floor){
     else {
         if(arg->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = __builtin_floor(((Number*)arg)->value);
@@ -360,7 +360,7 @@ FORMULAFUNC(drsp_floor){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_ceil){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -381,7 +381,7 @@ FORMULAFUNC(drsp_ceil){
     else {
         if(arg->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = __builtin_ceil(((Number*)arg)->value);
@@ -392,7 +392,7 @@ FORMULAFUNC(drsp_ceil){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_trunc){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -413,7 +413,7 @@ FORMULAFUNC(drsp_trunc){
     else {
         if(arg->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = __builtin_trunc(((Number*)arg)->value);
@@ -424,7 +424,7 @@ FORMULAFUNC(drsp_trunc){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_round){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -445,7 +445,7 @@ FORMULAFUNC(drsp_round){
     else {
         if(arg->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = __builtin_round(((Number*)arg)->value);
@@ -456,7 +456,7 @@ FORMULAFUNC(drsp_round){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_abs){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -477,7 +477,7 @@ FORMULAFUNC(drsp_abs){
     else {
         if(arg->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = __builtin_fabs(((Number*)arg)->value);
@@ -488,7 +488,7 @@ FORMULAFUNC(drsp_abs){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sqrt){
     if(argc != 1) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
@@ -509,7 +509,7 @@ FORMULAFUNC(drsp_sqrt){
     else {
         if(arg->kind != EXPR_NUMBER)
             return Error(ctx, "");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = __builtin_sqrt(((Number*)arg)->value);
@@ -520,7 +520,7 @@ FORMULAFUNC(drsp_sqrt){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
     if(argc != 1 && argc != 2) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     double default_ = 0.;
     if(argc == 2){
         Expression* d = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
@@ -529,7 +529,7 @@ FORMULAFUNC(drsp_num){
         if(d->kind != EXPR_NUMBER)
             return Error(ctx, "");
         default_ = ((Number*)d)->value;
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
     }
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -554,7 +554,7 @@ FORMULAFUNC(drsp_num){
             value = ((Number*)arg)->value;
         else
             value = default_;
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = value;
@@ -564,11 +564,11 @@ FORMULAFUNC(drsp_num){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_try){
     if(argc != 2) return Error(ctx, "");
-    char* chk = ctx->a.cursor;
+    char* chk = ctx->a->cursor;
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg) return NULL;
     if(arg->kind != EXPR_ERROR) return arg;
-    ctx->a.cursor = chk;
+    ctx->a->cursor = chk;
     return evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
 }
 
@@ -614,7 +614,7 @@ FORMULAFUNC(drsp_col){
     if(!argc || argc > 4) return Error(ctx, "");
     StringView colname = {0}, sheetname = {0};
     intptr_t rowstart = IDX_UNSET, rowend = IDX_UNSET;
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     {
         Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -666,7 +666,7 @@ FORMULAFUNC(drsp_col){
         rowend = -1;
     else if(rowend) rowend--;
     if(argc) return Error(ctx, "");
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     if(sheetname.length){
         ForeignRange1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
         result->r.col_name = colname;
@@ -713,13 +713,13 @@ FORMULAFUNC(drsp_eval){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_pow){
     if(argc != 2) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_columnar(arg)){
         arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+        BuffCheckpoint bc = buff_checkpoint(ctx->a);
         Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
         if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
         ComputedColumn* c = (ComputedColumn*)arg;
@@ -758,25 +758,25 @@ FORMULAFUNC(drsp_pow){
         else {
             return Error(ctx, "");
         }
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         return arg;
     }
     else {
         if(arg->kind != EXPR_NUMBER) {
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             return Error(ctx, "");
         }
         Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
         if(!arg2 || arg2 -> kind == EXPR_ERROR){
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             return arg2;
         }
         if(arg2->kind != EXPR_NUMBER){
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             return Error(ctx, "");
         }
         double val = __builtin_pow(((Number*)arg)->value, ((Number*)arg2)->value);
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
         n->value = val;
@@ -788,14 +788,14 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_cat){
     if(argc < 2) return Error(ctx, "");
     StringView catbuff[4];
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     if(argc == 2){
         Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(expr_is_columnar(arg)){
             arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
             if(!arg || arg->kind == EXPR_ERROR) return arg;
-            BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
             ComputedColumn* c = (ComputedColumn*)arg;
@@ -855,17 +855,17 @@ FORMULAFUNC(drsp_cat){
             else {
                 return Error(ctx, "");
             }
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             return arg;
         }
         else {
             if(arg->kind != EXPR_STRING && arg->kind != EXPR_NULL) {
-                buff_set(&ctx->a, bc);
+                buff_set(ctx->a, bc);
                 return Error(ctx, "");
             }
             Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_ERROR){
-                buff_set(&ctx->a, bc);
+                buff_set(ctx->a, bc);
                 return arg2;
             }
             if(expr_is_columnar(arg2)){
@@ -890,23 +890,23 @@ FORMULAFUNC(drsp_cat){
             else {
                 if(arg2->kind == EXPR_NULL){
                     if(arg->kind == EXPR_NULL){
-                        buff_set(&ctx->a, bc);
+                        buff_set(ctx->a, bc);
                         return arg;
                     }
                     StringView v = ((String*)arg)->sv;
-                    buff_set(&ctx->a, bc);
+                    buff_set(ctx->a, bc);
                     String* s = expr_alloc(ctx, EXPR_STRING);
                     if(!s) return NULL;
                     s->sv = v;
                     return &s->e;
                 }
                 if(arg2->kind != EXPR_STRING){
-                    buff_set(&ctx->a, bc);
+                    buff_set(ctx->a, bc);
                     return Error(ctx, "");
                 }
                 if(arg->kind == EXPR_NULL){
                     StringView v = ((String*)arg2)->sv;
-                    buff_set(&ctx->a, bc);
+                    buff_set(ctx->a, bc);
                     String* s = expr_alloc(ctx, EXPR_STRING);
                     if(!s) return NULL;
                     s->sv = v;
@@ -916,7 +916,7 @@ FORMULAFUNC(drsp_cat){
                 catbuff[0] = ((String*)arg)->sv;
                 catbuff[1] = ((String*)arg2)->sv;
                 int err = sv_cat(ctx, 2, catbuff, &v);
-                buff_set(&ctx->a, bc);
+                buff_set(ctx->a, bc);
                 if(err) return Error(ctx, "");
                 String* s = expr_alloc(ctx, EXPR_STRING);
                 if(!s) return NULL;
@@ -931,14 +931,14 @@ FORMULAFUNC(drsp_cat){
         for(int i = 0; i < argc; i++){
             argv[i] = evaluate_expr(ctx, hnd, argv[i], caller_row, caller_col);
             if(!argv[i] || argv[i]->kind == EXPR_ERROR){
-                buff_set(&ctx->a, bc);
+                buff_set(ctx->a, bc);
                 return argv[i];
             }
             if(expr_is_columnar(argv[i])){
                 is_columnar = true;
                 argv[i] = convert_to_computed_column(ctx, hnd, argv[i], caller_row, caller_col);
                 if(!argv[i] || argv[i]->kind == EXPR_ERROR){
-                    buff_set(&ctx->a, bc);
+                    buff_set(ctx->a, bc);
                     return argv[i];
                 }
                 ComputedColumn* c = (ComputedColumn*)argv[i];
@@ -947,14 +947,14 @@ FORMULAFUNC(drsp_cat){
                 }
             }
             else if(argv[i]->kind != EXPR_STRING && argv[i]->kind != EXPR_NULL){
-                buff_set(&ctx->a, bc);
+                buff_set(ctx->a, bc);
                 return Error(ctx, "");
             }
         }
         if(is_columnar){
             if(!column_length)
                 return Error(ctx, "");
-            ComputedColumn* result = buff_alloc(&ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*column_length);
+            ComputedColumn* result = buff_alloc(ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*column_length);
             if(!result) return Error(ctx, "oom");
             result->e.kind = EXPR_COMPUTED_COLUMN;
             result->length = column_length;
@@ -981,7 +981,7 @@ FORMULAFUNC(drsp_cat){
                                 catbuff[i] = SV("");
                             }
                             else {
-                                buff_set(&ctx->a, bc);
+                                buff_set(ctx->a, bc);
                                 return Error(ctx, "");
                             }
                         }
@@ -991,7 +991,7 @@ FORMULAFUNC(drsp_cat){
                 if(!s || s->e.kind == EXPR_ERROR) return &s->e;
                 int err = sv_cat(ctx, argc, catbuff, &s->sv);
                 if(err){
-                    buff_set(&ctx->a, bc);
+                    buff_set(ctx->a, bc);
                     return Error(ctx, "oom");
                 }
                 result->data[r] = &s->e;
@@ -1010,7 +1010,7 @@ FORMULAFUNC(drsp_cat){
             }
             StringView sv;
             int err = sv_cat(ctx, argc, catbuff, &sv);
-            buff_set(&ctx->a, bc);
+            buff_set(ctx->a, bc);
             if(err) return Error(ctx, "oom");
             String* result = expr_alloc(ctx, EXPR_STRING);
             if(!result) return NULL;
@@ -1029,7 +1029,7 @@ columnar_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, i
     ComputedColumn* cneedle = (ComputedColumn*)needle;
     // TODO: Use checkpoints.
     // TODO: lazier computation.
-    // BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    // BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* haystack = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!haystack || haystack->kind == EXPR_ERROR)
         return haystack;
@@ -1095,7 +1095,7 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_tablelookup){
     // "needle", [haystack], [values]
     if(argc != 3 && argc != 4) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     ExpressionKind nkind;
     union {
         StringView s;
@@ -1117,7 +1117,7 @@ FORMULAFUNC(drsp_tablelookup){
             nval.d = ((Number*)needle)->value;
         else
             nval.s = ((String*)needle)->sv;
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
     }
     intptr_t offset = -1;
     {
@@ -1128,9 +1128,9 @@ FORMULAFUNC(drsp_tablelookup){
         if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
 
-        char*const loopchk = ctx->a.cursor;
+        char*const loopchk = ctx->a->cursor;
         if(nkind == EXPR_STRING){
-            for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
+            for(intptr_t row = start; row <= end; ctx->a->cursor=loopchk, row++){
                 Expression* e = evaluate(ctx, rhnd, row, col);
                 if(!e) return e;
                 if(e->kind != EXPR_STRING) continue;
@@ -1141,7 +1141,7 @@ FORMULAFUNC(drsp_tablelookup){
             }
         }
         else {
-            for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
+            for(intptr_t row = start; row <= end; ctx->a->cursor=loopchk, row++){
                 Expression* e = evaluate(ctx, rhnd, row, col);
                 if(!e) return e;
                 if(e->kind != EXPR_NUMBER) continue;
@@ -1151,7 +1151,7 @@ FORMULAFUNC(drsp_tablelookup){
                 }
             }
         }
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         if(offset < 0) {
             if(argc == 4)
                 return evaluate_expr(ctx, hnd, argv[3], caller_row, caller_col);
@@ -1165,7 +1165,7 @@ FORMULAFUNC(drsp_tablelookup){
         SheetHandle rhnd = hnd;
         if(get_range1dcol(ctx, hnd, values, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "invalid column range");
-        buff_set(&ctx->a, bc);
+        buff_set(ctx->a, bc);
         if(start+offset > end) return Error(ctx, "out of bounds");
         return evaluate(ctx, rhnd, start+offset, col);
     }
@@ -1175,7 +1175,7 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_find){
     // "needle", [haystack]
     if(argc != 2 && argc != 3) return Error(ctx, "");
-    char* chk = ctx->a.cursor;
+    char* chk = ctx->a->cursor;
     ExpressionKind nkind;
     union {
         StringView s;
@@ -1190,7 +1190,7 @@ FORMULAFUNC(drsp_find){
             nval.d = ((Number*)needle)->value;
         else if(nkind == EXPR_STRING)
             nval.s = ((String*)needle)->sv;
-        ctx->a.cursor = chk;
+        ctx->a->cursor = chk;
     }
     intptr_t offset = -1;
     {
@@ -1202,8 +1202,8 @@ FORMULAFUNC(drsp_find){
         if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
 
-        char* loopchk = ctx->a.cursor;
-        for(intptr_t row = start; row <= end; ctx->a.cursor=loopchk, row++){
+        char* loopchk = ctx->a->cursor;
+        for(intptr_t row = start; row <= end; ctx->a->cursor=loopchk, row++){
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e) return e;
             if(e->kind != nkind) continue;
@@ -1224,7 +1224,7 @@ FORMULAFUNC(drsp_find){
                 }
             }
         }
-        ctx->a.cursor = chk;
+        ctx->a->cursor = chk;
     }
     if(offset < 0) {
         if(argc == 3)
@@ -1274,7 +1274,7 @@ FORMULAFUNC(drsp_first){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_array){
     if(!argc) return Error(ctx, "");
-    ComputedColumn* cc = buff_alloc(&ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*argc);
+    ComputedColumn* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*argc);
     if(!cc) return NULL;
     cc->e.kind = EXPR_COMPUTED_COLUMN;
     cc->length = argc;
@@ -1290,7 +1290,7 @@ FORMULAFUNC(drsp_array){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_if){
     if(argc != 3) return Error(ctx, "");
-    BuffCheckpoint bc = buff_checkpoint(&ctx->a);
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* cond = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!cond || cond->kind == EXPR_ERROR)
         return cond;
@@ -1393,7 +1393,7 @@ FORMULAFUNC(drsp_if){
         default:
             __builtin_unreachable();
     }
-    buff_set(&ctx->a, bc);
+    buff_set(ctx->a, bc);
     if(truthy)
         return evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
     else
@@ -1476,21 +1476,6 @@ const FuncInfo FUNC5[] = {
 };
 
 
-static inline
-_Bool sv_iequals(StringView a, StringView b){
-    if(a.length != b.length) return 0;
-    size_t length = a.length;
-    const uint8_t* ap = (const uint8_t*)a.text;
-    const uint8_t* bp = (const uint8_t*)b.text;
-    for(size_t i = 0; i < length; i++){
-        uint8_t l = ap[i];
-        // l |= 0x20u; // lhs is already lower
-        uint8_t r = bp[i];
-        r |= 0x20u;
-        if(l != r) return 0;
-    }
-    return 1;
-}
 DRSP_INTERNAL
 FormulaFunc*_Nullable
 lookup_func(StringView name){

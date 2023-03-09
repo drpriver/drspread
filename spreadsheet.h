@@ -63,7 +63,29 @@ struct SpreadSheet {
     SheetRow* display;
     intptr_t rows;
     intptr_t maxcols;
+    char* txt;
 };
+
+static
+void
+cleanup_sheet(SpreadSheet* sheet){
+    if(sheet->txt) free(sheet->txt);
+    for(intptr_t i = 0; i < sheet->rows; i++){
+        SheetRow* row = &sheet->cells[i];
+        free(row->data);
+        free(row->lengths);
+        row = &sheet->display[i];
+        for(int i = 0; i < row->n; i++){
+            free((void*)row->data[i]);
+        }
+        free(row->data);
+        free(row->lengths);
+    }
+    free(sheet->cells);
+    free(sheet->display);
+    free(sheet->colnames.data);
+    free(sheet->colnames.lengths);
+}
 
 static
 void
@@ -81,9 +103,17 @@ sheet_push_row(SpreadSheet* sheet, SheetRow ro, SheetRow disp){
 
 typedef struct MultiSpreadSheet MultiSpreadSheet;
 struct MultiSpreadSheet {
+    char* txt;
     int n;
     SpreadSheet* sheets;
 };
+
+void
+cleanup_multisheet(MultiSpreadSheet* ms){
+    for(int i = 0; i < ms->n; i++)
+        cleanup_sheet(&ms->sheets[i]);
+    free(ms->txt);
+}
 
 static
 SpreadSheet*
@@ -95,19 +125,6 @@ multisheet_alloc(MultiSpreadSheet* ms){
     memset(result, 0, sizeof *result);
     return result;
 }
-
-static
-void*_Nullable
-multisheet_name_to_sheet(void* ctx, const char* name, size_t len){
-    MultiSpreadSheet* ms = ctx;
-    for(int i = 0; i < ms->n; i++){
-        if(sv_equals2(ms->sheets[i].name, name, len)){
-            return &ms->sheets[i];
-        }
-    }
-    return NULL;
-}
-
 
 static
 int
@@ -132,25 +149,6 @@ sheet_next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
 }
 
 static
-const char*
-sheet_txt(void*m, SheetHandle hnd, intptr_t row, intptr_t col, size_t* len){
-    (void)m;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(unlikely(row < 0 || row >= sheet->rows)){
-        *len = 0;
-        return "";
-    }
-    const SheetRow* ro = &sheet->cells[row];
-    if(unlikely(col < 0 || col >= ro->n)){
-        *len = 0;
-        return "";
-    }
-    const char* t = ro->data[col];
-    *len = ro->lengths[col];
-    return t;
-}
-
-static
 int
 sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
     (void)m;
@@ -159,6 +157,7 @@ sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, d
     SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     int printed;
+    free((void*)ro->data[col]);
     if((intptr_t)val == val)
         printed = asprintf((char**)&ro->data[col], "%zd", (intptr_t)val) < 0;
     else
@@ -178,7 +177,7 @@ sheet_set_display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, con
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     (void)mess;
     (void)len;
-    ro->data[col] = "error";
+    ro->data[col] = strdup("error");
     ro->lengths[col] = 5;
     return 0;
 }
@@ -194,23 +193,6 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     if(printed < 0) return 1;
     ro->lengths[col] = printed;
     return 0;
-}
-
-static
-intptr_t
-sheet_get_name_to_col_idx(void*m, SheetHandle hnd, const char* name, size_t length){
-    (void)m;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    for(int i = 0; i < sheet->colnames.n; i++){
-        if(length == sheet->colnames.lengths[i]){
-            if(memcmp(name, sheet->colnames.data[i], length) == 0){
-                return i;
-            }
-        }
-    }
-    if(length && name[0] >= 'a')
-        return name[0] - 'a';
-    return -1;
 }
 
 static
@@ -232,15 +214,6 @@ sheet_get_col_height(void*m, SheetHandle hnd, intptr_t col){
     return sheet->rows;
 }
 
-static
-int
-sheet_get_dims(void*m, SheetHandle hnd, intptr_t* ncols, intptr_t* nrows){
-    (void)m;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    *ncols = sheet->maxcols;
-    *nrows = sheet->rows;
-    return 0;
-}
 
 #ifndef __wasm__
 static
@@ -278,6 +251,7 @@ static
 int
 read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
     char* txt = strdup(srctxt);
+    sheet->txt = txt;
     char* line;
     int max_cols = 0;
     for(;(line=strsep(&txt, "\n"));){
@@ -286,14 +260,17 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
         char* token;
         while((token = strsep(&line, "|"))){
             sheet_row_push(&ro, token);
-            sheet_row_push(&disp, "");
+            sheet_row_push(&disp, strdup(""));
         }
         if(ro.n > max_cols) max_cols = ro.n;
         sheet_push_row(sheet, ro, disp);
         sheet->maxcols = max_cols;
     }
-    if(sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0)
+    if(sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0){
+        free(sheet->cells[sheet->rows-1].data);
+        free(sheet->cells[sheet->rows-1].lengths);
         sheet->rows--;
+    }
     return 0;
 }
 
@@ -314,6 +291,7 @@ static
 int
 read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
     char* txt = strdup(srctxt);
+    ms->txt = txt;
     char* line;
     int max_cols = 0;
     _Bool need_colnames = 0;
@@ -356,7 +334,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
         SheetRow disp = {0};
         while((token = strsep(&line, "|"))){
             sheet_row_push(&ro, token);
-            sheet_row_push(&disp, "");
+            sheet_row_push(&disp, strdup(""));
         }
         if(ro.n > max_cols) max_cols = ro.n;
         sheet_push_row(sheet, ro, disp);
@@ -444,15 +422,11 @@ multisheet_ops(MultiSpreadSheet* ms){
     SheetOps ops = {
         .ctx = ms,
         .next_cell=&sheet_next,
-        .cell_txt=&sheet_txt,
         .set_display_number=&sheet_set_display_number,
         .set_display_error=&sheet_set_display_error,
         .set_display_string=&sheet_set_display_string,
-        .name_to_col_idx=&sheet_get_name_to_col_idx,
         .row_width=&sheet_get_row_width,
         .col_height=&sheet_get_col_height,
-        .dims=&sheet_get_dims,
-        .name_to_sheet = &multisheet_name_to_sheet,
     };
     return ops;
 }
@@ -464,14 +438,11 @@ sheet_ops(void){
     SheetOps ops = {
         .ctx = NULL,
         .next_cell=&sheet_next,
-        .cell_txt=&sheet_txt,
         .set_display_number=&sheet_set_display_number,
         .set_display_error=&sheet_set_display_error,
         .set_display_string=&sheet_set_display_string,
-        .name_to_col_idx=&sheet_get_name_to_col_idx,
         .row_width=&sheet_get_row_width,
         .col_height=&sheet_get_col_height,
-        .dims=&sheet_get_dims,
     };
     return ops;
 }

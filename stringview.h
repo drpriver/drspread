@@ -38,6 +38,23 @@ sv_equals2(StringView a, const char* txt, size_t len){
     return memcmp(a.text, txt, len) == 0;
 }
 
+static inline
+_Bool 
+sv_iequals(StringView a, StringView b){
+    if(a.length != b.length) return 0;
+    size_t length = a.length;
+    const uint8_t* ap = (const uint8_t*)a.text;
+    const uint8_t* bp = (const uint8_t*)b.text;
+    for(size_t i = 0; i < length; i++){
+        uint8_t l = ap[i];
+        l |= 0x20u;
+        uint8_t r = bp[i];
+        r |= 0x20u;
+        if(l != r) return 0;
+    }
+    return 1;
+}
+
 force_inline
 void
 lstrip(StringView* sv){

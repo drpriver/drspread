@@ -16,6 +16,7 @@ function fwrite_(p:number, sz:number, fp:number):number{
     s = s.replace(/\x1B\[91m/g,      '<span class=red>');
     s = s.replace(/\x1B\[0m/g,       '</span>');
     s = s.replace(/\x1B\[39;49m/g,   '</span>');
+    if(!active) return sz;
 
     active.innerHTML += s;
     return sz;

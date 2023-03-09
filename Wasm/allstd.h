@@ -14,13 +14,12 @@ typedef __builtin_va_list va_list;
 #define va_end(ap)          __builtin_va_end(ap)
 #define va_arg(ap, type)    __builtin_va_arg(ap, type)
 #define va_copy(ap1, ap2)   __builtin_va_copy(ap1, ap2)
-extern unsigned char __heap_base[];
-static unsigned char*_Nonnull _base_ptr = __heap_base;
 typedef typeof(sizeof(1)) size_t;
+enum:size_t {SIZE_T_SIZE=sizeof(size_t)};
+#include "malloc.h"
 _Static_assert(sizeof(size_t) == 4, "");
 typedef long ssize_t;
 _Static_assert(sizeof(size_t) == sizeof(ssize_t), "");
-enum {SIZE_T_SIZE=sizeof(size_t)};
 typedef short int16_t;
 typedef unsigned short uint16_t;
 typedef signed char int8_t;
@@ -35,6 +34,7 @@ typedef long intptr_t;
 #define UINTPTR_MAX 0xFFFFFFFF
 _Static_assert(UINTPTR_MAX == (uintptr_t)-1, "");
 #define INT32_MAX 2147483647
+#define UINT16_MAX 65535u
 #define UINT32_MAX 4294967295u
 _Static_assert(UINT32_MAX == (uint32_t)-1, "");
 #define UINT64_MAX 18446744073709551615llu
@@ -94,7 +94,7 @@ strchr(const char*_Nonnull pointer, int c){
     return NULL;
 }
 
-extern
+static
 void*_Null_unspecified
 memcpy(void*_Nonnull dst, const void*_Nonnull src, size_t nbytes){
     return __builtin_memcpy(dst, src, nbytes);
@@ -129,57 +129,6 @@ memset(void*_Nonnull s, int c, size_t n){
     return s;
 }
 
-
-static inline
-void*_Nonnull
-alloc(size_t size, size_t alignment){
-    if(alignment > SIZE_T_SIZE)
-        alignment = SIZE_T_SIZE;
-    size_t b = (size_t)_base_ptr;
-    if(b & (alignment-1)){
-        b += alignment - (b & (alignment-1));
-        _base_ptr = (unsigned char*)b;
-    }
-    void* result = _base_ptr;
-    _base_ptr += size;
-    return result;
-}
-
-static inline
-void
-dealloc(const void*_Nonnull pointer, size_t size){
-    size_t p = (size_t)pointer;
-    size_t b = (size_t)_base_ptr;
-    if(p + size == b){
-        _base_ptr = (unsigned char*)p;
-    }
-}
-
-extern
-void
-reset_memory(void){
-    _base_ptr = __heap_base;
-}
-
-extern
-void*_Nonnull
-malloc(size_t size){
-    return alloc(size, 8);
-}
-
-extern
-void*
-calloc(size_t n_items, size_t item_size){
-    void* result = malloc(n_items*item_size);
-    memset(result, 0, n_items*item_size);
-    return result;
-}
-
-extern
-void
-free(void* p){
-    (void)p;
-}
 
 static inline
 int 
@@ -225,17 +174,6 @@ static inline
 void
 perror(const char* s){
     (void)s;
-}
-
-static inline
-void*
-sane_realloc(void* p, size_t orig_size, size_t size){
-    void* result = malloc(size);
-    if(orig_size){
-        memcpy(result, p, orig_size);
-        free(p);
-    }
-    return result;
 }
 
 extern

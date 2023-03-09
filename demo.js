@@ -22,15 +22,6 @@ function prep() {
     }
 }
 prep();
-function cell_text(i, row, col) {
-    return cells[row][col];
-}
-function col_height(i, c) {
-    return cells.length;
-}
-function row_width(i, r) {
-    return cells[r].length;
-}
 function display_number(i, row, col, val) {
     if ((val | 0) == val)
         display[row][col] = "" + val;
@@ -44,24 +35,34 @@ function display_error(i, row, col) {
     display[row][col] = 'err';
 }
 function name_to_col_idx(i, s) {
-    return column_names.indexOf(s.toLowerCase());
+    return -1;
 }
 function next_cell(id, i, pr, pc) {
     if (i >= to_iterate.length)
         return [-1, -1];
     return to_iterate[i];
 }
-function dims(i) {
-    return [cells[0].length, cells.length];
-}
 let table;
 let raw;
 let pre;
-let ev_string;
-let ev_formulas;
 let ex;
+let mk_ctx;
+let ctx;
+function get_ctx() {
+    if (ctx)
+        return ctx;
+    ctx = mk_ctx();
+    ctx.make_sheet(0, '$this');
+    for (let i = 0; i < cells.length; i++) {
+        for (let j = 0; j < cells[i].length; j++) {
+            const s = cells[i][j];
+            ctx.set_str(0, i, j, "" + s);
+        }
+    }
+    return ctx;
+}
 function process(v) {
-    let n = ev_string(0, v);
+    const n = get_ctx().evaluate_string(0, v);
     pre.textContent += '\n> ' + v;
     pre.textContent += '\n' + n;
 }
@@ -179,28 +180,40 @@ function show() {
                     cells[r][c] = t;
                 else
                     cells[r][c] = !isNaN(t) ? +t : t;
+                get_ctx().set_str(0, r, c, t);
                 prep();
-                ev_formulas(0);
+                const N = 1;
+                const before = window.performance.now();
+                for (let i = 0; i < N; i++) {
+                    get_ctx().evaluate_formulas(0);
+                }
+                const after = window.performance.now();
+                console.log('after-before', after - before);
+                console.log('bytes used:', ex.bytes_used());
+                if (ctx) {
+                    ex.drsp_destroy_ctx(ctx.id);
+                    ctx = undefined;
+                }
                 show();
             };
             inp.focus();
         };
     }
 }
-drspread('/Bin/drspread.wasm', cell_text, col_height, row_width, display_number, display_string, display_error, name_to_col_idx, next_cell, dims, function (s) { return 0; }).then(({ evaluate_formulas, evaluate_string, exports }) => {
+drspread('/Bin/drspread.wasm', display_number, display_string, display_error, next_cell).then(({ exports, make_ctx }) => {
     ex = exports;
-    ev_formulas = evaluate_formulas;
+    mk_ctx = make_ctx;
     const N = 1;
     window.performance.mark('evaluate');
     const before = window.performance.now();
     for (let i = 0; i < N; i++) {
-        evaluate_formulas(0);
+        get_ctx().evaluate_formulas(0);
     }
     window.performance.mark('done-evaluate');
     window.performance.measure('evaluate', 'evaluate', 'done-evaluate');
     const after = window.performance.now();
     console.log('after-before', after - before);
-    ev_string = evaluate_string;
+    console.log('bytes used:', ex.bytes_used());
     if (document.readyState != 'complete') {
         document.addEventListener('DOMContentLoaded', () => { make_elems(); show(); });
     }
@@ -233,9 +246,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
             }
+            ex.reset_memory();
+            ctx = undefined;
             cells = result;
             prep();
-            ev_formulas(0);
+            get_ctx().evaluate_formulas(0);
             show();
         });
     };
