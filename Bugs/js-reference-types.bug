@@ -1,5 +1,0 @@
-Changelog::kv
-  created: 2023-01-17T07:53:51Z
-Created Jan 16, 2023, 11:53PM::md.update
-Summary::md.summary
-  Investigate whether you can directly pass javascript objects into wasm.

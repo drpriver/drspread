@@ -1,0 +1,10 @@
+Changelog::kv
+  created:  2023-01-11T08:35:04Z
+  resolved: 2023-03-09T04:44:18Z
+Created Jan 11, 2023, 12:35AM::md .update
+Summary::md .summary
+  $
+
+Resolved Mar 08, 2023, 08:44PM::md .update
+  I thing this was already fixed as evaluate string takes current col/current
+  row arguments.

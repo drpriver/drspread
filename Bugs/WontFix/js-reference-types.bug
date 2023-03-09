@@ -1,0 +1,21 @@
+Changelog::kv
+  created: 2023-01-17T07:53:51Z
+  wontfix: 2023-03-09T04:43:35Z
+Created Jan 16, 2023, 11:53PM::md .update
+Summary::md .summary
+  Investigate whether you can directly pass javascript objects into wasm.
+
+WontFix Mar 08, 2023, 08:43PM::md .update
+  This isn’t supported by the current version of clang. I think the next
+  release will have some support.
+
+  Unfortunately, you can’t store them in structs. They have to (effectively)
+  have register storage class or be stored in global variables. You could have a
+  layer of indirection then. Maybe you can have pointers to them if the pointers
+  are to global variables? Idk.
+
+  Anyway, since you still need a level of indirection, there wouldn’t be that
+  much benefit. I’m not sure what I would use them for.
+
+  They are really for being able to do things like directly call DOM apis from
+  wasm (I think).

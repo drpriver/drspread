@@ -1,0 +1,9 @@
+Changelog::kv
+  created:  2023-02-24T19:50:58Z
+  resolved: 2023-03-09T04:40:50Z
+Created Feb 24, 2023, 11:50AM::md .update
+Summary::md .summary
+  Ability to cat strings together.
+
+Resolved Mar 08, 2023, 08:40PM::md .update
+  There is now a <tt>cat</tt> function.
