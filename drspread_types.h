@@ -274,14 +274,10 @@ struct RowColSv {
     RowCol rc;
     StringView sv;
 };
-__attribute__((no_sanitize("nullability")))
-// force_inline
 static inline
 StringView*_Nullable
 get_cached_string(StringCache* cache, intptr_t row, intptr_t col);
 
-__attribute__((no_sanitize("nullability")))
-// force_inline
 static inline
 int
 set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);

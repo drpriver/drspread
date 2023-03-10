@@ -214,9 +214,6 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
     }
 }
 
-// Maybe strings should be immortal and all get interned to reduce size?
-__attribute__((no_sanitize("nullability")))
-// force_inline
 static inline
 StringView*_Nullable
 get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
@@ -240,8 +237,6 @@ get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
     }
 }
 
-__attribute__((no_sanitize("nullability")))
-// force_inline
 static inline
 int
 set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len){
