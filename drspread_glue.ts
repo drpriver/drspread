@@ -180,7 +180,7 @@ return fetch(wasm_path)
                     mem.set(encoded, exports.wasm_str_buff.value);
                     exports.drsp_set_col_name(ctx, sheet, idx, exports.wasm_str_buff.value, encoded.length);
                 },
-                del_sheet: (sheet:number):void{
+                del_sheet: (sheet:number):void=>{
                     exports.drsp_del_sheet(result.id, sheet);
                 },
             };

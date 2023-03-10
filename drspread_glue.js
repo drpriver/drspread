@@ -133,6 +133,9 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                     mem.set(encoded, exports.wasm_str_buff.value);
                     exports.drsp_set_col_name(ctx, sheet, idx, exports.wasm_str_buff.value, encoded.length);
                 },
+                del_sheet: (sheet) => {
+                    exports.drsp_del_sheet(result.id, sheet);
+                },
             };
             return result;
         }
