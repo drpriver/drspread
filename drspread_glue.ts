@@ -13,6 +13,7 @@ type DrSpreadCtx = {
     make_sheet:(sheet:number, name:string) => void;
     set_sheet_alias:(sheet:number, name:string) => void;
     set_col_name:(sheet:number, idx: number, name:string) => void;
+    del_sheet:(sheet:number) => void;
 };
 type DrSpreadExports = {
     memory: WebAssembly.Memory;
