@@ -11,6 +11,7 @@ type DrSpreadCtx = {
     evaluate_string: (sheet:number, s:string) => number | string;
     set_str:(sheet:number, row:number, col:number, s:string) => void;
     make_sheet:(sheet:number, name:string) => void;
+    set_sheet_alias:(sheet:number, name:string) => void;
     set_col_name:(sheet:number, idx: number, name:string) => void;
 };
 type DrSpreadExports = {
