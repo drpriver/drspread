@@ -1,10 +1,8 @@
 "use strict";
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let display = [];
-let to_iterate = [];
 function prep() {
     display = [];
-    to_iterate = [];
     for (let r = 0; r < cells.length; r++) {
         const row = cells[r];
         const d = [];
@@ -12,7 +10,6 @@ function prep() {
         for (let c = 0; c < row.length; c++) {
             const val = row[c];
             if (typeof val === 'string' && val[0] == '=') {
-                to_iterate.push([r, c]);
                 d.push('');
             }
             else {
@@ -36,11 +33,6 @@ function display_error(i, row, col) {
 }
 function name_to_col_idx(i, s) {
     return -1;
-}
-function next_cell(id, i, pr, pc) {
-    if (i >= to_iterate.length)
-        return [-1, -1];
-    return to_iterate[i];
 }
 let table;
 let raw;
@@ -200,7 +192,7 @@ function show() {
         };
     }
 }
-drspread('/Bin/drspread.wasm', display_number, display_string, display_error, next_cell).then(({ exports, make_ctx }) => {
+drspread('/Bin/drspread.wasm', display_number, display_string, display_error).then(({ exports, make_ctx }) => {
     ex = exports;
     mk_ctx = make_ctx;
     const N = 1;

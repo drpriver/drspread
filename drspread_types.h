@@ -686,11 +686,6 @@ sp_set_display_string(SP_ARGS, intptr_t row, intptr_t col, const char* txt, size
 }
 
 force_inline
-int
-sp_next_cell(SP_ARGS, intptr_t nth, intptr_t* row, intptr_t* col){
-    return SP_CALL(next_cell, nth, row, col);
-}
-force_inline
 intptr_t
 sp_name_to_col_idx(SpreadContext* ctx, SheetHandle sheet, const char* name, size_t len){
     if(len < 3){
@@ -727,7 +722,6 @@ sp_name_to_sheet(SpreadContext* ctx, const char* name, size_t len){
 #define sp_set_display_number(ctx, ...) ((void)ctx, sp_set_display_number(__VA_ARGS__))
 #define sp_set_display_error(ctx, ...) ((void)ctx, sp_set_display_error(__VA_ARGS__))
 #define sp_set_display_string(ctx, ...) ((void)ctx, sp_set_display_string(__VA_ARGS__))
-#define sp_next_cell(ctx, ...) ((void)ctx, sp_next_cell(__VA_ARGS__))
 #endif
 
 #ifdef __clang__

@@ -128,28 +128,6 @@ multisheet_alloc(MultiSpreadSheet* ms){
 
 static
 int
-sheet_next(void* m, SheetHandle hnd, intptr_t i, intptr_t* row, intptr_t* col){
-    (void)m;
-    (void)i;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    intptr_t r = *row;
-    intptr_t c = *col;
-    if(unlikely(r == -1)){
-        *row = 0;
-        *col = 0;
-        return 0;
-    }
-    c++;
-    const SheetRow* ro = &sheet->cells[r];
-    if(c >= ro->n) r++, c=0;
-    if(unlikely(r >= sheet->rows)) return 1;
-    *row = r;
-    *col = c;
-    return 0;
-}
-
-static
-int
 sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
     (void)m;
     SpreadSheet* sheet =(SpreadSheet*)hnd;
@@ -421,7 +399,6 @@ SheetOps
 multisheet_ops(MultiSpreadSheet* ms){
     SheetOps ops = {
         .ctx = ms,
-        .next_cell=&sheet_next,
         .set_display_number=&sheet_set_display_number,
         .set_display_error=&sheet_set_display_error,
         .set_display_string=&sheet_set_display_string,
@@ -437,7 +414,6 @@ SheetOps
 sheet_ops(void){
     SheetOps ops = {
         .ctx = NULL,
-        .next_cell=&sheet_next,
         .set_display_number=&sheet_set_display_number,
         .set_display_error=&sheet_set_display_error,
         .set_display_string=&sheet_set_display_string,

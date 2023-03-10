@@ -62,7 +62,6 @@ struct SheetOps {
     int (*set_display_number)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
     int (*set_display_error)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
     int (*set_display_string)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*, size_t);
-    int (*next_cell)(void*ctx, SheetHandle sheet, intptr_t nth, intptr_t* row, intptr_t* col);
 };
 #endif
 

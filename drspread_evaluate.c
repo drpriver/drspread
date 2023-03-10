@@ -26,7 +26,7 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
     }
     size_t len = 0;
     const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
-    if(!txt) return NULL;
+    if(!txt) return expr_alloc(ctx, EXPR_NULL);
     StringView sv = stripped2(txt, len);
     // These `goto`s are a bit unorthodox, but it is basically a switch,
     // with the ability of cell_number to jump to cell_other

@@ -5,10 +5,8 @@ declare let cells: Array<Array<string|number>>;
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let display:Array<Array<string>> = [
 ];
-let to_iterate:Array<[number, number]> = [];
 function prep():void{
     display = [];
-    to_iterate = [];
     for(let r = 0; r < cells.length; r++){
         const row = cells[r];
         const d:Array<string> = [];
@@ -16,7 +14,6 @@ function prep():void{
         for(let c = 0; c < row.length; c++){
             const val = row[c];
             if(typeof val === 'string' && val[0] == '='){
-                to_iterate.push([r, c]);
                 d.push('');
             }
             else {
@@ -46,11 +43,6 @@ function name_to_col_idx(i:number, s:string):number{
     return -1;
 }
 
-function next_cell(id:number, i:number, pr:number, pc:number):[number, number]{
-    if(i >= to_iterate.length)
-        return [-1, -1];
-    return to_iterate[i];
-}
 
 let table:HTMLTableElement;
 let raw:HTMLTableElement;
@@ -221,7 +213,9 @@ type DrSpreadCtx = {
     evaluate_string: (sheet:number, s:string) => number | string;
     set_str:(sheet:number, row:number, col:number, s:string) => void;
     make_sheet:(sheet:number, name:string) => void;
+    set_sheet_alias:(sheet:number, name:string) => void;
     set_col_name:(sheet:number, idx: number, name:string) => void;
+    del_sheet:(sheet:number) => void;
 };
 type DrSpreadExports = {
     memory: WebAssembly.Memory;
@@ -232,6 +226,7 @@ type DrSpreadExports = {
     drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
     drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
+    drsp_set_sheet_alias:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_col_name:(ctx:number, sheet:number, idx:number, ptxt:number, txtlen:number) => number;
     drsp_del_sheet:(ctx:number, sheet:number) => number;
     reset_memory: () => void;
@@ -244,7 +239,6 @@ declare function drspread(
     sheet_set_display_number:(id:number, row:number, col:number, val:number)=>void,
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
     sheet_set_display_error:(id:number, row:number, col:number)=>void,
-    sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
 ):Promise<{
     make_ctx: () => DrSpreadCtx;
     exports: DrSpreadExports;
@@ -255,7 +249,6 @@ drspread(
     display_number,
     display_string,
     display_error,
-    next_cell,
 ).then(({exports, make_ctx}) =>{
     ex = exports;
     mk_ctx = make_ctx;

@@ -54,38 +54,41 @@ int
 drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen){
     if(sheetdeps)
         __builtin_memset(sheetdeps, 0, sheetdepslen * sizeof *sheetdeps);
-    intptr_t row=-1, col=-1;
     int nerrs = 0;
     #ifndef __wasm__
     ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
-    for(intptr_t i = 0; sp_next_cell(ctx, sheethandle, i, &row, &col) == 0; i++){
-        buff_set(ctx->a, bc);
-        Expression* e = evaluate(ctx, sheethandle, row, col);
-        // benchmarking
-        #ifdef BENCHMARKING
-            for(int i = 0; i < 1000000; i++){
-                buff_set(ctx->a, bc);
-                e = evaluate(ctx, sheethandle, row, col);
+    const SheetData* sd = sheet_lookup_by_handle(ctx, sheethandle);
+    if(!sd) return -1;
+    for(intptr_t row = 0; row < sd->height; row++){
+        for(intptr_t col = 0; col < sd->width; col++){
+            buff_set(ctx->a, bc);
+            Expression* e = evaluate(ctx, sheethandle, row, col);
+            // benchmarking
+            #ifdef BENCHMARKING
+                for(int i = 0; i < 1000000; i++){
+                    buff_set(ctx->a, bc);
+                    e = evaluate(ctx, sheethandle, row, col);
+                }
+            #endif
+            if(e){
+                switch(e->kind){
+                    case EXPR_NUMBER:
+                        sp_set_display_number(ctx, sheethandle, row, col, ((Number*)e)->value);
+                        continue;
+                    case EXPR_STRING:
+                        sp_set_display_string(ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                        continue;
+                    case EXPR_NULL:
+                        sp_set_display_string(ctx, sheethandle, row, col, "", 0);
+                        continue;
+                    default: break;
+                }
             }
-        #endif
-        if(e){
-            switch(e->kind){
-                case EXPR_NUMBER:
-                    sp_set_display_number(ctx, sheethandle, row, col, ((Number*)e)->value);
-                    continue;
-                case EXPR_STRING:
-                    sp_set_display_string(ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
-                    continue;
-                case EXPR_NULL:
-                    sp_set_display_string(ctx, sheethandle, row, col, "", 0);
-                    continue;
-                default: break;
-            }
+            nerrs++;
+            sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
         }
-        nerrs++;
-        sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
     }
 #if 0
     if(sheetdeps)

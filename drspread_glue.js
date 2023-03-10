@@ -1,5 +1,5 @@
 "use strict";
-function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_, sheet_set_display_error, sheet_next_cell_) {
+function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_, sheet_set_display_error) {
     let winst;
     let exports;
     let mem;
@@ -10,9 +10,6 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
         const sub = mem.subarray(p, p + len);
         const text = decoder.decode(sub);
         return text;
-    }
-    function write4(p, val) {
-        memview.setInt32(p, val, true);
     }
     function read4(p) {
         return memview.getInt32(p, true);
@@ -44,18 +41,6 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                 sheet_set_display_string_(id, row, col, s);
             },
             sheet_set_display_error,
-            sheet_next_cell: function (id, i, prow, pcol) {
-                const prev_row = read4(prow);
-                const prev_col = read4(pcol);
-                const [r, c] = sheet_next_cell_(id, i, prev_row, prev_col);
-                if (r == 4294967295 && c == 4294967295)
-                    return 1;
-                if (r == -1 && c == -1)
-                    return 1;
-                write4(prow, r);
-                write4(pcol, c);
-                return 0;
-            },
         },
     };
     return fetch(wasm_path)

@@ -37,7 +37,6 @@ function drspread(
     sheet_set_display_number:(id:number, row:number, col:number, val:number)=>void,
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
     sheet_set_display_error:(id:number, row:number, col:number)=>void,
-    sheet_next_cell_:(id:number, i:number, prev_row:number, prev_col:number)=>[number, number],
 ):Promise<{
     make_ctx: () => DrSpreadCtx;
     exports: DrSpreadExports;
@@ -56,9 +55,11 @@ function wasm_string_to_js(p:number, len:number):string{
     const text = decoder.decode(sub);
     return text;
 }
+/*
 function write4(p:number, val:number):void{
     memview.setInt32(p, val, true);
 }
+*/
 
 /*
 function js_string_to_wasm(s:string):number{
@@ -100,18 +101,6 @@ const imports = {
             sheet_set_display_string_(id, row, col, s);
         },
         sheet_set_display_error,
-        sheet_next_cell:function(id:number, i:number, prow:number, pcol:number):number{
-            const prev_row = read4(prow);
-            const prev_col = read4(pcol);
-            const [r, c] = sheet_next_cell_(id, i, prev_row, prev_col);
-            if(r == 4294967295 && c == 4294967295)
-                return 1;
-            if(r == -1 && c == -1)
-                return 1;
-            write4(prow, r);
-            write4(pcol, c);
-            return 0;
-        },
     },
 };
 
