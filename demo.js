@@ -173,7 +173,6 @@ function show() {
                 else
                     cells[r][c] = !isNaN(t) ? +t : t;
                 get_ctx().set_str(0, r, c, t);
-                prep();
                 const N = 1;
                 const before = window.performance.now();
                 for (let i = 0; i < N; i++) {
