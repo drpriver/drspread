@@ -191,7 +191,7 @@ test_main(int argc, char** argv, void* unused){
 // #define __FILE__ ""
 #include "TestDrSpread.c"
 
-static void logit(const char* fmt, ...){
+static inline void logit(const char* fmt, ...){
     __builtin_va_list vap;
     __builtin_va_start(vap, fmt);
     vprintf(fmt, vap);

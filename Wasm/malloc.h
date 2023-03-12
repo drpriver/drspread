@@ -1,6 +1,5 @@
 #ifndef MALLOC_H
 #define MALLOC_H
-static void logit(const char*, ...);
 extern
 void __attribute__((noreturn))
 abort(void);

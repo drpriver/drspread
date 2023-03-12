@@ -12,10 +12,6 @@ _Static_assert(__builtin_offsetof(DrSpreadResult, d)==8, "");
 _Static_assert(__builtin_offsetof(DrSpreadResult, s.length)==8, "");
 _Static_assert(__builtin_offsetof(DrSpreadResult, s.text)==12, "");
 
-static void logit(const char* fmt, ...){
-    (void)fmt;
-}
-
 DRSP_EXPORT unsigned char wasm_str_buff[1024];
 unsigned char wasm_str_buff[1024] = {0};
 
