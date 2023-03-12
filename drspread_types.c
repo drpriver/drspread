@@ -95,6 +95,7 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
         if(d->handle != sheet) continue;
         free(d->str_cache.data);
         free(d->col_cache.data);
+        free(d->result_cache.data);
         // unordered remove
         if(i != ctx->map.n-1)
             ctx->map.data[i] = ctx->map.data[--ctx->map.n];
@@ -106,7 +107,7 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
 }
 
 // preload empty string and length 1 strings
-static 
+static
 _Alignas(DrspStr)
 const uint16_t short_strings[] = {
     0,   0,
@@ -246,7 +247,7 @@ set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*res
         size_t new_size = new_cap*(4*sizeof(intptr_t)+sizeof(uint32_t));
         #ifdef __wasm__
             size_t old_size = old_cap*(4*sizeof(intptr_t)+sizeof(uint32_t));
-            unsigned char* new_data = sane_realloc(cache->data, old_size, new_size); 
+            unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
         #else
             // fprintf(stderr, "%zu\n", new_size);
             unsigned char* new_data = realloc(cache->data, new_size);
@@ -321,7 +322,7 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
             // fprintf(stderr, "%zu\n", new_size);
             unsigned char* new_data = realloc(cache->data, new_size);
         #endif
-        if(!new_data) 
+        if(!new_data)
             return 1;
         cache->data = new_data;
         cache->cap = new_cap;
@@ -379,6 +380,61 @@ get_cached_col_name(ColCache* cache, const char* name, size_t len){
         }
         if(sv_iequals(items[i].name, key)){
             return &items[i].idx;
+        }
+        idx++;
+        if(unlikely(idx >= cap)) idx = 0;
+    }
+}
+
+DRSP_INTERNAL
+CachedResult*_Nullable
+get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
+    if(unlikely(cache->n*2 >= cache->cap)){
+        size_t old_cap = cache->cap;
+        size_t new_cap = old_cap?old_cap*2:128;
+        size_t new_size = new_cap*(sizeof(CachedResult)+sizeof(uint32_t));
+        #ifdef __wasm__
+            size_t old_size = old_cap*(sizeof(CachedResult)+sizeof(uint32_t));
+            unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
+        #else
+            // fprintf(stderr, "%zu\n", new_size);
+            unsigned char* new_data = realloc(cache->data, new_size);
+        #endif
+        if(!new_data) return NULL;
+        cache->data = new_data;
+        cache->cap = new_cap;
+        uint32_t* indexes = (uint32_t*)(new_data + sizeof(CachedResult)*new_cap);
+        __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
+        CachedResult *items = (CachedResult*)new_data;
+        for(size_t i = 0; i < cache->n; i++){
+            RowCol k = items[i].loc;
+            uint32_t hash = hash_alignany(&k, sizeof k);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
+            while(indexes[idx] != UINT32_MAX){
+                idx++;
+                if(unlikely(idx >= new_cap)) idx = 0;
+            }
+            indexes[idx] = i;
+        }
+    }
+    size_t cap = cache->cap;
+    RowCol key = {row, col};
+    uint32_t hash = hash_alignany(&key, sizeof key);
+    CachedResult *items = (CachedResult*)cache->data;
+    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(CachedResult)*cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    for(;;){
+        uint32_t i = indexes[idx];
+        if(i == UINT32_MAX){ // empty slot
+            indexes[idx] = cache->n;
+            items[cache->n] = (CachedResult){
+                .loc = key,
+                .kind = CACHED_RESULT_NULL,
+            };
+            return &items[cache->n++];
+        }
+        if(items[i].loc.row == row && items[i].loc.col == col){
+            return &items[i];
         }
         idx++;
         if(unlikely(idx >= cap)) idx = 0;

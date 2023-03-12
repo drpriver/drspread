@@ -55,6 +55,12 @@ sv_iequals(StringView a, StringView b){
     return 1;
 }
 
+static inline
+_Bool
+sv_iequals2(StringView a, const char* txt, size_t len){
+    return sv_iequals(a, (StringView){len, txt});
+}
+
 force_inline
 void
 lstrip(StringView* sv){

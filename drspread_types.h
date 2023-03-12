@@ -317,6 +317,10 @@ struct DrspStr {
     char data[];
 };
 
+DRSP_INTERNAL
+DrspStr*_Nullable
+drsp_create_str(DrSpreadCtx*, const char* txt, size_t len);
+
 static inline
 StringView
 drsp_to_sv(const DrspStr* s){
@@ -338,6 +342,105 @@ destroy_string_heap(StringHeap* heap){
     __builtin_memset(heap, 0, sizeof *heap);
 }
 
+typedef struct ResultCache ResultCache;
+struct ResultCache {
+    size_t n, cap;
+    unsigned char* data;
+};
+enum CachedResultKind {
+    CACHED_RESULT_NULL,
+    CACHED_RESULT_STRING,
+    CACHED_RESULT_NUMBER,
+    CACHED_RESULT_ERROR,
+};
+typedef struct CachedResult CachedResult;
+struct CachedResult{
+    RowCol loc;
+    enum CachedResultKind kind;
+    union {
+        double number;
+        DrspStr* string;
+    };
+};
+static inline
+_Bool
+cached_result_eq_ignoring_loc(const CachedResult* a, const CachedResult* b){
+    if(a->kind != b->kind) return 0;
+    switch(a->kind){
+        case CACHED_RESULT_NULL:
+            return 1;
+        case CACHED_RESULT_STRING:
+            return sv_equals(drsp_to_sv(a->string), drsp_to_sv(b->string));
+        case CACHED_RESULT_NUMBER:
+            // eq or both nan
+            return a->number == b->number || (a->number != a->number && b->number != b->number);
+        case CACHED_RESULT_ERROR:
+            return 1;
+        default:
+            return 0;
+    }
+}
+static inline
+int
+expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
+    switch(e->kind){
+        case EXPR_NUMBER:
+            out->kind = CACHED_RESULT_NUMBER;
+            out->number = ((Number*)e)->value;
+            return 0;
+        case EXPR_STRING:{
+            String* s = (String*)e;
+            if(!s->sv.length){
+                out->kind = CACHED_RESULT_NULL;
+                return 0;
+            }
+            DrspStr* str = drsp_create_str(ctx, s->sv.text, s->sv.length);
+            if(!str) return 1;
+            out->kind = CACHED_RESULT_STRING;
+            out->string = str;
+            return 0;
+        }break;
+        case EXPR_NULL:
+            out->kind = CACHED_RESULT_NULL;
+            return 0;
+        default:
+        case EXPR_ERROR:
+            out->kind = CACHED_RESULT_ERROR;
+            return 0;
+    }
+}
+
+force_inline
+void*_Nullable
+expr_alloc(SpreadContext* ctx, ExpressionKind kind);
+
+static inline
+Expression*_Nullable
+cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
+    switch(cr->kind){
+        case CACHED_RESULT_NULL:
+            return expr_alloc(ctx, EXPR_NULL);
+        case CACHED_RESULT_NUMBER:{
+            Number* n = expr_alloc(ctx, EXPR_NUMBER);
+            if(!n) return NULL;
+            n->value = cr->number;
+            return &n->e;
+        }
+        case CACHED_RESULT_STRING:{
+            String* s = expr_alloc(ctx, EXPR_STRING);
+            if(!s) return NULL;
+            s->sv = drsp_to_sv(cr->string);
+            return &s->e;
+        }
+        default:
+        case CACHED_RESULT_ERROR:
+            return expr_alloc(ctx, EXPR_ERROR);
+    }
+}
+DRSP_INTERNAL
+CachedResult*_Nullable
+get_cached_result(ResultCache* cache, intptr_t row, intptr_t col);
+
 
 typedef struct SheetData SheetData;
 struct SheetData {
@@ -347,11 +450,9 @@ struct SheetData {
     StringCache str_cache;
     ColCache col_cache;
     intptr_t width, height;
+    ResultCache result_cache;
 };
 
-DRSP_INTERNAL
-DrspStr*_Nullable
-drsp_create_str(DrSpreadCtx*, const char* txt, size_t len);
 
 
 typedef struct SheetMap SheetMap;
@@ -448,6 +549,7 @@ free_sheet_datas(SpreadContext* ctx){
         SheetData* d = &ctx->map.data[i];
         free(d->str_cache.data);
         free(d->col_cache.data);
+        free(d->result_cache.data);
     }
     free(ctx->map.data);
 }

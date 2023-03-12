@@ -380,11 +380,17 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
         }
         case EXPR_RANGE0D_FOREIGN:{
             ForeignRange0D* rng = (ForeignRange0D*)expr;
-            SheetHandle foreign = sp_name_to_sheet(ctx, rng->sheet_name.text, rng->sheet_name.length);
+            StringView sn = rng->sheet_name;
+            SheetHandle foreign = sp_name_to_sheet(ctx, sn.text, sn.length);
             if(!foreign) return Error(ctx, "");
             intptr_t r = rng->r.row;
             if(r == IDX_DOLLAR) r = caller_row;
-            intptr_t c = sv_equals(rng->r.col_name, SV("$"))?caller_col:sp_name_to_col_idx(ctx, foreign, rng->r.col_name.text, rng->r.col_name.length);
+            intptr_t c;
+            StringView col = rng->r.col_name;
+            if(sv_equals(col, SV("$")))
+                c = caller_col;
+            else
+                c = sp_name_to_col_idx(ctx, foreign, col.text, col.length);
             if(c == IDX_DOLLAR) c = caller_col;
             return evaluate(ctx, foreign, r, c);
         }
@@ -392,63 +398,18 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             Range0D* rng = (Range0D*)expr;
             intptr_t r = rng->row;
             if(r == IDX_DOLLAR) r = caller_row;
-            intptr_t c = sv_equals(rng->col_name, SV("$"))?caller_col:sp_name_to_col_idx(ctx, hnd, rng->col_name.text, rng->col_name.length);
+            intptr_t c;
+            StringView col = rng->col_name;
+            if(sv_equals(col, SV("$")))
+                c = caller_col;
+            else
+                c = sp_name_to_col_idx(ctx, hnd, col.text, col.length);
             if(c == IDX_DOLLAR) c = caller_col;
             return evaluate(ctx, hnd, r, c);
         }
         case EXPR_BINARY:{
             Binary* b = (Binary*)expr;
             return evaluate_binary_op(ctx, hnd, b->op, b->lhs, b->rhs, caller_row, caller_col);
-            char* chk = ctx->a->cursor;
-            Expression* lhs = evaluate_expr(ctx, hnd, b->lhs, caller_row, caller_col);
-            if(!lhs) return NULL;
-            if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING) return Error(ctx, "");
-            Expression* rhs = evaluate_expr(ctx, hnd, b->rhs, caller_row, caller_col);
-            if(!rhs) return NULL;
-            if(lhs->kind == EXPR_STRING){
-                if(rhs->kind != EXPR_STRING)
-                    return Error(ctx, "");
-                String* l = (String*)lhs;
-                String* r = (String*)rhs;
-                _Bool cmp;
-                switch(b->op){
-                    case BIN_EQ:
-                        cmp = sv_equals(l->sv, r->sv);
-                        break;
-                    case BIN_NE:
-                        cmp = !sv_equals(l->sv, r->sv);
-                        break;
-                    default:
-                        return Error(ctx, "");
-                }
-                ctx->a->cursor = chk;
-                Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
-                res->value = cmp;
-                return &res->e;
-            }
-            if(lhs->kind != EXPR_NUMBER) return Error(ctx, "");
-            if(rhs->kind != EXPR_NUMBER) return Error(ctx, "");
-            double l = ((Number*)lhs)->value;
-            double r = ((Number*)rhs)->value;
-            double value;
-            switch(b->op){
-                case BIN_ADD: value = l +  r; break;
-                case BIN_SUB: value = l -  r; break;
-                case BIN_MUL: value = l *  r; break;
-                case BIN_DIV: value = l /  r; break;
-                case BIN_LT:  value = l <  r; break;
-                case BIN_LE:  value = l <= r; break;
-                case BIN_GT:  value = l >  r; break;
-                case BIN_GE:  value = l >= r; break;
-                case BIN_EQ:  value = l == r; break;
-                case BIN_NE:  value = l != r; break;
-                default: __builtin_trap();
-            }
-            ctx->a->cursor = chk;
-            Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
-            if(!res) return NULL;
-            res->value = value;
-            return &res->e;
         }
         case EXPR_UNARY:{
             char* chk = ctx->a->cursor;
@@ -466,7 +427,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
                 default: __builtin_trap();
             }
             ctx->a->cursor = chk;
-            Number* r = (Number*)expr_alloc(ctx, EXPR_NUMBER);
+            Number* r = expr_alloc(ctx, EXPR_NUMBER);
             if(!r) return NULL;
             r->value = value;
             return &r->e;
@@ -476,8 +437,8 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             // TODO: check if this tail calls.
             // Otherwise we need a goto to the top.
             return evaluate_expr(ctx, hnd, g->expr, caller_row, caller_col);
-        };
-    };
+        }
+    }
     return NULL;
 }
 

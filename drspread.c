@@ -59,7 +59,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _N
     ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
-    const SheetData* sd = sheet_lookup_by_handle(ctx, sheethandle);
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheethandle);
     if(!sd) return -1;
     for(intptr_t row = 0; row < sd->height; row++){
         for(intptr_t col = 0; col < sd->width; col++){
@@ -72,19 +72,52 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _N
                     e = evaluate(ctx, sheethandle, row, col);
                 }
             #endif
-            if(e){
-                switch(e->kind){
-                    case EXPR_NUMBER:
-                        sp_set_display_number(ctx, sheethandle, row, col, ((Number*)e)->value);
+            if(!e){ // OOM, don't cache the result.
+                nerrs++;
+                sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
+                continue;
+            }
+            CachedResult* cr = get_cached_result(&sd->result_cache, row, col);
+            if(cr){
+                CachedResult tmp_cr;
+                tmp_cr.loc = (RowCol){row, col};
+                int err = expr_to_cached_result(ctx, e, &tmp_cr);
+                if(!err){
+                    if(cached_result_eq_ignoring_loc(cr, &tmp_cr)){
+                        if(tmp_cr.kind == CACHED_RESULT_ERROR)
+                            nerrs++;
                         continue;
-                    case EXPR_STRING:
-                        sp_set_display_string(ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
-                        continue;
-                    case EXPR_NULL:
-                        sp_set_display_string(ctx, sheethandle, row, col, "", 0);
-                        continue;
-                    default: break;
+                    }
+                    *cr = tmp_cr;
+                    switch(tmp_cr.kind){
+                        case CACHED_RESULT_NULL:
+                            sp_set_display_string(ctx, sheethandle, row, col, "", 0);
+                            continue;
+                        case CACHED_RESULT_NUMBER:
+                            sp_set_display_number(ctx, sheethandle, row, col, tmp_cr.number);
+                            continue;
+                        case CACHED_RESULT_STRING:
+                            sp_set_display_string(ctx, sheethandle, row, col, tmp_cr.string->data, tmp_cr.string->length);
+                            continue;
+                        default: break;
+                    }
+                    nerrs++;
+                    sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
+                    continue;
                 }
+            }
+            // Fallback, don't cache the result.
+            switch(e->kind){
+                case EXPR_NUMBER:
+                    sp_set_display_number(ctx, sheethandle, row, col, ((Number*)e)->value);
+                    continue;
+                case EXPR_STRING:
+                    sp_set_display_string(ctx, sheethandle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                    continue;
+                case EXPR_NULL:
+                    sp_set_display_string(ctx, sheethandle, row, col, "", 0);
+                    continue;
+                default: break;
             }
             nerrs++;
             sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
