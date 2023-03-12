@@ -1,6 +1,7 @@
 #ifndef DRSPREAD_TYPES_C
 #define DRSPREAD_TYPES_C
 #include "drspread_types.h"
+#include "hash_func.h"
 #pragma clang assume_nonnull begin
 #ifdef DRSPREAD_DIRECT_OPS
 #define ARGS void
@@ -331,7 +332,7 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
         ColName *items = (ColName*)new_data;
         for(size_t i = 0; i < cache->n; i++){
             StringView k = items[i].name;
-            uint32_t hash = hash_align1(k.text, k.length);
+            uint32_t hash = ascii_insensitive_hash_align1(k.text, k.length);
             uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
             while(indexes[idx] != UINT32_MAX){
                 idx++;
@@ -342,7 +343,7 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
     }
     size_t cap = cache->cap;
     StringView key = {len, name};
-    uint32_t hash = hash_alignany(key.text, key.length);
+    uint32_t hash = ascii_insensitive_hash_align1(key.text, key.length);
     ColName *items = (ColName*)cache->data;
     uint32_t* indexes = (uint32_t*)(cache->data + 3*sizeof(intptr_t)*cap);
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
@@ -369,7 +370,7 @@ get_cached_col_name(ColCache* cache, const char* name, size_t len){
     size_t cap = cache->cap;
     if(!cap) return NULL;
     StringView key = {len, name};
-    uint32_t hash = hash_alignany(key.text, key.length);
+    uint32_t hash = ascii_insensitive_hash_align1(key.text, key.length);
     ColName *items = (ColName*)cache->data;
     uint32_t* indexes = (uint32_t*)(cache->data + 3*sizeof(intptr_t)*cap);
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);

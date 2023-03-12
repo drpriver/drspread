@@ -108,6 +108,22 @@ hash_align8(const void* key, size_t len){
     return h;
 }
 
+static inline
+uint32_t
+ascii_insensitive_hash_align1(const void* key, size_t len){
+    const unsigned char* k = key;
+    uint32_t h = 0;
+    for(;len >= 8; k+=8, len-=8)
+        h = __crc32cd(h, 0x2020202020202020u|(*(const packed_uint64*)k).v);
+    for(;len >= 4; k+=4, len-=4)
+        h = __crc32cw(h, 0x20202020u|(*(const packed_uint32*)k).v);
+    for(;len >= 2; k+=2, len-=2)
+        h = __crc32ch(h, 0x2020u|(*(const packed_uint16*)k).v);
+    for(;len >= 1; k+=1, len-=1)
+        h = __crc32cb(h, 0x20u|*(const uint8_t*)k);
+    return h;
+}
+
 #elif defined(__x86_64__) && defined(__SSE4_2__)
 #include <nmmintrin.h>
 
@@ -161,6 +177,22 @@ hash_align8(const void* key, size_t len){
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
         h = _mm_crc32_u64(h, (*(const packed_uint64*)k).v);
+    return h;
+}
+
+static inline
+uint32_t
+ascii_insensitive_hash_align1(const void* key, size_t len){
+    const unsigned char* k = key;
+    uint32_t h = 0;
+    for(;len >= 8; k+=8, len-=8)
+        h = _mm_crc32_u64(h, 0x2020202020202020u|(*(const packed_uint64*)k).v);
+    for(;len >= 4; k+=4, len-=4)
+        h = _mm_crc32_u32(h, 0x20202020u|(*(const packed_uint32*)k).v);
+    for(;len >= 2; k+=2, len-=2)
+        h = _mm_crc32_u16(h, 0x2020u|(*(const packed_uint16*)k).v);
+    for(;len >= 1; k+=1, len-=1)
+        h = _mm_crc32_u8(h, 0x20u|*(const uint8_t*)k);
     return h;
 }
 #else // fall back to murmur hash
@@ -224,12 +256,44 @@ hash_align8(const void* key, size_t len){
     return hash_align1(key, len);
 }
 
+force_inline
+uint32_t
+ascii_insensitive_hash_align1(const void* key_, size_t len){
+    const uint8_t* key = key_;
+    uint32_t seed = 4253307714;
+	uint32_t h = seed;
+    uint32_t k;
+    /* Read in groups of 4. */
+    for (size_t i = len >> 2; i; i--) {
+        k = 0x20202020u|(*(const packed_uint32*)key).v;
+        key += sizeof(uint32_t);
+        h ^= murmur_32_scramble(k);
+        h = (h << 13) | (h >> 19);
+        h = h * 5 + 0xe6546b64;
+    }
+    /* Read the rest. */
+    k = 0;
+    for (size_t i = len & 3; i; i--) {
+        k <<= 8;
+        k |= 0x20u|key[i - 1];
+    }
+    h ^= murmur_32_scramble(k);
+    /* Finalize. */
+	h ^= len;
+	h ^= h >> 16;
+	h *= 0x85ebca6b;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35;
+	h ^= h >> 16;
+	return h;
+}
+
 #endif
 
 #define hash_alignany(key, len) \
-      (sizeof(*key)&7) == 0? hash_align8(key, len) \
-    : (sizeof(*key)&3) == 0? hash_align4(key, len) \
-    : (sizeof(*key)&1) == 0? hash_align2(key, len) \
+      (_Alignof(*key)&7) == 0? hash_align8(key, len) \
+    : (_Alignof(*key)&3) == 0? hash_align4(key, len) \
+    : (_Alignof(*key)&1) == 0? hash_align2(key, len) \
     :                        hash_align1(key, len)
 
 static inline

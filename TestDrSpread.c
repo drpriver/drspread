@@ -937,12 +937,19 @@ TestFunction(TestComplexMultisheet){
         { SV("tlu('Strider', [Character], [Encumbrance])"),   8. },
         { SV("sum([Encumbrance])"),                          13.2},
         { SV("tlu('Gandalf', [Character], [Encumbrance2])"),  2. },
+        // tlu is not case insensitive, but the ranges are
+        { SV("tlu('Gandalf', [character], [encumbrance2])"),  2. },
         { SV("tlu('Frodo',   [Character], [Encumbrance2])"),  3.2},
         { SV("tlu('Strider', [Character], [Encumbrance2])"),  8. },
         { SV("sum([Encumbrance2])"),                         13.2},
         { SV("sum([Items, Weight] > 2)"),                     4. },
+        { SV("sum([Items, Weight])"),                        28.1},
+        // Columns are supposed to be case-insensitive
+        { SV("sum([Items, weight])"),                        28.1},
         // test the alias
         { SV("[Overview, Encumbrance, 1]"),                   2. },
+        // case insensitive
+        { SV("[overview, encumbrance, 1]"),                   2. },
     };
     SpreadSheet* sheet = &ms.sheets[0];
     DrSpreadCtx* ctx = drsp_create_ctx(&ops);

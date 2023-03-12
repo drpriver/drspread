@@ -8,7 +8,6 @@
 #include "drspread.h"
 #include "buff_allocator.h"
 #include "stringview.h"
-#include "hash_func.h"
 
 #ifdef __wasm__
 #include "drspread_wasm.h"
@@ -523,10 +522,10 @@ SheetData*_Nullable
 sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* data = &ctx->map.data[i];
-        if(sv_equals2(drsp_to_sv(data->name), name, len))
+        if(sv_iequals2(drsp_to_sv(data->name), name, len))
             return data;
         if(!data->alias) continue;
-        if(sv_equals2(drsp_to_sv(data->alias), name, len))
+        if(sv_iequals2(drsp_to_sv(data->alias), name, len))
             return data;
     }
     return NULL;
