@@ -44,6 +44,44 @@ get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* co
 }
 
 static inline
+int
+get_range1drow(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* row, intptr_t* colstart, intptr_t* colend, SheetHandle _Nonnull *_Nonnull rhnd, intptr_t caller_row, intptr_t caller_col){
+    if(arg->kind != EXPR_RANGE1D_ROW && arg->kind != EXPR_RANGE1D_ROW_FOREIGN)
+        return 1;
+    if(arg->kind == EXPR_RANGE1D_ROW_FOREIGN){
+        StringView sheet_name = ((ForeignRange1DRow*)arg)->sheet_name;
+        SheetHandle _Nullable h = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
+        if(!h) return 1;
+        hnd = h;
+        *rhnd = h;
+    }
+    Range1DRow* rng = (Range1DRow*)arg;
+    StringView sv_start = rng->col_start;
+    intptr_t start;
+    if(sv_equals(sv_start, SV("$")))
+        start = caller_col;
+    else
+        start = sp_name_to_col_idx(ctx, hnd, sv_start.text, sv_start.length);
+    StringView sv_end = rng->col_end;
+    intptr_t end;
+    if(sv_equals(sv_end, SV("$")))
+        end = caller_col;
+    else
+        end = sp_name_to_col_idx(ctx, hnd, sv_end.text, sv_end.length);
+    intptr_t row_idx = rng->row_idx;
+    if(row_idx == IDX_DOLLAR) row_idx = caller_row;
+    if(end < start){
+        intptr_t tmp = end;
+        end = start;
+        start = tmp;
+    }
+    *row = row_idx;
+    *colstart = start;
+    *colend = end;
+    return 0;
+}
+
+static inline
 _Bool
 evaled_is_not_scalar(Expression*_Nullable e){
     if(!e) return 1;
@@ -89,11 +127,13 @@ scalar_expr_is_truthy(Expression* e){
 
 static inline
 _Bool
-expr_is_columnar(Expression* e){
+expr_is_arraylike(Expression* e){
     switch(e->kind){
         case EXPR_RANGE1D_COLUMN:
         case EXPR_RANGE1D_COLUMN_FOREIGN:
-        case EXPR_COMPUTED_COLUMN:
+        case EXPR_COMPUTED_ARRAY:
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN:
             return 1;
         default:
             return 0;
@@ -102,9 +142,30 @@ expr_is_columnar(Expression* e){
 
 static inline
 Expression*_Nullable
-convert_to_computed_column(SpreadContext* ctx, SheetHandle hnd, Expression* e, intptr_t caller_row, intptr_t caller_col){
-    if(e->kind == EXPR_COMPUTED_COLUMN)
+convert_to_computed_array(SpreadContext* ctx, SheetHandle hnd, Expression* e, intptr_t caller_row, intptr_t caller_col){
+    if(e->kind == EXPR_COMPUTED_ARRAY)
         return e;
+    if(e->kind == EXPR_RANGE1D_ROW || e->kind == EXPR_RANGE1D_ROW_FOREIGN){
+        SheetHandle rhnd = hnd;
+        intptr_t row, colstart, colend;
+        if(get_range1drow(ctx, hnd, e, &row, &colstart, &colend, &rhnd, caller_row, caller_col))
+            return Error(ctx, "");
+        intptr_t len = colend - colstart + 1;
+        // Can't express a zero-length range
+        if(len <= 0) return Error(ctx, "");
+        ComputedArray* cc = computed_array_alloc(ctx, len);
+        if(!cc) return NULL;
+        Expression** data = cc->data;
+        intptr_t i = 0;
+        for(intptr_t col = colstart; col <= colend; col++){
+            Expression* val = evaluate(ctx, rhnd, row, col);
+            if(!val || val->kind == EXPR_ERROR) return val;
+            if(evaled_is_not_scalar(val)) return Error(ctx, "");
+            data[i++] = val;
+        }
+        assert(i == len);
+        return &cc->e;
+    }
     SheetHandle rhnd = hnd;
     intptr_t col, rstart, rend;
     if(get_range1dcol(ctx, hnd, e, &col, &rstart, &rend, &rhnd, caller_row, caller_col))
@@ -112,9 +173,8 @@ convert_to_computed_column(SpreadContext* ctx, SheetHandle hnd, Expression* e, i
     intptr_t len = rend - rstart + 1;
     // Can't express a zero-length range
     if(len <= 0) return Error(ctx, "");
-    ComputedColumn* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*len);
+    ComputedArray* cc = computed_array_alloc(ctx, len);
     if(!cc) return NULL;
-    cc->e.kind = EXPR_COMPUTED_COLUMN;
     Expression** data = cc->data;
     intptr_t i = 0;
     for(intptr_t row = rstart; row <= rend; row++){
@@ -124,7 +184,6 @@ convert_to_computed_column(SpreadContext* ctx, SheetHandle hnd, Expression* e, i
         data[i++] = val;
     }
     assert(i == len);
-    cc->length = len;
     return &cc->e;
 }
 

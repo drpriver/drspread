@@ -47,8 +47,6 @@
 //   'string', "string"
 //   (group)
 
-// This sucks, but not many languages have any way of abstracting over arity at all.
-
 DRSP_EXPORT
 int
 drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen){
@@ -67,14 +65,14 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _N
             Expression* e = evaluate(ctx, sheethandle, row, col);
             // benchmarking
             #ifdef BENCHMARKING
-                for(int i = 0; i < 1000000; i++){
+                for(int i = 0; i < 100000; i++){
                     buff_set(ctx->a, bc);
                     e = evaluate(ctx, sheethandle, row, col);
                 }
             #endif
             if(!e){ // OOM, don't cache the result.
                 nerrs++;
-                sp_set_display_error(ctx, sheethandle, row, col, "error", 5);
+                sp_set_display_error(ctx, sheethandle, row, col, "oom", 5);
                 continue;
             }
             CachedResult* cr = get_cached_result(&sd->result_cache, row, col);

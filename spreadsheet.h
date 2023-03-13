@@ -236,7 +236,7 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
         SheetRow ro = {0};
         SheetRow disp = {0};
         char* token;
-        while((token = strsep(&line, "|"))){
+        while((token = strsep(&line, "\t|"))){
             sheet_row_push(&ro, token);
             sheet_row_push(&disp, strdup(""));
         }
@@ -295,7 +295,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
         }
         char* token;
         if(need_colnames){
-            while((token = strsep(&line, "|"))){
+            while((token = strsep(&line, "\t|"))){
                 while(*token == ' ')
                     token++;
                 size_t len = strlen(token);
@@ -310,7 +310,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
         }
         SheetRow ro = {0};
         SheetRow disp = {0};
-        while((token = strsep(&line, "|"))){
+        while((token = strsep(&line, "\t|"))){
             sheet_row_push(&ro, token);
             sheet_row_push(&disp, strdup(""));
         }

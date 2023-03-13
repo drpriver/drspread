@@ -25,8 +25,8 @@ FORMULAFUNC(drsp_sum){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double sum = 0;
-    if(arg->kind == EXPR_COMPUTED_COLUMN){
-        ComputedColumn* c = (ComputedColumn*)arg;
+    if(arg->kind == EXPR_COMPUTED_ARRAY){
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind != EXPR_NUMBER)
@@ -34,13 +34,29 @@ FORMULAFUNC(drsp_sum){
             sum += ((Number*)e)->value;
         }
     }
-    else {
+    else if(arg->kind == EXPR_RANGE1D_COLUMN || arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         intptr_t col, start, end;
         SheetHandle rhnd = hnd;
         if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            sum += ((Number*)e)->value;
+            buff_set(ctx->a, bc);
+        }
+    }
+    else {
+        intptr_t row, start, end;
+        SheetHandle rhnd = hnd;
+        if(get_range1drow(ctx, hnd, arg, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
@@ -63,8 +79,8 @@ FORMULAFUNC(drsp_prod){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double prod = 1;
-    if(arg->kind == EXPR_COMPUTED_COLUMN){
-        ComputedColumn* c = (ComputedColumn*)arg;
+    if(arg->kind == EXPR_COMPUTED_ARRAY){
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind != EXPR_NUMBER)
@@ -72,13 +88,29 @@ FORMULAFUNC(drsp_prod){
             prod *= ((Number*)e)->value;
         }
     }
-    else {
+    else if(arg->kind == EXPR_RANGE1D_COLUMN || arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         intptr_t col, start, end;
         SheetHandle rhnd = hnd;
         if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            prod *= ((Number*)e)->value;
+            buff_set(ctx->a, bc);
+        }
+    }
+    else {
+        intptr_t row, start, end;
+        SheetHandle rhnd = hnd;
+        if(get_range1drow(ctx, hnd, arg, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
@@ -105,8 +137,8 @@ FORMULAFUNC(drsp_avg){
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double sum = 0.;
     double count = 0.;
-    if(arg->kind == EXPR_COMPUTED_COLUMN){
-        ComputedColumn* c = (ComputedColumn*)arg;
+    if(arg->kind == EXPR_COMPUTED_ARRAY){
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind != EXPR_NUMBER) continue;
@@ -114,13 +146,30 @@ FORMULAFUNC(drsp_avg){
             count += 1.0;
         }
     }
-    else {
+    else if(arg->kind == EXPR_RANGE1D_COLUMN || arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         intptr_t col, start, end;
         SheetHandle rhnd = hnd;
         if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            sum += ((Number*)e)->value;
+            count += 1.0;
+            buff_set(ctx->a, bc);
+        }
+    }
+    else {
+        intptr_t row, start, end;
+        SheetHandle rhnd = hnd;
+        if(get_range1drow(ctx, hnd, arg, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
@@ -145,8 +194,8 @@ FORMULAFUNC(drsp_count){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     intptr_t count = 0;
-    if(arg->kind == EXPR_COMPUTED_COLUMN){
-        ComputedColumn* c = (ComputedColumn*)arg;
+    if(arg->kind == EXPR_COMPUTED_ARRAY){
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e= c->data[i];
             if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
@@ -154,13 +203,29 @@ FORMULAFUNC(drsp_count){
             count += 1;
         }
     }
-    else {
+    else if(arg->kind == EXPR_RANGE1D_COLUMN || arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         SheetHandle rhnd = hnd;
         intptr_t col, start, end;
         if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(e->kind != EXPR_NUMBER && e->kind != EXPR_STRING)
+                continue;
+            count += 1;
+            buff_set(ctx->a, bc);
+        }
+    }
+    else {
+        SheetHandle rhnd = hnd;
+        intptr_t row, start, end;
+        if(get_range1drow(ctx, hnd, arg, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
@@ -201,8 +266,8 @@ FORMULAFUNC(drsp_min){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double v = 1e32;
-    if(arg->kind == EXPR_COMPUTED_COLUMN){
-        ComputedColumn* c = (ComputedColumn*)arg;
+    if(arg->kind == EXPR_COMPUTED_ARRAY){
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind != EXPR_NUMBER) continue;
@@ -210,13 +275,30 @@ FORMULAFUNC(drsp_min){
                 v = ((Number*)e)->value;
         }
     }
-    else {
+    else if(arg->kind == EXPR_RANGE1D_COLUMN || arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         SheetHandle rhnd = hnd;
         intptr_t col, start, end;
         if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            if(((Number*)e)->value < v)
+                v = ((Number*)e)->value;
+            buff_set(ctx->a, bc);
+        }
+    }
+    else {
+        SheetHandle rhnd = hnd;
+        intptr_t row, start, end;
+        if(get_range1drow(ctx, hnd, arg, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
@@ -259,8 +341,8 @@ FORMULAFUNC(drsp_max){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     double v = -1e32;
-    if(arg->kind == EXPR_COMPUTED_COLUMN){
-        ComputedColumn* c = (ComputedColumn*)arg;
+    if(arg->kind == EXPR_COMPUTED_ARRAY){
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind != EXPR_NUMBER) continue;
@@ -268,13 +350,30 @@ FORMULAFUNC(drsp_max){
                 v = ((Number*)e)->value;
         }
     }
-    else {
+    else if(arg->kind == EXPR_RANGE1D_COLUMN || arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         SheetHandle rhnd = hnd;
         intptr_t col, start, end;
         if(get_range1dcol(ctx, hnd, arg, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
+            BuffCheckpoint bc = buff_checkpoint(ctx->a);
+            Expression* e = evaluate(ctx, rhnd, row, col);
+            if(!e || e->kind == EXPR_ERROR) return e;
+            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(e->kind != EXPR_NUMBER) continue;
+            if(((Number*)e)->value > v)
+                v = ((Number*)e)->value;
+            buff_set(ctx->a, bc);
+        }
+    }
+    else {
+        SheetHandle rhnd = hnd;
+        intptr_t row, start, end;
+        if(get_range1drow(ctx, hnd, arg, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+            return Error(ctx, "");
+        // NOTE: inclusive range
+        for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rhnd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
@@ -297,10 +396,10 @@ FORMULAFUNC(drsp_mod){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -331,10 +430,10 @@ FORMULAFUNC(drsp_floor){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -363,10 +462,10 @@ FORMULAFUNC(drsp_ceil){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -395,10 +494,10 @@ FORMULAFUNC(drsp_trunc){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -427,10 +526,10 @@ FORMULAFUNC(drsp_round){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -459,10 +558,10 @@ FORMULAFUNC(drsp_abs){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -491,10 +590,10 @@ FORMULAFUNC(drsp_sqrt){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL)
@@ -533,11 +632,11 @@ FORMULAFUNC(drsp_num){
     }
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR)
             return arg;
-        ComputedColumn* cc = (ComputedColumn*)arg;
+        ComputedArray* cc = (ComputedArray*)arg;
         for(intptr_t i = 0; i < cc->length; i++){
             Expression* e = cc->data[i];
             if(e->kind == EXPR_NUMBER)
@@ -564,11 +663,11 @@ FORMULAFUNC(drsp_num){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_try){
     if(argc != 2) return Error(ctx, "");
-    char* chk = ctx->a->cursor;
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg) return NULL;
     if(arg->kind != EXPR_ERROR) return arg;
-    ctx->a->cursor = chk;
+    buff_set(ctx->a, bc);
     return evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
 }
 
@@ -685,14 +784,78 @@ FORMULAFUNC(drsp_col){
 }
 
 DRSP_INTERNAL
+FORMULAFUNC(drsp_row){
+    // This expresses a row range literal, which we don't have.
+    if(argc != 3 && argc != 4) return Error(ctx, "");
+    StringView startcol = {0}, endcol = {0}, sheetname = {0};
+    intptr_t row_idx;
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    if(argc == 4){
+        // first arg is sheet name
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_STRING) return Error(ctx, "");
+        sheetname = ((String*)arg)->sv;
+        buff_set(ctx->a, bc);
+        argc--, argv++;
+    }
+    {
+        // first arg is first colname
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_STRING) return Error(ctx, "");
+        startcol = ((String*)arg)->sv;
+        buff_set(ctx->a, bc);
+        argc--, argv++;
+    }
+    {
+        // second arg is second colname
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_STRING) return Error(ctx, "");
+        endcol = ((String*)arg)->sv;
+        buff_set(ctx->a, bc);
+        argc--, argv++;
+    }
+    {
+        // last arg is row idx
+        Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_NUMBER) return Error(ctx, "");
+        // XXX overflow checking
+        row_idx = (intptr_t)((Number*)arg)->value;
+        if(row_idx > 0) row_idx--;
+        buff_set(ctx->a, bc);
+        argc--, argv++;
+    }
+    if(sheetname.length){
+        ForeignRange1DRow* result = expr_alloc(ctx, EXPR_RANGE1D_ROW_FOREIGN);
+        if(!result) return NULL;
+        result->r.col_start = startcol;
+        result->r.col_end = endcol;
+        result->r.row_idx = row_idx;
+        result->sheet_name = sheetname;
+        return &result->e;
+    }
+    else {
+        Range1DRow* result = expr_alloc(ctx, EXPR_RANGE1D_ROW);
+        if(!result) return NULL;
+        result->col_start = startcol;
+        result->col_end = endcol;
+        result->row_idx = row_idx;
+        return &result->e;
+    }
+}
+
+DRSP_INTERNAL
 FORMULAFUNC(drsp_eval){
     if(argc != 1) return Error(ctx, "");
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_NULL) continue;
@@ -716,13 +879,13 @@ FORMULAFUNC(drsp_pow){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_columnar(arg)){
-        arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
         if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
-        ComputedColumn* c = (ComputedColumn*)arg;
+        ComputedArray* c = (ComputedArray*)arg;
         if(arg2->kind == EXPR_NUMBER){
             double exp = ((Number*)arg2)->value;
             for(intptr_t i = 0; i < c->length; i++){
@@ -734,11 +897,11 @@ FORMULAFUNC(drsp_pow){
                 n->value = __builtin_pow(n->value, exp);
             }
         }
-        else if(expr_is_columnar(arg2)){
-            arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
+        else if(expr_is_arraylike(arg2)){
+            arg2 = convert_to_computed_array(ctx, hnd, arg2, caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_NULL)
                 return arg2;
-            ComputedColumn* exps = (ComputedColumn*)arg2;
+            ComputedArray* exps = (ComputedArray*)arg2;
             if(c->length != exps->length)
                 return Error(ctx, "");
             for(intptr_t i = 0; i < c->length; i++){
@@ -792,13 +955,13 @@ FORMULAFUNC(drsp_cat){
     if(argc == 2){
         Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(expr_is_columnar(arg)){
-            arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+        if(expr_is_arraylike(arg)){
+            arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
             if(!arg || arg->kind == EXPR_ERROR) return arg;
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* arg2 = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
-            ComputedColumn* c = (ComputedColumn*)arg;
+            ComputedArray* c = (ComputedArray*)arg;
             if(arg2->kind == EXPR_NULL){
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
@@ -823,11 +986,11 @@ FORMULAFUNC(drsp_cat){
                     if(err) return Error(ctx, "");
                 }
             }
-            else if(expr_is_columnar(arg2)){
-                arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
+            else if(expr_is_arraylike(arg2)){
+                arg2 = convert_to_computed_array(ctx, hnd, arg2, caller_row, caller_col);
                 if(!arg2 || arg2->kind == EXPR_ERROR)
                     return arg2;
-                ComputedColumn* rights = (ComputedColumn*)arg2;
+                ComputedArray* rights = (ComputedArray*)arg2;
                 if(c->length != rights->length)
                     return Error(ctx, "");
                 for(intptr_t i = 0; i < c->length; i++){
@@ -868,10 +1031,10 @@ FORMULAFUNC(drsp_cat){
                 buff_set(ctx->a, bc);
                 return arg2;
             }
-            if(expr_is_columnar(arg2)){
-                arg2 = convert_to_computed_column(ctx, hnd, arg2, caller_row, caller_col);
+            if(expr_is_arraylike(arg2)){
+                arg2 = convert_to_computed_array(ctx, hnd, arg2, caller_row, caller_col);
                 if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
-                ComputedColumn* c = (ComputedColumn*)arg2;
+                ComputedArray* c = (ComputedArray*)arg2;
                 if(arg->kind != EXPR_NULL)
                     catbuff[0] = ((String*)arg)->sv;
                 for(intptr_t i = 0; i < c->length; i++){
@@ -926,7 +1089,7 @@ FORMULAFUNC(drsp_cat){
         }
     }
     else {
-        _Bool is_columnar = false;
+        _Bool is_arraylike = false;
         intptr_t column_length = 0;
         for(int i = 0; i < argc; i++){
             argv[i] = evaluate_expr(ctx, hnd, argv[i], caller_row, caller_col);
@@ -934,14 +1097,14 @@ FORMULAFUNC(drsp_cat){
                 buff_set(ctx->a, bc);
                 return argv[i];
             }
-            if(expr_is_columnar(argv[i])){
-                is_columnar = true;
-                argv[i] = convert_to_computed_column(ctx, hnd, argv[i], caller_row, caller_col);
+            if(expr_is_arraylike(argv[i])){
+                is_arraylike = true;
+                argv[i] = convert_to_computed_array(ctx, hnd, argv[i], caller_row, caller_col);
                 if(!argv[i] || argv[i]->kind == EXPR_ERROR){
                     buff_set(ctx->a, bc);
                     return argv[i];
                 }
-                ComputedColumn* c = (ComputedColumn*)argv[i];
+                ComputedArray* c = (ComputedArray*)argv[i];
                 if(c->length > column_length){
                     column_length = c->length;
                 }
@@ -951,13 +1114,11 @@ FORMULAFUNC(drsp_cat){
                 return Error(ctx, "");
             }
         }
-        if(is_columnar){
+        if(is_arraylike){
             if(!column_length)
                 return Error(ctx, "");
-            ComputedColumn* result = buff_alloc(ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*column_length);
+            ComputedArray* result = computed_array_alloc(ctx, column_length);
             if(!result) return Error(ctx, "oom");
-            result->e.kind = EXPR_COMPUTED_COLUMN;
-            result->length = column_length;
             for(intptr_t r = 0; r < column_length; r++){
                 for(int i = 0; i < argc; i++){
                     Expression* e = argv[i];
@@ -968,7 +1129,7 @@ FORMULAFUNC(drsp_cat){
                         catbuff[i] = SV("");
                     }
                     else {
-                        ComputedColumn* c = (ComputedColumn*)argv[i];
+                        ComputedArray* c = (ComputedArray*)argv[i];
                         if(r >= c->length){
                             catbuff[i] = SV("");
                         }
@@ -1022,29 +1183,29 @@ FORMULAFUNC(drsp_cat){
 
 static inline
 Expression*_Nullable
-columnar_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, intptr_t caller_col, Expression* needle, int argc, Expression*_Nonnull*_Nonnull argv){
-    needle = convert_to_computed_column(ctx, hnd, needle, caller_row, caller_col);
+arraylike_tablelookup(SpreadContext* ctx, SheetHandle hnd, intptr_t caller_row, intptr_t caller_col, Expression* needle, int argc, Expression*_Nonnull*_Nonnull argv){
+    needle = convert_to_computed_array(ctx, hnd, needle, caller_row, caller_col);
     if(!needle || needle->kind == EXPR_ERROR)
         return needle;
-    ComputedColumn* cneedle = (ComputedColumn*)needle;
+    ComputedArray* cneedle = (ComputedArray*)needle;
     // TODO: Use checkpoints.
     // TODO: lazier computation.
     // BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* haystack = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!haystack || haystack->kind == EXPR_ERROR)
         return haystack;
-    haystack = convert_to_computed_column(ctx, hnd, haystack, caller_row, caller_col);
+    haystack = convert_to_computed_array(ctx, hnd, haystack, caller_row, caller_col);
     if(!haystack || haystack->kind == EXPR_ERROR)
         return haystack;
-    ComputedColumn* chaystack = (ComputedColumn*)haystack;
+    ComputedArray* chaystack = (ComputedArray*)haystack;
     argc--, argv++;
     Expression* values = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!values || values->kind == EXPR_ERROR)
         return values;
-    values = convert_to_computed_column(ctx, hnd, values, caller_row, caller_col);
+    values = convert_to_computed_array(ctx, hnd, values, caller_row, caller_col);
     if(!values || values->kind == EXPR_ERROR)
         return values;
-    ComputedColumn* cvalues = (ComputedColumn*)values;
+    ComputedArray* cvalues = (ComputedArray*)values;
     Expression* default_ = NULL;
     for(intptr_t i = 0; i < cneedle->length; i++){
         Expression* n = cneedle->data[i];
@@ -1104,8 +1265,8 @@ FORMULAFUNC(drsp_tablelookup){
     {
         Expression* needle = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!needle || needle->kind == EXPR_ERROR) return needle;
-        if(expr_is_columnar(needle))
-            return columnar_tablelookup(ctx, hnd, caller_row, caller_col, needle, argc-1, argv+1);
+        if(expr_is_arraylike(needle))
+            return arraylike_tablelookup(ctx, hnd, caller_row, caller_col, needle, argc-1, argv+1);
         nkind = needle->kind;
         if(nkind == EXPR_NULL){
             if(argc == 4){
@@ -1128,9 +1289,9 @@ FORMULAFUNC(drsp_tablelookup){
         if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
             return Error(ctx, "");
 
-        char*const loopchk = ctx->a->cursor;
+        BuffCheckpoint loopbc = buff_checkpoint(ctx->a);
         if(nkind == EXPR_STRING){
-            for(intptr_t row = start; row <= end; ctx->a->cursor=loopchk, row++){
+            for(intptr_t row = start; row <= end; buff_set(ctx->a,loopbc), row++){
                 Expression* e = evaluate(ctx, rhnd, row, col);
                 if(!e) return e;
                 if(e->kind != EXPR_STRING) continue;
@@ -1141,7 +1302,7 @@ FORMULAFUNC(drsp_tablelookup){
             }
         }
         else {
-            for(intptr_t row = start; row <= end; ctx->a->cursor=loopchk, row++){
+            for(intptr_t row = start; row <= end; buff_set(ctx->a, loopbc), row++){
                 Expression* e = evaluate(ctx, rhnd, row, col);
                 if(!e) return e;
                 if(e->kind != EXPR_NUMBER) continue;
@@ -1175,7 +1336,7 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_find){
     // "needle", [haystack]
     if(argc != 2 && argc != 3) return Error(ctx, "");
-    char* chk = ctx->a->cursor;
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     ExpressionKind nkind;
     union {
         StringView s;
@@ -1190,41 +1351,94 @@ FORMULAFUNC(drsp_find){
             nval.d = ((Number*)needle)->value;
         else if(nkind == EXPR_STRING)
             nval.s = ((String*)needle)->sv;
-        ctx->a->cursor = chk;
+        buff_set(ctx->a, bc);
     }
     intptr_t offset = -1;
     {
         Expression* haystack = evaluate_expr(ctx, hnd, argv[1], caller_row, caller_col);
         if(!haystack || haystack->kind == EXPR_ERROR) return haystack;
-        if(haystack->kind != EXPR_RANGE1D_COLUMN) return Error(ctx, "");
-        intptr_t col, start, end;
-        SheetHandle rhnd = hnd;
-        if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
-
-        char* loopchk = ctx->a->cursor;
-        for(intptr_t row = start; row <= end; ctx->a->cursor=loopchk, row++){
-            Expression* e = evaluate(ctx, rhnd, row, col);
-            if(!e) return e;
-            if(e->kind != nkind) continue;
-            if(nkind == EXPR_NULL){
-                offset = row - start;
-                break;
-            }
-            if(nkind == EXPR_STRING){
-                if(sv_equals(nval.s, ((String*)e)->sv)){
-                    offset = row - start;
+        if(haystack->kind == EXPR_COMPUTED_ARRAY){
+            ComputedArray* cc = (ComputedArray*)haystack;
+            for(intptr_t i = 0; i < cc->length; i++){
+                Expression* e = cc->data[i];
+                if(e->kind != nkind) continue;
+                if(nkind == EXPR_NULL){
+                    offset = i;
                     break;
                 }
-            }
-            else if(nkind == EXPR_NUMBER){
-                if(nval.d == ((Number*)e)->value){
-                    offset = row - start;
-                    break;
+                if(nkind == EXPR_STRING){
+                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                        offset = i;
+                        break;
+                    }
+                }
+                else if(nkind == EXPR_NUMBER){
+                    if(nval.d == ((Number*)e)->value){
+                        offset = i;
+                        break;
+                    }
                 }
             }
         }
-        ctx->a->cursor = chk;
+        else if(haystack->kind == EXPR_RANGE1D_COLUMN || haystack->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+            intptr_t col, start, end;
+            SheetHandle rhnd = hnd;
+            if(get_range1dcol(ctx, hnd, haystack, &col, &start, &end, &rhnd, caller_row, caller_col) != 0)
+                return Error(ctx, "");
+
+            BuffCheckpoint loopchk = buff_checkpoint(ctx->a);
+            for(intptr_t row = start; row <= end; buff_set(ctx->a, loopchk), row++){
+                Expression* e = evaluate(ctx, rhnd, row, col);
+                if(!e) return e;
+                if(e->kind != nkind) continue;
+                if(nkind == EXPR_NULL){
+                    offset = row - start;
+                    break;
+                }
+                if(nkind == EXPR_STRING){
+                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                        offset = row - start;
+                        break;
+                    }
+                }
+                else if(nkind == EXPR_NUMBER){
+                    if(nval.d == ((Number*)e)->value){
+                        offset = row - start;
+                        break;
+                    }
+                }
+            }
+        }
+        else {
+            intptr_t row, start, end;
+            SheetHandle rhnd = hnd;
+            if(get_range1drow(ctx, hnd, haystack, &row, &start, &end, &rhnd, caller_row, caller_col) != 0)
+                return Error(ctx, "");
+
+            BuffCheckpoint loopchk = buff_checkpoint(ctx->a);
+            for(intptr_t col = start; col <= end; buff_set(ctx->a, loopchk), col++){
+                Expression* e = evaluate(ctx, rhnd, row, col);
+                if(!e) return e;
+                if(e->kind != nkind) continue;
+                if(nkind == EXPR_NULL){
+                    offset = col - start;
+                    break;
+                }
+                if(nkind == EXPR_STRING){
+                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                        offset = col - start;
+                        break;
+                    }
+                }
+                else if(nkind == EXPR_NUMBER){
+                    if(nval.d == ((Number*)e)->value){
+                        offset = col - start;
+                        break;
+                    }
+                }
+            }
+        }
+        buff_set(ctx->a, bc);
     }
     if(offset < 0) {
         if(argc == 3)
@@ -1246,7 +1460,6 @@ FORMULAFUNC(drsp_call){
     StringView name = ((String*)arg)->sv;
 
     FormulaFunc* func = lookup_func(name);
-        NULL;
     if(!func) return Error(ctx, "");
     argc--, argv++;
     return func(ctx, hnd, caller_row, caller_col, argc, argv);
@@ -1259,12 +1472,12 @@ FORMULAFUNC(drsp_first){
     Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR)
         return arg;
-    if(!expr_is_columnar(arg))
+    if(!expr_is_arraylike(arg))
         return Error(ctx, "");
-    arg = convert_to_computed_column(ctx, hnd, arg, caller_row, caller_col);
+    arg = convert_to_computed_array(ctx, hnd, arg, caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR)
         return arg;
-    ComputedColumn* c = (ComputedColumn*)arg;
+    ComputedArray* c = (ComputedArray*)arg;
     if(!c->length)
         return Error(ctx, "");
     return c->data[0];
@@ -1274,10 +1487,8 @@ FORMULAFUNC(drsp_first){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_array){
     if(!argc) return Error(ctx, "");
-    ComputedColumn* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedColumn, data)+sizeof(Expression*)*argc);
+    ComputedArray* cc = computed_array_alloc(ctx, argc);
     if(!cc) return NULL;
-    cc->e.kind = EXPR_COMPUTED_COLUMN;
-    cc->length = argc;
     for(int i = 0; i < argc; i++){
         Expression* e = evaluate_expr(ctx, hnd, argv[i], caller_row, caller_col);
         if(!e || e->kind == EXPR_ERROR)
@@ -1294,16 +1505,17 @@ FORMULAFUNC(drsp_if){
     Expression* cond = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
     if(!cond || cond->kind == EXPR_ERROR)
         return cond;
-    if(expr_is_columnar(cond)){
-        cond = convert_to_computed_column(ctx, hnd, cond, caller_row, caller_col);
+    if(expr_is_arraylike(cond)){
+        cond = convert_to_computed_array(ctx, hnd, cond, caller_row, caller_col);
         if(!cond || cond->kind == EXPR_ERROR)
             return cond;
-        ComputedColumn* cc = (ComputedColumn*)cond;
+        ComputedArray* cc = (ComputedArray*)cond;
         Expression* t = NULL;
         Expression* f = NULL;
-        intptr_t tcol = IDX_UNSET, tstart, tend;
+        // col or based on type
+        intptr_t tcol_or_row = IDX_UNSET, tstart, tend;
         SheetHandle thnd = hnd;
-        intptr_t fcol = IDX_UNSET, fstart, fend;
+        intptr_t fcol_or_row = IDX_UNSET, fstart, fend;
         SheetHandle fhnd = hnd;
         for(intptr_t i = 0; i < cc->length; i++){
             Expression* e = cc->data[i];
@@ -1315,8 +1527,8 @@ FORMULAFUNC(drsp_if){
                     if(!t || t->kind == EXPR_ERROR)
                         return t;
                 }
-                if(t->kind == EXPR_COMPUTED_COLUMN){
-                    ComputedColumn* tc = (ComputedColumn*)t;
+                if(t->kind == EXPR_COMPUTED_ARRAY){
+                    ComputedArray* tc = (ComputedArray*)t;
                     if(i >= tc->length){
                         return Error(ctx, "");
                     }
@@ -1326,13 +1538,25 @@ FORMULAFUNC(drsp_if){
                     cc->data[i] = t;
                 }
                 else if(t->kind == EXPR_RANGE1D_COLUMN || t->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
-                    if(tcol == IDX_UNSET){
-                        if(get_range1dcol(ctx, hnd, t, &tcol, &tstart, &tend, &thnd, caller_row, caller_col))
+                    if(tcol_or_row == IDX_UNSET){
+                        if(get_range1dcol(ctx, hnd, t, &tcol_or_row, &tstart, &tend, &thnd, caller_row, caller_col))
                             return Error(ctx, "");
                     }
                     if(tstart + i > tend)
                         return Error(ctx, "");
-                    Expression* te = evaluate(ctx, thnd, tstart+i, tcol);
+                    Expression* te = evaluate(ctx, thnd, tstart+i, tcol_or_row);
+                    if(!te || te->kind == EXPR_ERROR)
+                        return te;
+                    cc->data[i] = te;
+                }
+                else if(t->kind == EXPR_RANGE1D_ROW || t->kind == EXPR_RANGE1D_ROW_FOREIGN){
+                    if(tcol_or_row == IDX_UNSET){
+                        if(get_range1drow(ctx, hnd, t, &tcol_or_row, &tstart, &tend, &thnd, caller_row, caller_col))
+                            return Error(ctx, "");
+                    }
+                    if(tstart + i > tend)
+                        return Error(ctx, "");
+                    Expression* te = evaluate(ctx, thnd, tcol_or_row, tstart+i);
                     if(!te || te->kind == EXPR_ERROR)
                         return te;
                     cc->data[i] = te;
@@ -1347,8 +1571,8 @@ FORMULAFUNC(drsp_if){
                     if(!f || f->kind == EXPR_ERROR)
                         return f;
                 }
-                if(f->kind == EXPR_COMPUTED_COLUMN){
-                    ComputedColumn* fc = (ComputedColumn*)f;
+                if(f->kind == EXPR_COMPUTED_ARRAY){
+                    ComputedArray* fc = (ComputedArray*)f;
                     if(i >= fc->length){
                         return Error(ctx, "");
                     }
@@ -1358,13 +1582,25 @@ FORMULAFUNC(drsp_if){
                     cc->data[i] = f;
                 }
                 else if(f->kind == EXPR_RANGE1D_COLUMN || f->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
-                    if(fcol == IDX_UNSET){
-                        if(get_range1dcol(ctx, hnd, f, &fcol, &fstart, &fend, &fhnd, caller_row, caller_col))
+                    if(fcol_or_row == IDX_UNSET){
+                        if(get_range1dcol(ctx, hnd, f, &fcol_or_row, &fstart, &fend, &fhnd, caller_row, caller_col))
                             return Error(ctx, "");
                     }
                     if(fstart + i > fend)
                         return Error(ctx, "");
-                    Expression* fe = evaluate(ctx, fhnd, fstart+i, fcol);
+                    Expression* fe = evaluate(ctx, fhnd, fstart+i, fcol_or_row);
+                    if(!fe || fe->kind == EXPR_ERROR)
+                        return fe;
+                    cc->data[i] = fe;
+                }
+                else if(f->kind == EXPR_RANGE1D_ROW || f->kind == EXPR_RANGE1D_ROW_FOREIGN){
+                    if(fcol_or_row == IDX_UNSET){
+                        if(get_range1drow(ctx, hnd, f, &fcol_or_row, &fstart, &fend, &fhnd, caller_row, caller_col))
+                            return Error(ctx, "");
+                    }
+                    if(fstart + i > fend)
+                        return Error(ctx, "");
+                    Expression* fe = evaluate(ctx, fhnd, fcol_or_row, fstart+i);
                     if(!fe || fe->kind == EXPR_ERROR)
                         return fe;
                     cc->data[i] = fe;
@@ -1450,6 +1686,7 @@ const FuncInfo FUNC3[] = {
     {SV("pow"),   &drsp_pow},
     {SV("col"),   &drsp_col},
     {SV("cat"),   &drsp_cat},
+    {SV("row"),   &drsp_row},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC4[] = {

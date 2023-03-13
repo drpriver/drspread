@@ -74,7 +74,7 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
         unsigned char tmp[sizeof(union ExprU)];
         ExpressionKind kind = e->kind;
         switch(kind){
-            case EXPR_COMPUTED_COLUMN:
+            case EXPR_COMPUTED_ARRAY:
                 return e;
             default:
                 memcpy(tmp, e, expr_size(kind));
@@ -131,16 +131,16 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
         rhs = evaluate_expr(ctx, hnd, rhs, caller_row, caller_col);
         if(!rhs || rhs->kind == EXPR_ERROR)
             BAD(rhs);
-        _Bool lcolumnar = expr_is_columnar(lhs);
-        _Bool rcolumnar = expr_is_columnar(rhs);
-        if(lcolumnar || rcolumnar){
-            if(lcolumnar && !rcolumnar){
+        _Bool larraylike = expr_is_arraylike(lhs);
+        _Bool rarraylike = expr_is_arraylike(rhs);
+        if(larraylike || rarraylike){
+            if(larraylike && !rarraylike){
                 if(rhs->kind != EXPR_STRING && rhs->kind != EXPR_NUMBER)
                     BAD(Error(ctx, ""));
-                lhs = convert_to_computed_column(ctx, hnd, lhs, caller_row, caller_col);
+                lhs = convert_to_computed_array(ctx, hnd, lhs, caller_row, caller_col);
                 if(!lhs || lhs->kind == EXPR_ERROR)
                     BAD(lhs);
-                ComputedColumn* l = (ComputedColumn*)lhs;
+                ComputedArray* l = (ComputedArray*)lhs;
                 if(rhs->kind == EXPR_STRING){
                     StringView r = ((String*)rhs)->sv;
                     for(intptr_t i = 0; i < l->length; i++){
@@ -180,13 +180,13 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                 }
                 return lhs;
             }
-            else if(rcolumnar && !lcolumnar){
+            else if(rarraylike && !larraylike){
                 if(lhs->kind != EXPR_STRING && lhs->kind != EXPR_NUMBER)
                     BAD(Error(ctx, ""));
-                rhs = convert_to_computed_column(ctx, hnd, rhs, caller_row, caller_col);
+                rhs = convert_to_computed_array(ctx, hnd, rhs, caller_row, caller_col);
                 if(!rhs || rhs->kind == EXPR_ERROR)
                     BAD(rhs);
-                ComputedColumn* r = (ComputedColumn*)rhs;
+                ComputedArray* r = (ComputedArray*)rhs;
                 if(lhs->kind == EXPR_STRING){
                     StringView l = ((String*)lhs)->sv;
                     for(intptr_t i = 0; i < r->length; i++){
@@ -227,8 +227,14 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                 return rhs;
             }
             else {
-                assert(rcolumnar && lcolumnar);
-                if(lhs->kind != EXPR_COMPUTED_COLUMN && rhs->kind == EXPR_COMPUTED_COLUMN){
+                assert(rarraylike && larraylike);
+                // XXX: we could lazily iterate over the row range, but fuck it.
+                if(rhs->kind == EXPR_RANGE1D_ROW || rhs->kind == EXPR_RANGE1D_ROW_FOREIGN){
+                    rhs = convert_to_computed_array(ctx, hnd, rhs, caller_row, caller_col);
+                    if(!rhs || rhs->kind == EXPR_ERROR)
+                        BAD(rhs);
+                }
+                if(lhs->kind != EXPR_COMPUTED_ARRAY && rhs->kind == EXPR_COMPUTED_ARRAY){
                     // Special case to avoid allocation
                     _Bool can_swap = 0;
                     // Could add swapped binary operands.
@@ -250,12 +256,19 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                         rhs = tmp;
                     }
                 }
-                lhs = convert_to_computed_column(ctx, hnd, lhs, caller_row, caller_col);
+                lhs = convert_to_computed_array(ctx, hnd, lhs, caller_row, caller_col);
                 if(!lhs || lhs->kind == EXPR_ERROR)
                     BAD(lhs);
-                ComputedColumn* l = (ComputedColumn*)lhs;
-                if(rhs->kind == EXPR_COMPUTED_COLUMN){
-                    ComputedColumn* r = (ComputedColumn*)rhs;
+                ComputedArray* l = (ComputedArray*)lhs;
+                // XXX: we could lazily iterate over the row range, but fuck it.
+                if(rhs->kind == EXPR_RANGE1D_ROW || rhs->kind == EXPR_RANGE1D_ROW_FOREIGN){
+                    rhs = convert_to_computed_array(ctx, hnd, rhs, caller_row, caller_col);
+                    if(!rhs || rhs->kind == EXPR_ERROR)
+                        BAD(rhs);
+                }
+
+                if(rhs->kind == EXPR_COMPUTED_ARRAY){
+                    ComputedArray* r = (ComputedArray*)rhs;
                     if(l->length != r->length){
                         BAD(Error(ctx, ""));
                     }
@@ -371,7 +384,9 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
         case EXPR_NUMBER:
         case EXPR_RANGE1D_COLUMN:
         case EXPR_RANGE1D_COLUMN_FOREIGN:
-        case EXPR_COMPUTED_COLUMN:
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN:
+        case EXPR_COMPUTED_ARRAY:
         case EXPR_STRING:
             return expr;
         case EXPR_FUNCTION_CALL:{

@@ -117,10 +117,12 @@ enum ExpressionKind: uintptr_t {
     EXPR_RANGE0D_FOREIGN,
     EXPR_RANGE1D_COLUMN,
     EXPR_RANGE1D_COLUMN_FOREIGN,
+    EXPR_RANGE1D_ROW,
+    EXPR_RANGE1D_ROW_FOREIGN,
     EXPR_GROUP,
     EXPR_BINARY,
     EXPR_UNARY,
-    EXPR_COMPUTED_COLUMN,
+    EXPR_COMPUTED_ARRAY,
     // EXPR_TYPED_COLUMN,
 };
 typedef enum ExpressionKind ExpressionKind;
@@ -196,10 +198,26 @@ struct Range1DColumn {
     intptr_t row_start, row_end; // inclusive
 };
 
+typedef struct Range1DRow Range1DRow;
+struct Range1DRow {
+    Expression e;
+    intptr_t row_idx;
+    StringView col_start, col_end; // inclusive
+};
+
 typedef struct ForeignRange1DColumn ForeignRange1DColumn;
 struct ForeignRange1DColumn {
     union {
         Range1DColumn r;
+        Expression e;
+    };
+    StringView sheet_name;
+};
+
+typedef struct ForeignRange1DRow ForeignRange1DRow;
+struct ForeignRange1DRow {
+    union {
+        Range1DRow r;
         Expression e;
     };
     StringView sheet_name;
@@ -230,8 +248,8 @@ struct String {
     StringView sv;
 };
 
-typedef struct ComputedColumn ComputedColumn;
-struct ComputedColumn {
+typedef struct ComputedArray ComputedArray;
+struct ComputedArray {
     Expression e;
     intptr_t length;
     _Alignas(uintptr_t) Expression*_Nonnull data[];
@@ -413,6 +431,10 @@ force_inline
 void*_Nullable
 expr_alloc(SpreadContext* ctx, ExpressionKind kind);
 
+force_inline
+ComputedArray*_Nullable
+computed_array_alloc(SpreadContext* ctx, size_t nitems);
+
 static inline
 Expression*_Nullable
 cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
@@ -562,22 +584,22 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
         case EXPR_ERROR:
             return &ctx->error;
             break;
-        case EXPR_NUMBER:          sz = sizeof(Number); break;
-        case EXPR_FUNCTION_CALL:   sz = sizeof(FunctionCall); break;
-        case EXPR_RANGE0D_FOREIGN: sz = sizeof(ForeignRange0D); break;
-        case EXPR_RANGE0D:         sz = sizeof(Range0D); break;
-        case EXPR_RANGE1D_COLUMN_FOREIGN:
-            sz = sizeof(ForeignRange1DColumn);
-            break;
-        case EXPR_RANGE1D_COLUMN:  sz = sizeof(Range1DColumn); break;
-        case EXPR_GROUP:           sz = sizeof(Group); break;
-        case EXPR_BINARY:          sz = sizeof(Binary); break;
-        case EXPR_UNARY:           sz = sizeof(Unary); break;
-        case EXPR_STRING:          sz = sizeof(String); break;
+        case EXPR_NUMBER:                 sz = sizeof(Number); break;
+        case EXPR_FUNCTION_CALL:          sz = sizeof(FunctionCall); break;
+        case EXPR_RANGE0D_FOREIGN:        sz = sizeof(ForeignRange0D); break;
+        case EXPR_RANGE0D:                sz = sizeof(Range0D); break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN: sz = sizeof(ForeignRange1DColumn); break;
+        case EXPR_RANGE1D_COLUMN:         sz = sizeof(Range1DColumn); break;
+        case EXPR_RANGE1D_ROW:            sz = sizeof(Range1DRow); break;
+        case EXPR_RANGE1D_ROW_FOREIGN:    sz = sizeof(ForeignRange1DRow); break;
+        case EXPR_GROUP:                  sz = sizeof(Group); break;
+        case EXPR_BINARY:                 sz = sizeof(Binary); break;
+        case EXPR_UNARY:                  sz = sizeof(Unary); break;
+        case EXPR_STRING:                 sz = sizeof(String); break;
         case EXPR_NULL:
             return &ctx->null;
             break;
-        case EXPR_COMPUTED_COLUMN:
+        case EXPR_COMPUTED_ARRAY:
             __builtin_trap();
         default: __builtin_trap();
     }
@@ -585,6 +607,16 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
     if(!result) return NULL;
     ((Expression*)result)->kind = kind;
     return result;
+}
+
+force_inline
+ComputedArray*_Nullable
+computed_array_alloc(SpreadContext* ctx, size_t nitems){
+    ComputedArray* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedArray, data)+sizeof(Expression*)*nitems);
+    if(!cc) return NULL;
+    cc->e.kind = EXPR_COMPUTED_ARRAY;
+    cc->length = nitems;
+    return cc;
 }
 
 static inline
@@ -645,22 +677,21 @@ size_t
 expr_size(ExpressionKind kind){
     size_t sz;
     switch(kind){
-        case EXPR_ERROR: sz = sizeof(Expression); break;
-        case EXPR_NUMBER:          sz = sizeof(Number); break;
-        case EXPR_FUNCTION_CALL:   sz = sizeof(FunctionCall); break;
-        case EXPR_RANGE0D_FOREIGN: sz = sizeof(ForeignRange0D); break;
-        case EXPR_RANGE0D:         sz = sizeof(Range0D); break;
-        case EXPR_RANGE1D_COLUMN_FOREIGN:
-            sz = sizeof(ForeignRange1DColumn);
-            break;
-        case EXPR_RANGE1D_COLUMN:  sz = sizeof(Range1DColumn); break;
-        case EXPR_GROUP:           sz = sizeof(Group); break;
-        case EXPR_BINARY:          sz = sizeof(Binary); break;
-        case EXPR_UNARY:           sz = sizeof(Unary); break;
-        case EXPR_STRING:          sz = sizeof(String); break;
-        case EXPR_NULL: sz = sizeof(Expression); break;
-        case EXPR_COMPUTED_COLUMN:
-            __builtin_trap();
+        case EXPR_ERROR:                  sz = sizeof(Expression); break;
+        case EXPR_NUMBER:                 sz = sizeof(Number); break;
+        case EXPR_FUNCTION_CALL:          sz = sizeof(FunctionCall); break;
+        case EXPR_RANGE0D_FOREIGN:        sz = sizeof(ForeignRange0D); break;
+        case EXPR_RANGE0D:                sz = sizeof(Range0D); break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN: sz = sizeof(ForeignRange1DColumn); break;
+        case EXPR_RANGE1D_COLUMN:         sz = sizeof(Range1DColumn); break;
+        case EXPR_RANGE1D_ROW:            sz = sizeof(Range1DRow); break;
+        case EXPR_RANGE1D_ROW_FOREIGN:    sz = sizeof(ForeignRange1DRow); break;
+        case EXPR_GROUP:                  sz = sizeof(Group); break;
+        case EXPR_BINARY:                 sz = sizeof(Binary); break;
+        case EXPR_UNARY:                  sz = sizeof(Unary); break;
+        case EXPR_STRING:                 sz = sizeof(String); break;
+        case EXPR_NULL:                   sz = sizeof(Expression); break;
+        case EXPR_COMPUTED_ARRAY: __builtin_trap();
         default: __builtin_trap();
     }
     return sz;
@@ -672,8 +703,10 @@ union ExprU{
     FunctionCall fc;
     ForeignRange0D fr0;
     Range0D r0;
-    ForeignRange1DColumn fr1;
-    Range1DColumn r1;
+    ForeignRange1DColumn fr1c;
+    Range1DColumn r1c;
+    ForeignRange1DRow fr1r;
+    Range1DRow r1r;
     Group g;
     Binary b;
     Unary u;
