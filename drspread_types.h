@@ -47,15 +47,21 @@
 #endif
 #endif
 
-enum ValueKind : uintptr_t{
+#ifndef TYPED_ENUM
+#if defined(__clang__) || __STDC_VERSION__ >= 202300L
+#define TYPED_ENUM(name, type) enum name: type; typedef enum name name; enum name : type
+#else
+#define TYPED_ENUM(name, type) typedef type name; enum name
+#endif
+#endif
+
+TYPED_ENUM(ValueKind, uintptr_t){
     VALUE_NUMBER,
     VALUE_STRING,
     VALUE_1D_ARRAY,
     VALUE_NULL,
     VALUE_ERROR,
 };
-
-typedef enum ValueKind ValueKind;
 
 typedef struct Value Value;
 struct Value{
@@ -107,7 +113,7 @@ sv_set(Value* v, StringView sv){
 
 typedef DrSpreadCtx SpreadContext;
 
-enum ExpressionKind: uintptr_t {
+TYPED_ENUM(ExpressionKind, uintptr_t){
     EXPR_ERROR = 0,
     EXPR_STRING,
     EXPR_NULL,
@@ -125,7 +131,6 @@ enum ExpressionKind: uintptr_t {
     EXPR_COMPUTED_ARRAY,
     // EXPR_TYPED_COLUMN,
 };
-typedef enum ExpressionKind ExpressionKind;
 
 typedef struct Expression Expression;
 struct Expression {
@@ -134,7 +139,7 @@ struct Expression {
 
 
 
-enum BinaryKind: uintptr_t {
+TYPED_ENUM(BinaryKind, uintptr_t){
     BIN_ADD,
     BIN_SUB,
     BIN_MUL,
@@ -146,15 +151,12 @@ enum BinaryKind: uintptr_t {
     BIN_EQ,
     BIN_NE,
 };
-typedef enum BinaryKind BinaryKind;
 
-enum UnaryKind: uintptr_t {
+TYPED_ENUM(UnaryKind, uintptr_t){
     UN_PLUS,
     UN_NEG,
     UN_NOT,
 };
-
-typedef enum UnaryKind UnaryKind;
 
 typedef struct Number Number;
 struct Number {

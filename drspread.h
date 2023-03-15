@@ -24,12 +24,20 @@
 #define DRSP_EXPORT extern __attribute__((visibility("default")))
 #endif
 
-enum DrspResultKind: intptr_t {
+#ifndef DRSP_TYPED_ENUM
+#if defined(__clang__) || __STDC_VERSION__ >= 202300L
+#define DRSP_TYPED_ENUM(name, type) enum name: type; typedef enum name name; enum name : type
+#else
+#define DRSP_TYPED_ENUM(name, type) typedef type name; enum name
+#endif
+#endif
+
+DRSP_TYPED_ENUM(DrspResultKind, uintptr_t){
     DRSP_RESULT_NULL = 0, // Empty Cell
     DRSP_RESULT_NUMBER = 1,
     DRSP_RESULT_STRING = 2,
 };
-typedef enum DrspResultKind DrspResultKind;
+
 // Opaque Struct
 // Cast to your actual type in your implementation functions.
 // Safer than void*

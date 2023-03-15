@@ -54,9 +54,11 @@ int main(int argc, char** argv){
     int ret = test_main(argc, argv, NULL);
     return ret;
 }
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wlanguage-extension-token"
 #pragma clang diagnostic ignored "-Wgnu-auto-type"
+#endif
 
 #ifndef arrlen
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
@@ -1188,7 +1190,9 @@ TestFunction(TestComplexMultisheet){
 
 
 
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 #ifdef __wasm__
 #pragma pop_macro("__FILE__")
 #endif

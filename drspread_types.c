@@ -2,7 +2,9 @@
 #define DRSPREAD_TYPES_C
 #include "drspread_types.h"
 #include "hash_func.h"
+#ifdef __clang__
 #pragma clang assume_nonnull begin
+#endif
 #ifdef DRSPREAD_DIRECT_OPS
 #define ARGS void
 #else
@@ -16,7 +18,7 @@ drsp_create_ctx(ARGS){
     size_t sz = (N+__builtin_offsetof(DrSpreadCtx, buff));
     DrSpreadCtx* ctx = malloc(sz);
     // fprintf(stderr, "%zu\n", sz);
-    memset(ctx, 0, sizeof *ctx);
+    __builtin_memset(ctx, 0, sizeof *ctx);
     if(!ctx) return NULL;
     #ifndef DRSPREAD_DIRECT_OPS
         __builtin_memcpy((void*)&ctx->_ops, ops, sizeof *ops);
@@ -442,7 +444,7 @@ get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
     }
 }
 
-
-
+#ifdef __clang__
 #pragma clang assume_nonnull end
+#endif
 #endif
