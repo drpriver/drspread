@@ -50,14 +50,66 @@ struct __attribute__((packed)) packed_uint16 {
 };
 #endif
 
-
-
-#if defined(__ARM_ACLE) && __ARM_FEATURE_CRC32
-#include <arm_acle.h>
-
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
+
+#if defined(_MSC_VER) || defined(__clang__)
+force_inline
+uint64_t
+read_unaligned8(const void* p){
+    return ((const packed_uint64*)p)->v;
+}
+force_inline
+uint32_t
+read_unaligned4(const void* p){
+    return ((const packed_uint32*)p)->v;
+}
+force_inline
+uint16_t
+read_unaligned2(const void* p){
+    return ((const packed_uint16*)p)->v;
+}
+#else
+force_inline
+uint64_t
+read_unaligned8(const void* p){
+    uint64_t v;
+    __builtin_memcpy(&v, p, sizeof v);
+    return v;
+}
+force_inline
+uint32_t
+read_unaligned4(const void* p){
+    uint32_t v;
+    __builtin_memcpy(&v, p, sizeof v);
+    return v;
+}
+force_inline
+uint16_t
+read_unaligned2(const void* p){
+    uint16_t v;
+    __builtin_memcpy(&v, p, sizeof v);
+    return v;
+}
+#endif
+force_inline
+uint8_t
+read_unaligned1(const void* p){
+    return *(const uint8_t*)p;
+}
+
+
+
+#if defined(__ARM_ACLE) && __ARM_FEATURE_CRC32
+#ifdef __clang__
+#pragma clang assume_nonnull end
+#endif
+#include <arm_acle.h>
+#ifdef __clang__
+#pragma clang assume_nonnull begin
+#endif
+
 
 static inline
 uint32_t
@@ -65,13 +117,13 @@ hash_align1(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = __crc32cd(h, (*(const packed_uint64*)k).v);
+        h = __crc32cd(h, read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = __crc32cw(h, (*(const packed_uint32*)k).v);
+        h = __crc32cw(h, read_unaligned4(k));
     for(;len >= 2; k+=2, len-=2)
-        h = __crc32ch(h, (*(const packed_uint16*)k).v);
+        h = __crc32ch(h, read_unaligned2(k));
     for(;len >= 1; k+=1, len-=1)
-        h = __crc32cb(h, *(const uint8_t*)k);
+        h = __crc32cb(h, read_unaligned1(k));
     return h;
 }
 static inline
@@ -80,11 +132,11 @@ hash_align2(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = __crc32cd(h, (*(const packed_uint64*)k).v);
+        h = __crc32cd(h, read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = __crc32cw(h, (*(const packed_uint32*)k).v);
+        h = __crc32cw(h, read_unaligned4(k));
     for(;len >= 2; k+=2, len-=2)
-        h = __crc32ch(h, (*(const packed_uint16*)k).v);
+        h = __crc32ch(h, read_unaligned2(k));
     return h;
 }
 static inline
@@ -93,9 +145,9 @@ hash_align4(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = __crc32cd(h, (*(const packed_uint64*)k).v);
+        h = __crc32cd(h, read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = __crc32cw(h, (*(const packed_uint32*)k).v);
+        h = __crc32cw(h, read_unaligned4(k));
     return h;
 }
 static inline
@@ -104,7 +156,7 @@ hash_align8(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = __crc32cd(h, (*(const packed_uint64*)k).v);
+        h = __crc32cd(h, read_unaligned8(k));
     return h;
 }
 
@@ -114,17 +166,20 @@ ascii_insensitive_hash_align1(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = __crc32cd(h, 0x2020202020202020u|(*(const packed_uint64*)k).v);
+        h = __crc32cd(h, 0x2020202020202020u|read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = __crc32cw(h, 0x20202020u|(*(const packed_uint32*)k).v);
+        h = __crc32cw(h, 0x20202020u|read_unaligned4(k));
     for(;len >= 2; k+=2, len-=2)
-        h = __crc32ch(h, 0x2020u|(*(const packed_uint16*)k).v);
+        h = __crc32ch(h, 0x2020u|read_unaligned2(k));
     for(;len >= 1; k+=1, len-=1)
-        h = __crc32cb(h, 0x20u|*(const uint8_t*)k);
+        h = __crc32cb(h, 0x20u|read_unaligned1(k));
     return h;
 }
 
 #elif defined(__x86_64__) && defined(__SSE4_2__)
+#ifdef __clang__
+#pragma clang assume_nonnull end
+#endif
 #include <nmmintrin.h>
 
 #ifdef __clang__
@@ -137,13 +192,13 @@ hash_align1(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = _mm_crc32_u64(h, (*(const packed_uint64*)k).v);
+        h = _mm_crc32_u64(h, read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = _mm_crc32_u32(h, (*(const packed_uint32*)k).v);
+        h = _mm_crc32_u32(h, read_unaligned4(k));
     for(;len >= 2; k+=2, len-=2)
-        h = _mm_crc32_u16(h, (*(const packed_uint16*)k).v);
+        h = _mm_crc32_u16(h, read_unaligned2(k));
     for(;len >= 1; k+=1, len-=1)
-        h = _mm_crc32_u8(h, *(const uint8_t*)k);
+        h = _mm_crc32_u8(h, read_unaligned1(k));
     return h;
 }
 static inline
@@ -152,11 +207,11 @@ hash_align2(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = _mm_crc32_u64(h, (*(const packed_uint64*)k).v);
+        h = _mm_crc32_u64(h, read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = _mm_crc32_u32(h, (*(const packed_uint32*)k).v);
+        h = _mm_crc32_u32(h, read_unaligned4(k));
     for(;len >= 2; k+=2, len-=2)
-        h = _mm_crc32_u16(h, (*(const packed_uint16*)k).v);
+        h = _mm_crc32_u16(h, read_unaligned2(k));
     return h;
 }
 static inline
@@ -165,9 +220,9 @@ hash_align4(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = _mm_crc32_u64(h, (*(const packed_uint64*)k).v);
+        h = _mm_crc32_u64(h, read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = _mm_crc32_u32(h, (*(const packed_uint32*)k).v);
+        h = _mm_crc32_u32(h, read_unaligned4(k));
     return h;
 }
 static inline
@@ -176,7 +231,7 @@ hash_align8(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = _mm_crc32_u64(h, (*(const packed_uint64*)k).v);
+        h = _mm_crc32_u64(h, read_unaligned8(k));
     return h;
 }
 
@@ -186,20 +241,17 @@ ascii_insensitive_hash_align1(const void* key, size_t len){
     const unsigned char* k = key;
     uint32_t h = 0;
     for(;len >= 8; k+=8, len-=8)
-        h = _mm_crc32_u64(h, 0x2020202020202020u|(*(const packed_uint64*)k).v);
+        h = _mm_crc32_u64(h, 0x2020202020202020u|read_unaligned8(k));
     for(;len >= 4; k+=4, len-=4)
-        h = _mm_crc32_u32(h, 0x20202020u|(*(const packed_uint32*)k).v);
+        h = _mm_crc32_u32(h, 0x20202020u|read_unaligned4(k));
     for(;len >= 2; k+=2, len-=2)
-        h = _mm_crc32_u16(h, 0x2020u|(*(const packed_uint16*)k).v);
+        h = _mm_crc32_u16(h, 0x2020u|read_unaligned2(k));
     for(;len >= 1; k+=1, len-=1)
-        h = _mm_crc32_u8(h, 0x20u|*(const uint8_t*)k);
+        h = _mm_crc32_u8(h, 0x20u|read_unaligned1(k));
     return h;
 }
 #else // fall back to murmur hash
 
-#ifdef __clang__
-#pragma clang assume_nonnull begin
-#endif
 // cut'n'paste from the wikipedia page on murmur hash
 force_inline
 uint32_t
@@ -218,7 +270,7 @@ hash_align1(const void* key_, size_t len){
     uint32_t k;
     /* Read in groups of 4. */
     for (size_t i = len >> 2; i; i--) {
-        k = (*(const packed_uint32*)key).v;
+        k = read_unaligned4(key);
         key += sizeof(uint32_t);
         h ^= murmur_32_scramble(k);
         h = (h << 13) | (h >> 19);
@@ -265,7 +317,7 @@ ascii_insensitive_hash_align1(const void* key_, size_t len){
     uint32_t k;
     /* Read in groups of 4. */
     for (size_t i = len >> 2; i; i--) {
-        k = 0x20202020u|(*(const packed_uint32*)key).v;
+        k = 0x20202020u|read_unaligned4(key);
         key += sizeof(uint32_t);
         h ^= murmur_32_scramble(k);
         h = (h << 13) | (h >> 19);
