@@ -2,8 +2,8 @@
 // Copyright © 2023, David Priver
 //
 
-#include "drspread.h"
 #include "spreadsheet.h"
+#include "drspread.h"
 #include "testing.h"
 #ifdef __wasm__
 #pragma push_macro("__FILE__")

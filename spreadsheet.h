@@ -5,7 +5,7 @@
 #define SPREADSHEET_H
 
 #if defined(__linux__)
-#define _GNU_SOURCE
+#define _GNU_SOURCE 1
 #endif
 
 #include <stdlib.h>

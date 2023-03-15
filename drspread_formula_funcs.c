@@ -1261,7 +1261,7 @@ FORMULAFUNC(drsp_tablelookup){
     union {
         StringView s;
         double d;
-    } nval;
+    } nval = {0};
     {
         Expression* needle = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!needle || needle->kind == EXPR_ERROR) return needle;
@@ -1341,7 +1341,7 @@ FORMULAFUNC(drsp_find){
     union {
         StringView s;
         double d;
-    } nval;
+    } nval = {0};
     {
         Expression* needle = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!needle || needle->kind == EXPR_ERROR) return needle;

@@ -36,7 +36,7 @@
 #endif
 
 #ifndef DRSP_INTERNAL
-#define DRSP_INTERNAL static __attribute__((visibility("hidden")))
+#define DRSP_INTERNAL static
 #endif
 
 #ifdef __clang__
