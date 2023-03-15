@@ -12,9 +12,9 @@ WCC?=clang
 SANITIZE=-fsanitize=address,nullability,undefined
 
 Bin/drspread: drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3 -lm
 Bin/drspread_bench: drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1 -lm
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3
 .PHONY: clean
@@ -30,7 +30,7 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
 Bin/TestDrSpread: TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE)
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -lm
 
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
