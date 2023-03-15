@@ -33,7 +33,7 @@ struct packed_uint16 {
     uint16_t v;
 };
 #pragma pack(pop)
-#else
+#elif defined(__clang__)
 typedef struct packed_uint64 packed_uint64;
 struct __attribute__((packed)) packed_uint64 {
     uint64_t v;
@@ -71,6 +71,9 @@ read_unaligned2(const void* p){
     return ((const packed_uint16*)p)->v;
 }
 #else
+// Gcc doesn't like the usage of packed structs for unaligned reads with -O2
+// and above. Idk, it's an extension so it's whatever the compiler feels like
+// I guess.
 force_inline
 uint64_t
 read_unaligned8(const void* p){
