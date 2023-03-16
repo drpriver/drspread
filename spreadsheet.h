@@ -386,7 +386,7 @@ write_display(SpreadSheet* sheet, FILE* out){
         const SheetRow* ro = &sheet->display[row];
         fprintf(out, "%3zd | ", row+1);
         for(int col = 0; col < ro->n; col++){
-            fprintf(out, " %-*s%s", lens[col], ro->data[col], " |");
+            fprintf(out, " %-*s%s", lens[col < 12?col:11], ro->data[col], " |");
         }
         fputc('\n', out);
     }
