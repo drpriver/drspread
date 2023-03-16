@@ -137,7 +137,7 @@ sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, d
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     int printed;
     free((void*)ro->data[col]);
-    if((intptr_t)val == val)
+    if(__builtin_lround(val) == val)
         printed = asprintf((char**)&ro->data[col], "%zd", (intptr_t)val) < 0;
     else
         printed = asprintf((char**)&ro->data[col], "%-.1f", val) < 0;
