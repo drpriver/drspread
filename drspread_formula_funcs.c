@@ -257,6 +257,7 @@ FORMULAFUNC(drsp_min){
                 v = n;
         }
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
         n->value = v == 1e32?0:v;
         return &n->e;
     }
@@ -332,6 +333,7 @@ FORMULAFUNC(drsp_max){
                 v = n;
         }
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
         n->value = v == -1e32?0:v;
         return &n->e;
     }
@@ -642,6 +644,7 @@ FORMULAFUNC(drsp_num){
             if(e->kind == EXPR_NUMBER)
                 continue;
             Number* n = expr_alloc(ctx, EXPR_NUMBER);
+            if(!n) return NULL;
             n->value = default_;
             cc->data[i] = &n->e;
         }
@@ -768,6 +771,7 @@ FORMULAFUNC(drsp_col){
     buff_set(ctx->a, bc);
     if(sheetname.length){
         ForeignRange1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+        if(!result) return NULL;
         result->r.col_name = colname;
         result->sheet_name = sheetname;
         result->r.row_start = rowstart;
@@ -776,6 +780,7 @@ FORMULAFUNC(drsp_col){
     }
     else {
         Range1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        if(!result) return NULL;
         result->col_name = colname;
         result->row_end = rowend;
         result->row_start = rowstart;
@@ -1020,7 +1025,7 @@ FORMULAFUNC(drsp_cat){
                     catbuff[0] = s->sv;
                     catbuff[1] = ((String*)r)->sv;
                     int err = sv_cat(ctx, 2, catbuff, &s->sv);
-                    if(err) return expr_alloc(ctx, EXPR_ERROR);
+                    if(err) return Error(ctx, "");
                 }
             }
             else {
@@ -1054,7 +1059,7 @@ FORMULAFUNC(drsp_cat){
                     String* s = (String*)e;
                     catbuff[1] = s->sv;
                     int err = sv_cat(ctx, 2, catbuff, &s->sv);
-                    if(err) return expr_alloc(ctx, EXPR_ERROR);
+                    if(err) return Error(ctx, "");
                 }
                 return arg2;
             }
@@ -1157,7 +1162,7 @@ FORMULAFUNC(drsp_cat){
                     }
                 }
                 String* s = expr_alloc(ctx, EXPR_STRING);
-                if(!s || s->e.kind == EXPR_ERROR) return &s->e;
+                if(!s) return NULL;
                 int err = sv_cat(ctx, argc, catbuff, &s->sv);
                 if(err){
                     buff_set(ctx->a, bc);
@@ -1454,6 +1459,7 @@ FORMULAFUNC(drsp_find){
         return Error(ctx, "");
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
     n->value = offset+1;
     return &n->e;
 }
