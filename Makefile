@@ -42,7 +42,7 @@ Bin/drspread_fuzz: drspread_fuzz.c | Bin Depends
 	$(CC) $< -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -lm -fsanitize=fuzzer,address,undefined -o $@
 .PHONY: fuzz
 fuzz: Bin/drspread_fuzz | FuzzDir
-	$< FuzzDir -fork=k -only_ascii=1
+	$< FuzzDir -fork=6 -only_ascii=1 -max_len=8000
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@
