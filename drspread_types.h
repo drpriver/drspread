@@ -173,8 +173,9 @@ struct FunctionCall {
     Expression*_Nonnull*_Nonnull argv;
 };
 
-enum {IDX_DOLLAR=-2147483647}; // INT32_MIN+1
-enum {IDX_UNSET=-2147483647-1}; // INT32_MIN
+enum {IDX_DOLLAR = -2147483647}; // INT32_MIN+1
+enum {IDX_UNSET  = -2147483647-1}; // INT32_MIN
+enum {IDX_BLANK  = -2147483646}; // INT32_MIN+2
 
 
 typedef struct Range0D Range0D;
@@ -731,8 +732,8 @@ logline(const char* f, int l){
 #pragma clang assume_nonnull end
 #include "debugging.h"
 #pragma clang assume_nonnull begin
-#define Error(ctx, mess) (bt(), logline(__func__, __LINE__), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR))
-// #define Error(ctx, mess) bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR)
+// #define Error(ctx, mess) (bt(), logline(__func__, __LINE__), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR))
+#define Error(ctx, mess) (bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR))
 #else
 #define Error(ctx, mess) expr_alloc(ctx, EXPR_ERROR)
 #endif

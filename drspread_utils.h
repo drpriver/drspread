@@ -25,6 +25,9 @@ get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* co
     if(sv_equals(rng->col_name, SV("$"))){
         colnum = caller_col;
     }
+    else if(!rng->col_name.length){
+        colnum = 0;
+    }
     else {
         colnum = sp_name_to_col_idx(ctx, hnd, rng->col_name.text, rng->col_name.length);
     }
@@ -60,16 +63,22 @@ get_range1drow(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* ro
     intptr_t start;
     if(sv_equals(sv_start, SV("$")))
         start = caller_col;
+    else if(!sv_start.length){
+        start = 0;
+    }
     else
         start = sp_name_to_col_idx(ctx, hnd, sv_start.text, sv_start.length);
+    intptr_t row_idx = rng->row_idx;
+    if(row_idx == IDX_DOLLAR) row_idx = caller_row;
     StringView sv_end = rng->col_end;
     intptr_t end;
     if(sv_equals(sv_end, SV("$")))
         end = caller_col;
+    else if(!sv_end.length){
+        end = sp_row_width(ctx, hnd, row_idx);
+    }
     else
         end = sp_name_to_col_idx(ctx, hnd, sv_end.text, sv_end.length);
-    intptr_t row_idx = rng->row_idx;
-    if(row_idx == IDX_DOLLAR) row_idx = caller_row;
     if(end < start){
         intptr_t tmp = end;
         end = start;

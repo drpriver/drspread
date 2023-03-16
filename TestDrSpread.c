@@ -11,6 +11,7 @@
 #define __FILE__ "<a href=TestDrSpread.c>TestDrSpread.c</a>"
 #endif
 
+static TestFunc TestParsing;
 static TestFunc TestSpreadsheet1;
 static TestFunc TestSpreadsheet2;
 static TestFunc TestBinOps;
@@ -32,6 +33,7 @@ static TestFunc TestComplexMultisheet;
 
 int main(int argc, char** argv){
     if(!test_funcs_count){ // wasm calls main more than once.
+        RegisterTest(TestParsing);
         RegisterTest(TestRanges);
         RegisterTest(TestBadRanges);
         RegisterTest(TestSpreadsheet1);
@@ -192,6 +194,194 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
     ((const char*[]){__VA_ARGS__}), \
     ((size_t[]){0}), \
 }
+TestFunction(TestParsing){
+    const char* input =
+        // [col, 1] -> 0d
+        "=r([a,1])\n"
+        "=r(['a', 1])\n"
+        "=r([\"a\", 1])\n"
+        "=r(['a', $])\n"
+        "=r([\"$\", 3])\n"
+        "=r(['$', 3])\n"
+
+        // [col] -> 1d column
+        "=r([a])\n"
+        "=r(['a'])\n"
+        "=r([\"a\"])\n"
+
+        // [col, :3] -> 1d column
+        "=r(['a', :2])\n"
+        "=r([a, :2])\n"
+        "=r([\"a\", :2])\n"
+
+        // [col, 1:3] -> 1d column
+        "=r([a, 1:2])\n"
+        "=r(['a', 1:2])\n"
+        "=r([\"a\", 1:2])\n"
+
+        // [col, :] -> 1d column
+        "=r(['a', :])\n"
+        "=r([a, :])\n"
+        "=r([\"a\", :])\n"
+
+        // [col, 1:] -> 1d column
+        "=r([a, 2:])\n"
+        "=r(['a', 2:])\n"
+        "=r([\"a\", 2:])\n"
+        // [col:col, 1]   -> 1d row
+        "=r([a:b, 3])\n"
+
+        // [col:, 1]      -> 1d row
+        "=r([a:, 3])\n"
+
+        // [:col, 1]      -> 1d row
+        "=r([:z, 3])\n"
+
+        // [:, 1]         -> 1d row
+        "=r([:, 3])\n"
+
+        // Foreign versions
+        // [f, col, 1] -> 0df
+        "=r([f, a,1])\n"
+        "=r([f, 'a', 1])\n"
+        "=r([f, \"a\", 1])\n"
+        "=r([f, 'a', $])\n"
+        "=r([f, \"$\", 3])\n"
+        "=r([f, '$', 3])\n"
+
+        // [f, col] -> 1d column f
+        "=r([f, a])\n"
+        "=r([f, 'a'])\n"
+        "=r([f, \"a\"])\n"
+
+        // [f, col, :3] -> 1d column f
+        "=r([f, 'a', :2])\n"
+        "=r([f, a, :2])\n"
+        "=r([f, \"a\", :2])\n"
+
+        // [f, col, 1:3] -> 1d column f
+        "=r([f, a, 1:2])\n"
+        "=r([f, 'a', 1:2])\n"
+        "=r([f, \"a\", 1:2])\n"
+
+        // [f, col, :] -> 1d column f
+        "=r([f, 'a', :])\n"
+        "=r([f, a, :])\n"
+        "=r([f, \"a\", :])\n"
+
+        // [f, col, 1:] -> 1d column f
+        "=r([f, a, 2:])\n"
+        "=r([f, 'a', 2:])\n"
+        "=r([f, \"a\", 2:])\n"
+        // [f, col:col, 1]   -> 1d row f
+        "=r([f, a:b, 3])\n"
+
+        // [f, col:, 1]      -> 1d row f
+        "=r([f, a:, 3])\n"
+
+        // [f, :col, 1]      -> 1d row f
+        "=r([f, :z, 3])\n"
+
+        // [f, :, 1]         -> 1d row f
+        "=r([f, :, 3])\n"
+
+    ;
+    // NOTE: We print out the internal 0-based offsets instead
+    //       of the user-facing 1-based offsets.
+    SheetRow expected[] = {
+        // [col, 1] -> 0d
+        ROW("R0([a, 0])"),
+        ROW("R0([a, 0])"),
+        ROW("R0([a, 0])"),
+        ROW("R0([a, -2147483647])"),
+        ROW("R0([$, 2])"),
+        ROW("R0([$, 2])"),
+
+        // [col] -> 1d column
+        ROW("R1C([a, 0:-1])"),
+        ROW("R1C([a, 0:-1])"),
+        ROW("R1C([a, 0:-1])"),
+
+        // [col, :3] -> 1d column
+        ROW("R1C([a, 0:1])"),
+        ROW("R1C([a, 0:1])"),
+        ROW("R1C([a, 0:1])"),
+
+        // [col, 1:3] -> 1d column
+        ROW("R1C([a, 0:1])"),
+        ROW("R1C([a, 0:1])"),
+        ROW("R1C([a, 0:1])"),
+
+        // [col, :] -> 1d column
+        ROW("R1C([a, 0:-1])"),
+        ROW("R1C([a, 0:-1])"),
+        ROW("R1C([a, 0:-1])"),
+
+        // [col, 1:] -> 1d column
+        ROW("R1C([a, 1:-1])"),
+        ROW("R1C([a, 1:-1])"),
+        ROW("R1C([a, 1:-1])"),
+
+        // [col:col, 1]   -> 1d row
+        ROW("R1R([a:b, 2])"),
+
+        // [col:, 1]      -> 1d row
+        ROW("R1R([a:, 2])"),
+
+        // [:col, 1]      -> 1d row
+        ROW("R1R([:z, 2])"),
+
+        // [:, 1]         -> 1d row
+        ROW("R1R([:, 2])"),
+
+        // foreign versions
+        // [f, col, 1] -> 0d f
+        ROW("R0F([f, a, 0])"),
+        ROW("R0F([f, a, 0])"),
+        ROW("R0F([f, a, 0])"),
+        ROW("R0F([f, a, -2147483647])"),
+        ROW("R0F([f, $, 2])"),
+        ROW("R0F([f, $, 2])"),
+
+        // [f, col] -> 1d column f
+        ROW("R1CF([f, a, 0:-1])"),
+        ROW("R1CF([f, a, 0:-1])"),
+        ROW("R1CF([f, a, 0:-1])"),
+
+        // [f, col, :3] -> 1d column f
+        ROW("R1CF([f, a, 0:1])"),
+        ROW("R1CF([f, a, 0:1])"),
+        ROW("R1CF([f, a, 0:1])"),
+
+        // [f, col, 1:3] -> 1d column f
+        ROW("R1CF([f, a, 0:1])"),
+        ROW("R1CF([f, a, 0:1])"),
+        ROW("R1CF([f, a, 0:1])"),
+
+        // [f, col, :] -> 1d column f
+        ROW("R1CF([f, a, 0:-1])"),
+        ROW("R1CF([f, a, 0:-1])"),
+        ROW("R1CF([f, a, 0:-1])"),
+
+        // [f, col, 1:] -> 1d column f
+        ROW("R1CF([f, a, 1:-1])"),
+        ROW("R1CF([f, a, 1:-1])"),
+        ROW("R1CF([f, a, 1:-1])"),
+
+        // [f, col:col, 1]   -> 1d row f
+        ROW("R1RF([f, a:b, 2])"),
+
+        // [f, col:, 1]      -> 1d row f
+        ROW("R1RF([f, a:, 2])"),
+
+        // [f, :col, 1]      -> 1d row f
+        ROW("R1RF([f, :z, 2])"),
+
+        // [f, :, 1]         -> 1d row f
+        ROW("R1RF([f, :, 2])"),
+    };
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+}
 
 TestFunction(TestRanges){
     const char* input =
@@ -225,26 +415,56 @@ TestFunction(TestRanges){
 
 TestFunction(TestBadRanges){
     const char* input =
-        " 0 | =[a,]\n"
-        " 1 | =[1]\n"
-        " 2 | =[$]\n"
-        " 3 | =[]\n"
-        " 4 | =['$', '3', '3']\n"
-        " 5 | =sum(['a])\n"
-        " 6 | =sum(['a', '3':'3'])\n"
-        " 7 | =sum([3, 1:2])\n"
+        "=[a,]\n"
+        "=[,a,]\n"
+        "=[:]\n"
+        "=[:, :]\n"
+        "=[,:, :]\n"
+        "=[:,:, 2]\n"
+        "=[1]\n"
+        "=[$]\n"
+        "=[]\n"
+        "=['$', '3', '3']\n"
+        "=sum(['a])\n"
+        "=sum(['a', '3':'3'])\n"
+        "=sum([3, 1:2])\n"
+
+        "=[f, a,]\n"
+        "=[f, ,a,]\n"
+        "=[f, ,:, :]\n"
+        "=[f, :,:, 2]\n"
+        "=[f, ]\n"
+        "=[f, '$', '3', '3']\n"
+        "=sum([f, 'a])\n"
+        "=sum([f, 'a', '3':'3'])\n"
+        "=sum([f,3, 1:2])\n"
     ;
     SheetRow expected[] = {
-        ROW( "0", "error"),
-        ROW( "1", "error"),
-        ROW( "2", "error"),
-        ROW( "3", "error"),
-        ROW( "4", "error"),
-        ROW( "5", "error"),
-        ROW( "6", "error"),
-        ROW( "7", "error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 8);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), arrlen(expected));
 }
 
 TestFunction(TestSpreadsheet1){
@@ -577,7 +797,7 @@ TestFunction(TestFuncsRowArray){
         "pow(2,4) | pow(2,3) |\n"
         "   | 1  | 0    | a     |      | 2     | 4   | 6\n"
 
-        "=f(row('a', 'a', 1))\n"
+        "=f(row('a', 'a', 1)) | =f([a:a,1])\n"
         "=f(mod(row('b', 'b', 1)))\n"
 
         "=f(trunc(row('c', 'c', 1)))\n"
@@ -640,7 +860,7 @@ TestFunction(TestFuncsRowArray){
         [ 2] = ROW("pow(2,4)", "pow(2,3)", ""),
         [ 3] = ROW("", "1", "0", "a", "", "2", "4", "6"),
 
-        [ 4] = ROW("1"),
+        [ 4] = ROW("1", "1"),
         [ 5] = ROW("1"),
 
         [ 6] = ROW("13"),

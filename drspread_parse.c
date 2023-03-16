@@ -303,6 +303,177 @@ parse_possibly_bare_string(StringView* sv){
     return (StringView){end-begin, begin};
 }
 
+// Returns how many numbers were parsed, or -1 on error.
+// Blank numbers are parsed as IDX_BLANK, which technically collides with a
+// valid number, but no one will ever notice.
+static inline
+int
+maybe_parse_number_pair(StringView* sv, intptr_t* a, intptr_t* b){
+    if(!sv->length) return -1;
+    switch(sv->text[0]){
+        case ':':
+            *a = IDX_BLANK;
+            // secondnumber will advance sv
+            goto secondnumber;
+        case '$':
+            *a = IDX_DOLLAR;
+            sv->length--, sv->text++;
+            break;
+        case '-':
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':{
+            const char* begin = sv->text;
+            const char* p = begin+1;
+            for(const char* end = sv->text+sv->length; p != end; p++){
+                switch(*p){
+                    case '0': case '1': case '2': case '3': case '4':
+                    case '5': case '6': case '7': case '8': case '9':
+                        continue;
+                    default: break;
+                }
+                break;
+            }
+            Int32Result ir = parse_int32(begin, p-begin);
+            if(ir.errored) return -1;
+            *a = ir.result - 1;
+            sv->text += p-begin, sv->length -= p-begin;
+            break;
+        }
+        case ']':
+            return 0;
+        default:
+              return -1;
+    }
+    lstrip(sv);
+    if(!sv->length) return -1;
+    if(sv->text[0] != ':')
+        return 1;
+
+    secondnumber:;
+    sv->text++, sv->length--;
+    lstrip(sv);
+    if(!sv->length) return -1;
+    switch(sv->text[0]){
+        case ']':
+            *b = IDX_BLANK;
+            // Don't advance sv
+            return 2;
+        case '$':
+            *b = IDX_DOLLAR;
+            sv->length--, sv->text++;
+            return 2;
+        case '-':
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':{
+            const char* begin = sv->text;
+            const char* p = begin+1;
+            for(const char* end = sv->text+sv->length; p != end; p++){
+                switch(*p){
+                    case '0': case '1': case '2': case '3': case '4':
+                    case '5': case '6': case '7': case '8': case '9':
+                        continue;
+                    default: break;
+                }
+                break;
+            }
+            Int32Result ir = parse_int32(begin, p-begin);
+            if(ir.errored) return -1;
+            *b = ir.result - 1;
+            sv->text += p-begin, sv->length -= p-begin;
+            return 2;
+        }
+        default:
+              return -1;
+    }
+}
+
+// -1 for error
+// 0 for didn't parse
+// 1 for parsed 1
+// Precondition: already lstripped
+static inline
+int
+maybe_parse_bare_string(StringView* sv, StringView* out){
+    if(!sv->length)
+        return -1;
+    char terminator = sv->text[0];
+    if(terminator == '\'' || terminator == '"'){
+        // quoted string
+        sv->text++; sv->length--;
+        const char* begin = sv->text;
+        while(sv->length && sv->text[0] != terminator){
+            sv->length--, sv->text++;
+        }
+        if(!sv->length) return -1;
+        const char* end = sv->text;
+        sv->length--, sv->text++;
+        *out = (StringView){end-begin, begin};
+        return 1;
+    }
+    switch(sv->text[0]){
+        // This is a number
+        case '-':
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
+        case ':': case '$':
+            return 0;
+        // possibly other characters shouldn't be allowed
+        case '[':
+            return -1;
+        case ',': case ']':
+            return 0;
+        default: break;
+    }
+    // bare string
+    const char* begin = sv->text;
+    // possibly other characters shouldn't be allowed
+    while(sv->length && sv->text[0] != ' ' && sv->text[0] != ',' && sv->text[0] != ']' && sv->text[0] != ':'){
+        sv->length--, sv->text++;
+    }
+    if(!sv->length) return -1; // might be unreachable?
+    const char* end = sv->text;
+    *out = (StringView){end-begin, begin};
+    return 1;
+}
+
+static inline
+int
+maybe_parse_string_pair(StringView* sv, StringView* a, StringView* b){
+    StringView s = *sv; // in case we need to backtrack.
+    if(!sv->length) return -1;
+    {
+        int n = maybe_parse_bare_string(sv, a);
+        if(n < 0) return -1;
+        lstrip(sv);
+        if(!sv->length) return -1;
+        if(sv->text[0] != ':'){
+            return n;
+        }
+        if(n == 0) {
+            *a = (StringView){0};
+        }
+    }
+    sv->length--, sv->text++;
+    lstrip(sv);
+    if(!sv->length) return -1;
+    if(!a->length){
+        // check if it's actually a number range.
+        switch(sv->text[0]){
+            case '-': case '$':
+            case '0': case '1': case '2': case '3': case '4':
+            case '5': case '6': case '7': case '8': case '9':
+                *sv = s;
+                return 0;
+            default:
+                break;
+        }
+    }
+    int n2 = maybe_parse_bare_string(sv, b);
+    if(n2 < 0) return -1;
+    if(!n2) *b = (StringView){0};
+    return 2;
+}
+
 static inline
 intptr_t
 maybe_parse_number(StringView* sv){
@@ -333,90 +504,164 @@ maybe_parse_number(StringView* sv){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_range){
+    //
+    // [col, 1]       -> 0d
+    // [col]          -> 1d column
+    //
+    // [col, 1:3]     -> 1d column
+    // [col, :3]      -> 1d column
+    // [col, :]       -> 1d column
+    // [col, 1:]      -> 1d column
+
+    // [col:col, 1]   -> 1d row
+    // [col:, 1]      -> 1d row
+    // [:col, 1]      -> 1d row
+    // [:, 1]         -> 1d row
+    //
+    // [col:col, 1:3] -> 2d range, but we don't support this
+    //
+    // [col:col] -> error
+    //
+    // Having a sheetname makes it foreign.
+    //
     assert(sv->length && sv->text[0] == '[');
     sv->length--, sv->text++;
-    StringView sheetname = {0};
-    StringView colname = {0};
-    intptr_t row0 = IDX_UNSET, row1 = IDX_UNSET;
+    StringView strings_0[2];
+    StringView strings_1[2];
+    intptr_t numbers[2];
+    int nstrings[2] = {0};
+    int nnumbers = 0;
     lstrip(sv);
     if(!sv->length) return Error(ctx, "");
-    sheetname = parse_possibly_bare_string(sv);
-    lstripc(sv);
-    colname = parse_possibly_bare_string(sv);
-    if(!colname.length){
-        colname = sheetname;
-        sheetname = (StringView){0};
+    {
+        int n = maybe_parse_string_pair(sv, strings_0, strings_0+1);
+        if(n < 0) return Error(ctx, "");
+        nstrings[0] = n;
+        if(!n) return Error(ctx, "");
+        lstrip(sv);
     }
-    if(!colname.length) return Error(ctx, "");
-
-    lstripc(sv);
-    if(sv->length && sv->text[0] == ':'){
-        row0 = 1;
+    if(!sv->length) return Error(ctx, "");
+    if(sv->text[0] == ','){
+        if(nstrings[0] == 0) return Error(ctx, "");
+        sv->text++, sv->length--;
+        lstrip(sv);
+        if(!sv->length) return Error(ctx, "");
+    }
+    {
+        int n = maybe_parse_string_pair(sv, strings_1, strings_1+1);
+        if(n < 0) return Error(ctx, "");
+        lstrip(sv);
+        if(n == 2 && sv->length && sv->text[0] == ']' && !strings_1[0].length && !strings_1[1].length){
+            // disambiguate as a number range instead.
+            nnumbers = 2;
+            numbers[0] = 0;
+            numbers[1] = -1;
+            goto after_numbers;
+        }
+        nstrings[1] = n;
+    }
+    if(!sv->length) return Error(ctx, "");
+    if(nstrings[1] && sv->text[0] == ','){
+        if(nstrings[0] == 0) return Error(ctx, ""); // XXX unnecessary check?
+        sv->text++, sv->length--;
+        lstrip(sv);
+        if(!sv->length) return Error(ctx, "");
+    }
+    {
+        int n = maybe_parse_number_pair(sv, numbers, numbers+1);
+        if(n < 0) return Error(ctx, "");
+        nnumbers += n;
+        lstrip(sv);
+        if(n > 0 && numbers[0] == IDX_BLANK)
+            numbers[0] = 0;
+        if(n > 1 && numbers[1] == IDX_BLANK)
+            numbers[1] = -1;
+    }
+    if(!sv->length) return Error(ctx, "");
+    after_numbers:;
+    if(sv->text[0] != ']') return Error(ctx, "");
+    sv->text++, sv->length--;
+    if(nstrings[1] && nstrings[0] > 1) return Error(ctx, "sheet ranges unsupported");
+    StringView sheetname = {0};
+    int ncolnames;
+    StringView* colnames;
+    _Bool has_foreign;
+    assert(nstrings[0]);
+    if(nstrings[1]){
+        colnames = strings_1;
+        ncolnames = nstrings[1];
+        has_foreign = 1;
+        sheetname = strings_0[0];
     }
     else {
-        row0 = maybe_parse_number(sv);
-        lstrip(sv);
+        colnames = strings_0;
+        ncolnames = nstrings[0];
+        has_foreign = 0;
     }
-    if(sv->length && sv->text[0] == ':'){
-        sv->length--, sv->text++;
-        lstrip(sv);
-        row1 = maybe_parse_number(sv);
-        lstrip(sv);
-        if(row1 == IDX_UNSET)
-            row1 = -1;
-    }
-    if(!sv->length || sv->text[0] != ']')
-        return Error(ctx, "");
-    assert(sv->length && sv->text[0] == ']');
-    sv->length--, sv->text++;
-    if(row0 == IDX_UNSET && row1 == IDX_UNSET){
-        row0 = 1;
-        row1 = -1;
-    }
-    if(row0 > 0)
-        row0--;
-    if(row1 > 0)
-        row1--;
-    if(row1 == IDX_UNSET){
-        // 0D
-        if(sheetname.length){
-            // Foreign
-            ForeignRange0D* r = expr_alloc(ctx, EXPR_RANGE0D_FOREIGN);
-            if(!r) return NULL;
-            r->r.col_name = colname;
-            r->sheet_name = sheetname;
-            r->r.row = row0;
-            return &r->e;
+    if(!nnumbers){
+        assert(ncolnames);
+        if(ncolnames > 1)
+            return Error(ctx, "[col1:col2] is not supported\n");
+        if(has_foreign){
+            ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+            rng->r.col_name = colnames[0];
+            rng->r.row_start = 0;
+            rng->r.row_end = -1;
+            rng->sheet_name = sheetname;
+            return &rng->e;
         }
-        else {
-            Range0D* r = expr_alloc(ctx, EXPR_RANGE0D);
-            if(!r) return NULL;
-            r->col_name = colname;
-            r->row = row0;
-            return &r->e;
-        }
+        Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        rng->col_name = colnames[0];
+        rng->row_start = 0;
+        rng->row_end = -1;
+        return &rng->e;
     }
-    else {
-        // 1D
-        if(sheetname.length){
-            // Foreign
-            ForeignRange1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
-            if(!r) return NULL;
-            r->sheet_name = sheetname;
-            r->r.col_name = colname;
-            r->r.row_start = row0;
-            r->r.row_end = row1;
-            return &r->e;
+    if(nnumbers == 1){
+        assert(ncolnames); // XXX might need to be an early return? write tests
+        if(ncolnames == 2){
+            if(has_foreign){
+                ForeignRange1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW_FOREIGN);
+                rng->r.col_start = colnames[0];
+                rng->r.col_end = colnames[1];
+                rng->r.row_idx = numbers[0];
+                rng->sheet_name = sheetname;
+                return &rng->e;
+            }
+            Range1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW);
+            rng->col_start = colnames[0];
+            rng->col_end = colnames[1];
+            rng->row_idx = numbers[0];
+            return &rng->e;
         }
-        else {
-            Range1DColumn* r = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
-            if(!r) return NULL;
-            r->col_name = colname;
-            r->row_start = row0;
-            r->row_end = row1;
-            return &r->e;
+        if(has_foreign){
+            ForeignRange0D* rng = expr_alloc(ctx, EXPR_RANGE0D_FOREIGN);
+            rng->sheet_name = sheetname;
+            rng->r.col_name = colnames[0];
+            rng->r.row = numbers[0];
+            return &rng->e;
         }
+        Range0D* rng = expr_alloc(ctx, EXPR_RANGE0D);
+        rng->col_name = colnames[0];
+        rng->row = numbers[0];
+        return &rng->e;
     }
+    assert(nnumbers == 2);
+    assert(ncolnames);
+    if(ncolnames == 2) return Error(ctx, "2d ranges unsupported");
+    assert(ncolnames == 1);
+    if(has_foreign){
+        ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+        rng->r.col_name = colnames[0];
+        rng->r.row_start = numbers[0];
+        rng->r.row_end = numbers[1];
+        rng->sheet_name = sheetname;
+        return &rng->e;
+    }
+    Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+    rng->col_name = colnames[0];
+    rng->row_start = numbers[0];
+    rng->row_end = numbers[1];
+    return &rng->e;
 }
 
 DRSP_INTERNAL

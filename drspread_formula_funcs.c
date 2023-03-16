@@ -803,8 +803,12 @@ FORMULAFUNC(drsp_row){
         // first arg is first colname
         Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind != EXPR_STRING) return Error(ctx, "");
-        startcol = ((String*)arg)->sv;
+        if(arg->kind == EXPR_NULL)
+            startcol = SV("");
+        else{
+            if(arg->kind != EXPR_STRING) return Error(ctx, "");
+            startcol = ((String*)arg)->sv;
+        }
         buff_set(ctx->a, bc);
         argc--, argv++;
     }
@@ -812,8 +816,12 @@ FORMULAFUNC(drsp_row){
         // second arg is second colname
         Expression* arg = evaluate_expr(ctx, hnd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind != EXPR_STRING) return Error(ctx, "");
-        endcol = ((String*)arg)->sv;
+        if(arg->kind == EXPR_NULL)
+            endcol = SV("");
+        else {
+            if(arg->kind != EXPR_STRING) return Error(ctx, "");
+            endcol = ((String*)arg)->sv;
+        }
         buff_set(ctx->a, bc);
         argc--, argv++;
     }
@@ -1482,6 +1490,299 @@ FORMULAFUNC(drsp_first){
         return Error(ctx, "");
     return c->data[0];
 }
+
+typedef struct PrintBuff PrintBuff;
+struct PrintBuff {
+    int error;
+    ssize_t len;
+    char* buff;
+};
+
+static inline
+void
+print(PrintBuff* buff, const char* fmt, ...){
+    if(buff->error) return;
+    __builtin_va_list vap;
+    __builtin_va_start(vap, fmt);
+    int n = vsnprintf(buff->buff, buff->len, fmt, vap);
+    if(n < 0) buff->error = 1;
+    if(n > buff->len) buff->error = 1;
+    else {
+        buff->len -= n;
+        buff->buff += n;
+    }
+    __builtin_va_end(vap);
+}
+
+
+DRSP_INTERNAL
+void
+print_expr(PrintBuff* buff, Expression* arg){
+    switch(arg->kind){
+        case EXPR_ERROR:
+            print(buff, "Error()");
+            break;
+        case EXPR_STRING:{
+            String* s = (String*)arg;
+            print(buff, "String('%.*s')", (int)s->sv.length, s->sv.text);
+        }break;
+        case EXPR_NULL:
+            print(buff, "Null()\n");
+            break;
+        case EXPR_NUMBER:{
+            Number* n = (Number*)arg;
+            print(buff, "Number(%g)", n->value);
+        }break;
+        case EXPR_FUNCTION_CALL:{
+            FunctionCall* f = (FunctionCall*)arg;
+            // TODO: print function name
+            print(buff, "FunctionCall(");
+            for(int i = 0; i < f->argc; i++){
+                if(i != 0){
+                    print(buff, ", ");
+                }
+                print_expr(buff, f->argv[i]);
+            }
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE0D:{
+            Range0D* rng = (Range0D*)arg;
+            print(buff, "[%.*s, %zd]", (int)rng->col_name.length, rng->col_name.text, rng->row);
+        }break;
+        case EXPR_RANGE0D_FOREIGN:{
+            ForeignRange0D* rng = (ForeignRange0D*)arg;
+            print(buff, "[%.*s, %.*s, %zd]", 
+                    (int)rng->sheet_name.length, rng->sheet_name.text, 
+                    (int)rng->r.col_name.length, rng->r.col_name.text, 
+                    rng->r.row);
+        }break;
+        case EXPR_RANGE1D_COLUMN:{
+            Range1DColumn* rng = (Range1DColumn*)arg;
+            print(buff, "[%.*s, %zd:%zd]", 
+                    (int)rng->col_name.length, rng->col_name.text, 
+                    rng->row_start, rng->row_end);
+        }break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN:{
+            ForeignRange1DColumn* rng = (ForeignRange1DColumn*)arg;
+            print(buff, "[%.*s, %.*s, %zd:%zd]", 
+                    (int)rng->sheet_name.length, rng->sheet_name.text, 
+                    (int)rng->r.col_name.length, rng->r.col_name.text, 
+                    rng->r.row_start, rng->r.row_end);
+        }break;
+        case EXPR_RANGE1D_ROW:{
+            Range1DRow* rng = (Range1DRow*)arg;
+            print(buff, "[%.*s:%.*s, %zd]", 
+                    (int)rng->col_start.length, rng->col_start.text,
+                    (int)rng->col_end.length, rng->col_end.text,
+                    rng->row_idx);
+        }break;
+        case EXPR_RANGE1D_ROW_FOREIGN:{
+            ForeignRange1DRow* rng = (ForeignRange1DRow*)arg;
+            print(buff, "[%.*s, %.*s:%.*s, %zd]", 
+                    (int)rng->sheet_name.length, rng->sheet_name.text,
+                    (int)rng->r.col_start.length, rng->r.col_start.text,
+                    (int)rng->r.col_end.length, rng->r.col_end.text,
+                    rng->r.row_idx);
+        }break;
+        case EXPR_GROUP:{
+            Group* g = (Group*)arg;
+            print(buff, "(");
+            print_expr(buff, g->expr);
+            print(buff, ")");
+        }break;
+        case EXPR_BINARY:{
+            Binary* b = (Binary*)arg;
+            print_expr(buff, b->lhs);
+            switch(b->op){
+                case BIN_ADD: print(buff, "+"); break;
+                case BIN_SUB: print(buff, "-"); break;
+                case BIN_MUL: print(buff, "*"); break;
+                case BIN_DIV: print(buff, "/"); break;
+                case BIN_LT:  print(buff, "<"); break;
+                case BIN_LE:  print(buff, "<="); break;
+                case BIN_GT:  print(buff, ">"); break;
+                case BIN_GE:  print(buff, ">="); break;
+                case BIN_EQ:  print(buff, "="); break;
+                case BIN_NE:  print(buff, "!="); break;
+            }
+            print_expr(buff, b->rhs);
+        }break;
+        case EXPR_UNARY:{
+            Unary* u = (Unary*)arg;
+            switch(u->op){
+                case UN_PLUS: print(buff, "+"); break;
+                case UN_NEG: print(buff, "-"); break;
+                case UN_NOT: print(buff, "!"); break;
+            }
+            print_expr(buff, u->expr);
+        }break;
+        case EXPR_COMPUTED_ARRAY:
+            print(buff, "ComputedArray()");
+            break;
+    }
+}
+
+DRSP_INTERNAL
+void
+repr_expr(PrintBuff* buff, Expression* arg){
+    switch(arg->kind){
+        case EXPR_ERROR:
+            print(buff, "Error()");
+            break;
+        case EXPR_STRING:{
+            String* s = (String*)arg;
+            print(buff, "String('%.*s')", (int)s->sv.length, s->sv.text);
+        }break;
+        case EXPR_NULL:
+            print(buff, "Null()\n");
+            break;
+        case EXPR_NUMBER:{
+            Number* n = (Number*)arg;
+            print(buff, "Number(%g)", n->value);
+        }break;
+        case EXPR_FUNCTION_CALL:{
+            FunctionCall* f = (FunctionCall*)arg;
+            // TODO: print function name
+            print(buff, "FunctionCall(");
+            for(int i = 0; i < f->argc; i++){
+                if(i != 0){
+                    print(buff, ", ");
+                }
+                repr_expr(buff, f->argv[i]);
+            }
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE0D:{
+            print(buff, "R0(");
+            Range0D* rng = (Range0D*)arg;
+            print(buff, "[%.*s, %zd]", (int)rng->col_name.length, rng->col_name.text, rng->row);
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE0D_FOREIGN:{
+            print(buff, "R0F(");
+            ForeignRange0D* rng = (ForeignRange0D*)arg;
+            print(buff, "[%.*s, %.*s, %zd]", 
+                    (int)rng->sheet_name.length, rng->sheet_name.text, 
+                    (int)rng->r.col_name.length, rng->r.col_name.text, 
+                    rng->r.row);
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE1D_COLUMN:{
+            print(buff, "R1C(");
+            Range1DColumn* rng = (Range1DColumn*)arg;
+            print(buff, "[%.*s, %zd:%zd]", 
+                    (int)rng->col_name.length, rng->col_name.text, 
+                    rng->row_start, rng->row_end);
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN:{
+            print(buff, "R1CF(");
+            ForeignRange1DColumn* rng = (ForeignRange1DColumn*)arg;
+            print(buff, "[%.*s, %.*s, %zd:%zd]", 
+                    (int)rng->sheet_name.length, rng->sheet_name.text, 
+                    (int)rng->r.col_name.length, rng->r.col_name.text, 
+                    rng->r.row_start, rng->r.row_end);
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE1D_ROW:{
+            print(buff, "R1R(");
+            Range1DRow* rng = (Range1DRow*)arg;
+            print(buff, "[%.*s:%.*s, %zd]", 
+                    (int)rng->col_start.length, rng->col_start.text,
+                    (int)rng->col_end.length, rng->col_end.text,
+                    rng->row_idx);
+            print(buff, ")");
+        }break;
+        case EXPR_RANGE1D_ROW_FOREIGN:{
+            print(buff, "R1RF(");
+            ForeignRange1DRow* rng = (ForeignRange1DRow*)arg;
+            print(buff, "[%.*s, %.*s:%.*s, %zd]", 
+                    (int)rng->sheet_name.length, rng->sheet_name.text,
+                    (int)rng->r.col_start.length, rng->r.col_start.text,
+                    (int)rng->r.col_end.length, rng->r.col_end.text,
+                    rng->r.row_idx);
+            print(buff, ")");
+        }break;
+        case EXPR_GROUP:{
+            Group* g = (Group*)arg;
+            print(buff, "Group(");
+            repr_expr(buff, g->expr);
+            print(buff, ")");
+        }break;
+        case EXPR_BINARY:{
+            Binary* b = (Binary*)arg;
+            print(buff, "Binary(");
+            repr_expr(buff, b->lhs);
+            switch(b->op){
+                case BIN_ADD: print(buff, "+"); break;
+                case BIN_SUB: print(buff, "-"); break;
+                case BIN_MUL: print(buff, "*"); break;
+                case BIN_DIV: print(buff, "/"); break;
+                case BIN_LT:  print(buff, "<"); break;
+                case BIN_LE:  print(buff, "<="); break;
+                case BIN_GT:  print(buff, ">"); break;
+                case BIN_GE:  print(buff, ">="); break;
+                case BIN_EQ:  print(buff, "="); break;
+                case BIN_NE:  print(buff, "!="); break;
+            }
+            repr_expr(buff, b->rhs);
+            print(buff, ")");
+        }break;
+        case EXPR_UNARY:{
+            print(buff, "Unary(");
+            Unary* u = (Unary*)arg;
+            switch(u->op){
+                case UN_PLUS: print(buff, "+"); break;
+                case UN_NEG: print(buff, "-"); break;
+                case UN_NOT: print(buff, "!"); break;
+            }
+            repr_expr(buff, u->expr);
+            print(buff, ")");
+        }break;
+        case EXPR_COMPUTED_ARRAY:
+            print(buff, "ComputedArray()");
+            break;
+    }
+}
+
+DRSP_INTERNAL
+FORMULAFUNC(drsp_print){
+    (void)caller_col; (void)caller_row;
+    (void)hnd;
+    char buffer[4092];
+    PrintBuff buff = {0, sizeof buffer, buffer};
+    for(int i = 0; i < argc; i++){
+        Expression* arg = argv[i];
+        print_expr(&buff, arg);
+    }
+    if(buff.error) return Error(ctx, "");
+    DrspStr* str = drsp_create_str(ctx, buffer, sizeof(buffer) - buff.len);
+    if(!str) return NULL;
+    String* s = expr_alloc(ctx, EXPR_STRING);
+    if(!s) return NULL;
+    s->sv.text = str->data;
+    s->sv.length = str->length;
+    return &s->e;
+}
+DRSP_INTERNAL
+FORMULAFUNC(drsp_repr){
+    (void)caller_col; (void)caller_row;
+    (void)hnd;
+    char buffer[4092];
+    PrintBuff buff = {0, sizeof buffer, buffer};
+    for(int i = 0; i < argc; i++){
+        Expression* arg = argv[i];
+        repr_expr(&buff, arg);
+    }
+    if(buff.error) return Error(ctx, "");
+    DrspStr* str = drsp_create_str(ctx, buffer, sizeof(buffer) - buff.len);
+    if(!str) return NULL;
+    String* s = expr_alloc(ctx, EXPR_STRING);
+    if(!s) return NULL;
+    s->sv.text = str->data;
+    s->sv.length = str->length;
+    return &s->e;
+}
 #endif
 
 DRSP_INTERNAL
@@ -1666,6 +1967,8 @@ DRSP_INTERNAL
 const FuncInfo FUNC1[] = {
     {SV("a"),    &drsp_array},
     {SV("f"),    &drsp_first},
+    {SV("p"),    &drsp_print},
+    {SV("r"),    &drsp_repr},
 };
 #endif
 DRSP_INTERNAL
