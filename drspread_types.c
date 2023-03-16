@@ -76,6 +76,7 @@ drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, int
     if(col+1 > sd->width)
         sd->width = col+1;
     DrspStr* str = drsp_create_str(ctx, text, length);
+    if(!str) return 1;
     return set_cached_string(&sd->str_cache, row, col, str->data, str->length);
 }
 

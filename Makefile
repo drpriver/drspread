@@ -39,10 +39,10 @@ Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
 test.html: testspread_glue.js Bin/TestDrSpread.wasm
 
 Bin/drspread_fuzz: drspread_fuzz.c | Bin Depends
-	$(CC) -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -lm -fsanitize=fuzzer,address,undefined
+	$(CC) $< -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -lm -fsanitize=fuzzer,address,undefined -o $@
 .PHONY: fuzz
 fuzz: Bin/drspread_fuzz | FuzzDir
-	$< FuzzDir -fork=4 --only_ascii=1
+	$< FuzzDir -fork=k -only_ascii=1
 
 TestResults/TestDrSpread: Bin/TestDrSpread | TestResults
 	$< --tee $@

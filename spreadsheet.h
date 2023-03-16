@@ -116,9 +116,10 @@ cleanup_multisheet(MultiSpreadSheet* ms){
 }
 
 static
-SpreadSheet*
+SpreadSheet*_Nullable
 multisheet_alloc(MultiSpreadSheet* ms){
     SpreadSheet* newsheets = realloc(ms->sheets, (ms->n+1)*sizeof *newsheets);
+    if(!newsheets) return NULL;
     assert(newsheets);
     ms->sheets = newsheets;
     SpreadSheet* result = &newsheets[ms->n++];
@@ -286,6 +287,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
             if(!len) continue;
             max_cols = 0;
             sheet = multisheet_alloc(ms);
+            if(!sheet) return 1;
         }
         if(!sheet->name.length){
             sheet->name.length = len;
@@ -301,7 +303,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
                 size_t len = strlen(token);
                 while(len && token[len-1] == ' ')
                     token[--len] = 0;
-                assert(len);
+                // assert(len);
                 sheet_row_push(&sheet->colnames, token);
             }
             max_cols = sheet->colnames.n;

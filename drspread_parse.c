@@ -604,6 +604,7 @@ PARSEFUNC(parse_range){
             return Error(ctx, "[col1:col2] is not supported\n");
         if(has_foreign){
             ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+            if(!rng) return NULL;
             rng->r.col_name = colnames[0];
             rng->r.row_start = 0;
             rng->r.row_end = -1;
@@ -611,6 +612,7 @@ PARSEFUNC(parse_range){
             return &rng->e;
         }
         Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        if(!rng) return NULL;
         rng->col_name = colnames[0];
         rng->row_start = 0;
         rng->row_end = -1;
@@ -621,6 +623,7 @@ PARSEFUNC(parse_range){
         if(ncolnames == 2){
             if(has_foreign){
                 ForeignRange1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW_FOREIGN);
+                if(!rng) return NULL;
                 rng->r.col_start = colnames[0];
                 rng->r.col_end = colnames[1];
                 rng->r.row_idx = numbers[0];
@@ -628,6 +631,7 @@ PARSEFUNC(parse_range){
                 return &rng->e;
             }
             Range1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW);
+            if(!rng) return NULL;
             rng->col_start = colnames[0];
             rng->col_end = colnames[1];
             rng->row_idx = numbers[0];
@@ -635,12 +639,14 @@ PARSEFUNC(parse_range){
         }
         if(has_foreign){
             ForeignRange0D* rng = expr_alloc(ctx, EXPR_RANGE0D_FOREIGN);
+            if(!rng) return NULL;
             rng->sheet_name = sheetname;
             rng->r.col_name = colnames[0];
             rng->r.row = numbers[0];
             return &rng->e;
         }
         Range0D* rng = expr_alloc(ctx, EXPR_RANGE0D);
+        if(!rng) return NULL;
         rng->col_name = colnames[0];
         rng->row = numbers[0];
         return &rng->e;
@@ -651,6 +657,7 @@ PARSEFUNC(parse_range){
     assert(ncolnames == 1);
     if(has_foreign){
         ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+        if(!rng) return NULL;
         rng->r.col_name = colnames[0];
         rng->r.row_start = numbers[0];
         rng->r.row_end = numbers[1];
@@ -658,6 +665,7 @@ PARSEFUNC(parse_range){
         return &rng->e;
     }
     Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+    if(!rng) return NULL;
     rng->col_name = colnames[0];
     rng->row_start = numbers[0];
     rng->row_end = numbers[1];
