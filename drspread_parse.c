@@ -18,6 +18,41 @@
 #endif
 #endif
 
+// The gnu case range extension is much nicer than this, but is non-standard
+// and is not supported on non-gnu-style compilers.
+// To paper over that you need a macro anyway, in which case you might as well
+// just do this and write them all out in the macro.
+//
+// Note: the first case is missing "case" and the last case is missing ":" so that
+// indenters/formatters work correctly:
+//
+// switch(foo){
+//     case CASE_0_9:
+//         // whatever
+//     default:
+//         // whatever
+// }
+//
+//
+#ifndef CASE_0_9
+#define CASE_0_9 '0': case '1': case '2': case '3': case '4': case '5': \
+    case '6': case '7': case '8': case '9'
+#endif
+
+#ifndef CASE_a_z
+#define CASE_a_z 'a': case 'b': case 'c': case 'd': case 'e': case 'f': \
+    case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': \
+    case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': \
+    case 'u': case 'v': case 'w': case 'x': case 'y': case 'z'
+#endif
+
+#ifndef CASE_A_Z
+#define CASE_A_Z 'A': case 'B': case 'C': case 'D': case 'E': case 'F': \
+    case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': \
+    case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': \
+    case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z'
+#endif
+
 #define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, StringView* sv)
 DRSP_INTERNAL PARSEFUNC(parse_comparison);
 DRSP_INTERNAL PARSEFUNC(parse_addplus);
@@ -211,24 +246,11 @@ PARSEFUNC(parse_terminal){
     switch(sv->text[0]){
         case '[':
             return parse_range(ctx, sv);
-        case 'a': case 'b': case 'c': case 'd':
-        case 'e': case 'f': case 'g': case 'h':
-        case 'i': case 'j': case 'k': case 'l':
-        case 'm': case 'n': case 'o': case 'p':
-        case 'q': case 'r': case 's': case 't':
-        case 'u': case 'v': case 'w': case 'x':
-        case 'y': case 'z':
-        case 'A': case 'B': case 'C': case 'D':
-        case 'E': case 'F': case 'G': case 'H':
-        case 'I': case 'J': case 'K': case 'L':
-        case 'M': case 'N': case 'O': case 'P':
-        case 'Q': case 'R': case 'S': case 'T':
-        case 'U': case 'V': case 'W': case 'X':
-        case 'Y': case 'Z':
+        case CASE_a_z:
+        case CASE_A_Z:
         case '_':
             return parse_func_call(ctx, sv);
-        case '0': case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9':
+        case CASE_0_9:
         case '.':
             return parse_number(ctx, sv);
         case '(':
@@ -713,15 +735,141 @@ PARSEFUNC(parse_group){
     return e;
 }
 
+static inline
+Expression*_Nullable
+parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_t cn_len){
+    StringView colname = {cn_len, cn};
+    intptr_t row_idx = IDX_UNSET;
+    {
+        const char* begin = sv->text;
+        const char* end = begin;
+        for(;sv->length; end++, sv->length--, sv->text++){
+            switch(sv->text[0]){
+                case CASE_0_9:
+                    continue;
+                default:
+                    break;
+            }
+            break;
+        }
+        if(begin != end){
+            Int32Result ir = parse_int32(begin, end-begin);
+            if(ir.errored) return Error(ctx, "");
+            row_idx = ir.result - 1;
+        }
+        lstrip(sv);
+        if(!sv->length || sv->text[0] != ':'){
+            if(row_idx == IDX_UNSET){
+                Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+                if(!rng) return NULL;
+                rng->col_name = colname;
+                rng->row_start = 0;
+                rng->row_end = -1;
+                return &rng->e;
+            }
+            Range0D* rng = expr_alloc(ctx, EXPR_RANGE0D);
+            if(!rng) return NULL;
+            rng->col_name = colname;
+            rng->row = row_idx;
+            return &rng->e;
+        }
+        sv->text++, sv->length--;
+        lstrip(sv);
+        if(row_idx == IDX_UNSET) row_idx = 0;
+    }
+    {
+        StringView colname2;
+        {
+            const char* begin = sv->text;
+            const char* end = begin;
+            for(;sv->length; end++, sv->length--, sv->text++){
+                switch(sv->text[0]){
+                    case CASE_a_z:
+                    case CASE_A_Z:
+                        continue;
+                    case CASE_0_9:
+                        // if(end == begin) return Error(ctx, "");
+                        colname2 = (StringView){end-begin, begin};
+                        goto parsenum;
+                    default:
+                        break;
+                }
+                colname2 = (StringView){end-begin, begin};
+                break;
+            }
+        }
+        parsenum:;
+        const char* begin = sv->text;
+        const char* end = begin;
+        for(;sv->length; end++, sv->length--, sv->text++){
+            switch(sv->text[0]){
+                case CASE_0_9:
+                    continue;
+                default:
+                    break;
+            }
+            break;
+        }
+        lstrip(sv);
+        // 2nd number is optional
+        intptr_t row_idx2 = -1;
+        if(begin != end){
+            Int32Result ir = parse_int32(begin, end-begin);
+            if(ir.errored) return Error(ctx, "");
+            row_idx2 = ir.result-1;
+        }
+        if(!colname2.length || sv_equals(colname, colname2)){
+            Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+            if(!rng) return NULL;
+            rng->col_name = colname;
+            rng->row_start = row_idx;
+            rng->row_end = row_idx2;
+            return &rng->e;
+        }
+        else if(row_idx == row_idx2){
+            Range1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW);
+            if(!rng) return NULL;
+            rng->col_start = colname;
+            rng->col_end = colname2;
+            rng->row_idx = row_idx;
+            return &rng->e;
+        }
+        else {
+            return Error(ctx, "2d ranges not supported yet");
+        }
+    }
+}
+
 DRSP_INTERNAL
 PARSEFUNC(parse_func_call){
     const char* begin = sv->text;
     const char* end = begin;
-    while(sv->length && sv->text[0] != '('){
-        end++, sv->length--, sv->text++;
+    for(;sv->length; end++, sv->length--, sv->text++){
+        switch(sv->text[0]){
+            case CASE_a_z:
+            case CASE_A_Z:
+                continue;
+            case CASE_0_9:{
+                if(begin == end) return Error(ctx, "");
+                return parse_other_range_syntax(ctx, sv, begin, end-begin);
+            }
+            default:
+                break;
+        }
+        break;
     }
-    if(begin == end || !sv->length || sv->text[0] != '(')
+    if(begin == end)
         return Error(ctx, "");
+    if(!sv->length || sv->text[0] != '('){
+        // This is a range literal actually.
+        return parse_other_range_syntax(ctx, sv, begin, end-begin);
+        Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        if(!rng) return NULL;
+        rng->col_name = (StringView){end-begin, begin};
+        rng->row_start = 0;
+        rng->row_end = -1;
+        return &rng->e;
+    }
     sv->length--, sv->text++;
     StringView name = {end-begin, begin};
     rstrip(&name);

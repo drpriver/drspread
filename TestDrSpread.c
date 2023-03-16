@@ -196,6 +196,21 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
 }
 TestFunction(TestParsing){
     const char* input =
+        // Supporting syntax like other spreadsheets.
+        "=r(a1)\n"
+        "=r(a1:b1)\n"
+        "=r(a1:a3)\n"
+        "=r(a1:a1)\n"
+
+        "=r(a:a5)\n"
+        "=r(a:5)\n"
+        "=r(a5:a)\n"
+        "=r(a5:)\n"
+
+        "=r(c:c)\n"
+        "=r(c:)\n"
+        "=r(c)\n"
+
         // [col, 1] -> 0d
         "=r([a,1])\n"
         "=r(['a', 1])\n"
@@ -289,6 +304,20 @@ TestFunction(TestParsing){
     // NOTE: We print out the internal 0-based offsets instead
     //       of the user-facing 1-based offsets.
     SheetRow expected[] = {
+        ROW("R0([a, 0])"),
+        ROW("R1R([a:b, 0])"),
+        ROW("R1C([a, 0:2])"),
+        ROW("R1C([a, 0:0])"),
+
+        ROW("R1C([a, 0:4])"),
+        ROW("R1C([a, 0:4])"),
+        ROW("R1C([a, 4:-1])"),
+        ROW("R1C([a, 4:-1])"),
+
+        ROW("R1C([c, 0:-1])"),
+        ROW("R1C([c, 0:-1])"),
+        ROW("R1C([c, 0:-1])"),
+
         // [col, 1] -> 0d
         ROW("R0([a, 0])"),
         ROW("R0([a, 0])"),
@@ -385,27 +414,27 @@ TestFunction(TestParsing){
 
 TestFunction(TestRanges){
     const char* input =
-        " 0 | =[a,1]\n"
+        " 0 | =[a,1] | = a1\n"
         " 1 | =['a', 1]\n"
         " 2 | =['a', $]\n"
         " 3 | =[\"$\", 3]\n"
         " 4 | =['$', 3]\n"
-        " 5 | =sum([a])\n"
+        " 5 | =sum([a]) | =sum(a)\n"
         " 6 | =sum(['a', :])\n"
-        " 7 | =sum(['a', 1:2])\n"
+        " 7 | =sum(['a', 1:2]) | =sum(a1:a2)\n"
         " 8 | =sum(['a', :2])\n"
         " 9 | =sum(['a', 2:])\n"
         "10 | =sum([a, 2:])\n"
     ;
     SheetRow expected[] = {
-        [ 0] = ROW("0", "0"),
+        [ 0] = ROW("0", "0", "0"),
         [ 1] = ROW("1", "0"),
         [ 2] = ROW("2", "2"),
         [ 3] = ROW("3", "2"),
         [ 4] = ROW("4", "2"),
-        [ 5] = ROW("5", "55"),
+        [ 5] = ROW("5", "55", "55"),
         [ 6] = ROW("6", "55"),
-        [ 7] = ROW("7", "1"),
+        [ 7] = ROW("7", "1", "1"),
         [ 8] = ROW("8", "1"),
         [ 9] = ROW("9", "55"),
         [10] = ROW("10", "55"),
