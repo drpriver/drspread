@@ -108,6 +108,7 @@ struct MultiSpreadSheet {
     SpreadSheet* sheets;
 };
 
+static
 void
 cleanup_multisheet(MultiSpreadSheet* ms){
     for(int i = 0; i < ms->n; i++)

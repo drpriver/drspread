@@ -13,7 +13,7 @@
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
+evaluate(SpreadContext* ctx, SheetData* sd, intptr_t row, intptr_t col){
     {
         uintptr_t frm = (uintptr_t)__builtin_frame_address(0);
         uintptr_t limit;
@@ -25,7 +25,9 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
         if(frm < limit) return NULL;
     }
     size_t len = 0;
-    const char* txt = sp_cell_text(ctx, hnd, row, col, &len);
+    if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
+        return expr_alloc(ctx, EXPR_NULL);
+    const char* txt = sp_cell_text(ctx, sd->handle, row, col, &len);
     if(!txt) return expr_alloc(ctx, EXPR_NULL);
     StringView sv = stripped2(txt, len);
     // These `goto`s are a bit unorthodox, but it is basically a switch,
@@ -66,7 +68,7 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
             buff_set(ctx->a, bc);
             return root;
         }
-        Expression *e = evaluate_expr(ctx, hnd, root, row, col);
+        Expression *e = evaluate_expr(ctx, sd, root, row, col);
         if(!e || e->kind == EXPR_ERROR) {
             buff_set(ctx->a, bc);
             return e;
@@ -90,10 +92,10 @@ evaluate(SpreadContext* ctx, SheetHandle hnd, intptr_t row, intptr_t col){
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, SheetHandle hnd, const char* txt, size_t len, intptr_t caller_row, intptr_t caller_col){
+evaluate_string(SpreadContext* ctx, SheetData* sd, const char* txt, size_t len, intptr_t caller_row, intptr_t caller_col){
     Expression *root = parse(ctx, txt, len);
     if(!root || root->kind == EXPR_ERROR) return root;
-    Expression *e = evaluate_expr(ctx, hnd, root, caller_row, caller_col);
+    Expression *e = evaluate_expr(ctx, sd, root, caller_row, caller_col);
     return e;
 }
 
@@ -120,15 +122,15 @@ double_bin_cmp(BinaryKind op, double l, double r){
 
 static inline
 Expression*_Nullable
-evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
+evaluate_binary_op(SpreadContext* ctx, SheetData* sd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
     Expression* result = NULL;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
 #define BAD(x) do{result = x; goto cleanup;}while(0)
     {
-        lhs = evaluate_expr(ctx, hnd, lhs, caller_row, caller_col);
+        lhs = evaluate_expr(ctx, sd, lhs, caller_row, caller_col);
         if(!lhs || lhs->kind == EXPR_ERROR)
             BAD(lhs);
-        rhs = evaluate_expr(ctx, hnd, rhs, caller_row, caller_col);
+        rhs = evaluate_expr(ctx, sd, rhs, caller_row, caller_col);
         if(!rhs || rhs->kind == EXPR_ERROR)
             BAD(rhs);
         _Bool larraylike = expr_is_arraylike(lhs);
@@ -137,7 +139,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
             if(larraylike && !rarraylike){
                 if(rhs->kind != EXPR_STRING && rhs->kind != EXPR_NUMBER)
                     BAD(Error(ctx, ""));
-                lhs = convert_to_computed_array(ctx, hnd, lhs, caller_row, caller_col);
+                lhs = convert_to_computed_array(ctx, sd, lhs, caller_row, caller_col);
                 if(!lhs || lhs->kind == EXPR_ERROR)
                     BAD(lhs);
                 ComputedArray* l = (ComputedArray*)lhs;
@@ -183,7 +185,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
             else if(rarraylike && !larraylike){
                 if(lhs->kind != EXPR_STRING && lhs->kind != EXPR_NUMBER)
                     BAD(Error(ctx, ""));
-                rhs = convert_to_computed_array(ctx, hnd, rhs, caller_row, caller_col);
+                rhs = convert_to_computed_array(ctx, sd, rhs, caller_row, caller_col);
                 if(!rhs || rhs->kind == EXPR_ERROR)
                     BAD(rhs);
                 ComputedArray* r = (ComputedArray*)rhs;
@@ -230,7 +232,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                 assert(rarraylike && larraylike);
                 // XXX: we could lazily iterate over the row range, but fuck it.
                 if(rhs->kind == EXPR_RANGE1D_ROW || rhs->kind == EXPR_RANGE1D_ROW_FOREIGN){
-                    rhs = convert_to_computed_array(ctx, hnd, rhs, caller_row, caller_col);
+                    rhs = convert_to_computed_array(ctx, sd, rhs, caller_row, caller_col);
                     if(!rhs || rhs->kind == EXPR_ERROR)
                         BAD(rhs);
                 }
@@ -256,13 +258,13 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                         rhs = tmp;
                     }
                 }
-                lhs = convert_to_computed_array(ctx, hnd, lhs, caller_row, caller_col);
+                lhs = convert_to_computed_array(ctx, sd, lhs, caller_row, caller_col);
                 if(!lhs || lhs->kind == EXPR_ERROR)
                     BAD(lhs);
                 ComputedArray* l = (ComputedArray*)lhs;
                 // XXX: we could lazily iterate over the row range, but fuck it.
                 if(rhs->kind == EXPR_RANGE1D_ROW || rhs->kind == EXPR_RANGE1D_ROW_FOREIGN){
-                    rhs = convert_to_computed_array(ctx, hnd, rhs, caller_row, caller_col);
+                    rhs = convert_to_computed_array(ctx, sd, rhs, caller_row, caller_col);
                     if(!rhs || rhs->kind == EXPR_ERROR)
                         BAD(rhs);
                 }
@@ -273,16 +275,16 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                         BAD(Error(ctx, ""));
                     }
                     for(intptr_t i = 0; i < l->length; i++){
-                        Expression* e = evaluate_binary_op(ctx, hnd, op, l->data[i], r->data[i], caller_row, caller_col);
+                        Expression* e = evaluate_binary_op(ctx, sd, op, l->data[i], r->data[i], caller_row, caller_col);
                         if(!e || e->kind == EXPR_ERROR)
                             BAD(e);
                         l->data[i] = e;
                     }
                     return lhs;
                 }
-                SheetHandle rhnd = hnd;
+                SheetData* rsd = sd;
                 intptr_t col, rstart, rend;
-                if(get_range1dcol(ctx, hnd, rhs, &col, &rstart, &rend, &rhnd, caller_row, caller_col))
+                if(get_range1dcol(ctx, sd, rhs, &col, &rstart, &rend, &rsd, caller_row, caller_col))
                     BAD(Error(ctx, ""));
                 if(rend - rstart +1 != l->length)
                     BAD(Error(ctx, ""));
@@ -291,7 +293,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
                     Expression* ld = l->data[i];
                     if(ld->kind == EXPR_NULL)
                         continue;
-                    Expression* e = evaluate(ctx, rhnd, row, col);
+                    Expression* e = evaluate(ctx, rsd, row, col);
                     if(!e || e->kind == EXPR_ERROR) BAD(e);
                     if(ld->kind != e->kind){
                         BAD(Error(ctx, ""));
@@ -377,7 +379,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetHandle hnd, BinaryKind op, Expressio
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
+evaluate_expr(SpreadContext* ctx, SheetData* sd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
     switch(expr->kind){
         case EXPR_NULL:
         case EXPR_ERROR:
@@ -391,13 +393,13 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             return expr;
         case EXPR_FUNCTION_CALL:{
             FunctionCall* fc = (FunctionCall*)expr;
-            return fc->func(ctx, hnd, caller_row, caller_col, fc->argc, fc->argv);
+            return fc->func(ctx, sd, caller_row, caller_col, fc->argc, fc->argv);
         }
         case EXPR_RANGE0D_FOREIGN:{
             ForeignRange0D* rng = (ForeignRange0D*)expr;
             StringView sn = rng->sheet_name;
-            SheetHandle foreign = sp_name_to_sheet(ctx, sn.text, sn.length);
-            if(!foreign) return Error(ctx, "");
+            SheetData* fsd = sheet_lookup_by_name(ctx, sn.text, sn.length);
+            if(!fsd) return Error(ctx, "");
             intptr_t r = rng->r.row;
             if(r == IDX_DOLLAR) r = caller_row;
             intptr_t c;
@@ -405,9 +407,9 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             if(sv_equals(col, SV("$")))
                 c = caller_col;
             else
-                c = sp_name_to_col_idx(ctx, foreign, col.text, col.length);
+                c = sp_name_to_col_idx(fsd, col.text, col.length);
             if(c == IDX_DOLLAR) c = caller_col;
-            return evaluate(ctx, foreign, r, c);
+            return evaluate(ctx, fsd, r, c);
         }
         case EXPR_RANGE0D:{
             Range0D* rng = (Range0D*)expr;
@@ -418,18 +420,18 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             if(sv_equals(col, SV("$")))
                 c = caller_col;
             else
-                c = sp_name_to_col_idx(ctx, hnd, col.text, col.length);
+                c = sp_name_to_col_idx(sd, col.text, col.length);
             if(c == IDX_DOLLAR) c = caller_col;
-            return evaluate(ctx, hnd, r, c);
+            return evaluate(ctx, sd, r, c);
         }
         case EXPR_BINARY:{
             Binary* b = (Binary*)expr;
-            return evaluate_binary_op(ctx, hnd, b->op, b->lhs, b->rhs, caller_row, caller_col);
+            return evaluate_binary_op(ctx, sd, b->op, b->lhs, b->rhs, caller_row, caller_col);
         }
         case EXPR_UNARY:{
             char* chk = ctx->a->cursor;
             Unary* u = (Unary*)expr;
-            Expression* v = evaluate_expr(ctx, hnd, u->expr, caller_row, caller_col);
+            Expression* v = evaluate_expr(ctx, sd, u->expr, caller_row, caller_col);
             if(!v) return NULL;
             if(v->kind != EXPR_NUMBER) return Error(ctx, "");
             if(u->op == UN_PLUS) return u->expr;
@@ -451,7 +453,7 @@ evaluate_expr(SpreadContext* ctx, SheetHandle hnd, Expression* expr, intptr_t ca
             Group* g = (Group*)expr;
             // TODO: check if this tail calls.
             // Otherwise we need a goto to the top.
-            return evaluate_expr(ctx, hnd, g->expr, caller_row, caller_col);
+            return evaluate_expr(ctx, sd, g->expr, caller_row, caller_col);
         }
     }
     return NULL;

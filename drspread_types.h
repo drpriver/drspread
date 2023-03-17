@@ -164,7 +164,8 @@ struct Number {
     double value;
 };
 typedef struct FunctionCall FunctionCall;
-#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, SheetHandle hnd,  intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
+typedef struct SheetData SheetData;
+#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, SheetData* sd,  intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
 typedef FORMULAFUNC(FormulaFunc);
 struct FunctionCall {
     Expression e;
@@ -766,19 +767,15 @@ sp_cell_text(SpreadContext* ctx, SheetHandle sheet, intptr_t row, intptr_t col, 
 
 force_inline
 intptr_t
-sp_col_height(const SpreadContext* ctx, SheetHandle sheet, intptr_t col){
+sp_col_height(const SheetData* sd, intptr_t col){
     (void)col;
-    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
-    if(!sd) return 0;
     return sd->height;
 }
 
 force_inline
 intptr_t
-sp_row_width(const SpreadContext* ctx, SheetHandle sheet, intptr_t row){
+sp_row_width(const SheetData* sd, intptr_t row){
     (void)row;
-    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
-    if(!sd) return 0;
     return sd->width;
 }
 
@@ -828,7 +825,7 @@ sp_set_display_string(SP_ARGS, intptr_t row, intptr_t col, const char* txt, size
 
 force_inline
 intptr_t
-sp_name_to_col_idx(SpreadContext* ctx, SheetHandle sheet, const char* name, size_t len){
+sp_name_to_col_idx(SheetData* sd, const char* name, size_t len){
     if(len < 3){
         intptr_t x = 0;
         for(size_t i = 0; i < len; i++){
@@ -844,18 +841,9 @@ sp_name_to_col_idx(SpreadContext* ctx, SheetHandle sheet, const char* name, size
         return x - 1;
     }
     lookup:;
-    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
     intptr_t* pidx = get_cached_col_name(&sd->col_cache, name, len);
     if(pidx) return *pidx;
     return -1;
-}
-
-force_inline
-SheetHandle _Nullable
-sp_name_to_sheet(SpreadContext* ctx, const char* name, size_t len){
-    SheetData* sd = sheet_lookup_by_name(ctx, name, len);
-    if(!sd) return NULL;
-    return sd->handle;
 }
 
 #ifdef DRSPREAD_DIRECT_OPS

@@ -81,7 +81,6 @@ streq2(const char* a, const char* b, size_t blen){
 }
 
 
-// We just leak the spreadsheets, it's really not that much data
 static
 struct
 TestStats
@@ -151,7 +150,7 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
         TestAssertEquals(inp_row->n, expected_row->n);
         for(int col = 0; col < expected_row->n; col++){
             const char* expected_text = expected_row->data[col];
-            StringView expected = {strlen(expected_text), expected_text};
+            StringView exp = {strlen(expected_text), expected_text};
             const char* inp_txt = inp_row->data[col];
             size_t inp_len = inp_row->lengths[col];
             StringView inp = stripped2(inp_txt, inp_len);
@@ -163,17 +162,17 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
             if(!err){
                 switch(val.kind){
                     case DRSP_RESULT_NULL:
-                        TestExpectEquals(expected.length, 0);
+                        TestExpectEquals(exp.length, 0);
                         break;
                     case DRSP_RESULT_NUMBER:{
-                        DoubleResult dr = parse_double(expected.text, expected.length);
+                        DoubleResult dr = parse_double(exp.text, exp.length);
                         TestAssertFalse(dr.errored);
                         double n = dr.result;
                         TestExpectEquals(n, val.d);
                     }break;
                     case DRSP_RESULT_STRING:{
                         StringView v = {val.s.length, val.s.text};
-                        TestExpectEquals2(sv_equals, v, expected);
+                        TestExpectEquals2(sv_equals, v, exp);
                     } break;
                     default:
                         TestExpectFalse(1);
@@ -210,6 +209,10 @@ TestFunction(TestParsing){
         "=r(c:c)\n"
         "=r(c:)\n"
         "=r(c)\n"
+        //  This one not supported yet
+        #if 0
+        "=r(:c)\n"
+        #endif
 
         // [col, 1] -> 0d
         "=r([a,1])\n"
@@ -317,6 +320,10 @@ TestFunction(TestParsing){
         ROW("R1C([c, 0:-1])"),
         ROW("R1C([c, 0:-1])"),
         ROW("R1C([c, 0:-1])"),
+        // Not supported yet
+        #if 0
+        ROW("R1C([c, 0:-1])"),
+        #endif
 
         // [col, 1] -> 0d
         ROW("R0([a, 0])"),
@@ -1131,7 +1138,7 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
         TestAssertEquals(inp_row->n, expected_row->n);
         for(int col = 0; col < expected_row->n; col++){
             const char* expected_text = expected_row->data[col];
-            StringView expected = {strlen(expected_text), expected_text};
+            StringView exp = {strlen(expected_text), expected_text};
             const char* inp_txt = inp_row->data[col];
             size_t inp_len = inp_row->lengths[col];
             StringView inp = stripped2(inp_txt, inp_len);
@@ -1143,17 +1150,17 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
             if(!err){
                 switch(val.kind){
                     case DRSP_RESULT_NULL:
-                        TestExpectEquals(expected.length, 0);
+                        TestExpectEquals(exp.length, 0);
                         break;
                     case DRSP_RESULT_NUMBER:{
-                        DoubleResult dr = parse_double(expected.text, expected.length);
+                        DoubleResult dr = parse_double(exp.text, exp.length);
                         TestAssertFalse(dr.errored);
                         double n = dr.result;
                         TestExpectEquals(n, val.d);
                     }break;
                     case DRSP_RESULT_STRING:{
                         StringView v = {val.s.length, val.s.text};
-                        TestExpectEquals2(sv_equals, v, expected);
+                        TestExpectEquals2(sv_equals, v, exp);
                     } break;
                     default:
                         TestExpectFalse(1);
@@ -1318,8 +1325,10 @@ TestFunction(TestComplexMultisheet){
         ;
     #undef FORMULA
     MultiSpreadSheet ms = {0};
-    int err = read_multi_csv_from_string(&ms, input);
-    TestAssertFalse(err);
+    {
+        int err = read_multi_csv_from_string(&ms, input);
+        TestAssertFalse(err);
+    }
     SheetOps ops = multisheet_ops(&ms);
     struct test_case {
         StringView sv;
@@ -1344,9 +1353,9 @@ TestFunction(TestComplexMultisheet){
         // case insensitive
         { SV("[overview, encumbrance, 1]"),                   2. },
     };
-    SpreadSheet* sheet = &ms.sheets[0];
     DrSpreadCtx* ctx = drsp_create_ctx(&ops);
     {
+        SpreadSheet* sheet = &ms.sheets[0];
         // can't alias a sheet that doesn't already exist
         int err = drsp_set_sheet_alias(ctx, (SheetHandle)sheet, "Overview", sizeof("Overview")-1);
         TestExpectTrue(err);
@@ -1372,6 +1381,7 @@ TestFunction(TestComplexMultisheet){
         }
     }
     {
+        SpreadSheet* sheet = &ms.sheets[0];
         int err = drsp_set_sheet_alias(ctx, (SheetHandle)sheet, "Overview", sizeof("Overview")-1);
         TestAssertFalse(err);
     }
@@ -1379,14 +1389,15 @@ TestFunction(TestComplexMultisheet){
         struct test_case* c = &cases[i];
         DrSpreadResult val = {0};
         StringView sv = c->sv;
-        err = drsp_evaluate_string(ctx, (SheetHandle)sheet, sv.text, sv.length, &val, -1, -1);
+        SpreadSheet* sheet = &ms.sheets[0];
+        int err = drsp_evaluate_string(ctx, (SheetHandle)sheet, sv.text, sv.length, &val, -1, -1);
         TestExpectFalse(err);
         TestExpectEquals(val.kind, DRSP_RESULT_NUMBER);
         TestExpectEquals(val.d, c->value); // suck it, "always use an epsilon" bots.
     }
     {   // Test that deleting a sheet works (and asan doesn't get mad).
         DrSpreadResult val = {0};
-        err = drsp_evaluate_string(ctx, (SheetHandle)&ms.sheets[0], "[Encumbrance, 1]", sizeof("[Encumbrance, 1]")-1, &val, -1, -1);
+        int err = drsp_evaluate_string(ctx, (SheetHandle)&ms.sheets[0], "[Encumbrance, 1]", sizeof("[Encumbrance, 1]")-1, &val, -1, -1);
         TestAssertFalse(err);
         TestExpectEquals(val.kind, DRSP_RESULT_NUMBER);
         TestExpectEquals(val.d, 2.);
@@ -1417,14 +1428,18 @@ TestFunction(TestComplexMultisheet){
             }
         }
     }
-    err = drsp_evaluate_formulas(ctx, (SheetHandle)sheet, NULL, 0);
-    TestExpectEquals(err, 0);
+    {
+        SpreadSheet* sheet = &ms.sheets[0];
+        int err = drsp_evaluate_formulas(ctx, (SheetHandle)sheet, NULL, 0);
+        TestExpectEquals(err, 0);
+    }
     StringView expected[] = {
         SV("2"),
         SV("3.2"),
         SV("8"),
     };
     for(size_t i = 0; i < arrlen(expected); i++){
+        SpreadSheet* sheet = &ms.sheets[0];
         const SheetRow* disp = &sheet->display[i];
         TestAssertEquals(disp->n, 3);
         StringView weight = {strlen(disp->data[1]), disp->data[1]};

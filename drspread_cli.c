@@ -210,6 +210,7 @@ main(int argc, char** argv){
             }
         }
         gi_dump_history(&gi, "spread.history");
+        if(0) cleanup_multisheet(&ms);
     }
     return 0;
 }

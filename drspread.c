@@ -62,12 +62,12 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx, SheetHandle sheethandle, SheetHandle _N
     for(intptr_t row = 0; row < sd->height; row++){
         for(intptr_t col = 0; col < sd->width; col++){
             buff_set(ctx->a, bc);
-            Expression* e = evaluate(ctx, sheethandle, row, col);
+            Expression* e = evaluate(ctx, sd, row, col);
             // benchmarking
             #ifdef BENCHMARKING
                 for(int i = 0; i < 100000; i++){
                     buff_set(ctx->a, bc);
-                    e = evaluate(ctx, sheethandle, row, col);
+                    e = evaluate(ctx, sd, row, col);
                 }
             #endif
             if(!e){ // OOM, don't cache the result.
@@ -142,7 +142,9 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
     ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
-    Expression* e = evaluate_string(ctx, sheethandle, txt, len, row, col);
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheethandle);
+    if(!sd) return 1;
+    Expression* e = evaluate_string(ctx, sd, txt, len, row, col);
     int error = 0;
     if(!e){
         error = 1;

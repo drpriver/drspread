@@ -56,6 +56,9 @@ const imports = {
         round: (num) => {
             return Math.sign(num) * Math.round(Math.abs(num));
         },
+        lround: (num) => {
+            return Math.sign(num) * Math.round(Math.abs(num));
+        },
         abort: () => {
             throw new Error();
         },

@@ -164,7 +164,6 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
     (void)ctx;
     StringHeap* heap = &ctx->sheap;
     size_t sz = __builtin_offsetof(DrspStr, data)+length;
-    uint32_t hash = hash_align1(txt, length);
     size_t cap = heap->cap;
     // XXX overflow checking
     if(unlikely(heap->n*2 >= cap)){
@@ -195,6 +194,7 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
             indexes[idx] = i;
         }
     }
+    uint32_t hash = hash_align1(txt, length);
     uint32_t* indexes = (uint32_t*)(heap->data + sizeof(DrspStr*)*cap);
     DrspStr** items = (DrspStr**)heap->data;
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);

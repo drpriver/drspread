@@ -8,15 +8,16 @@
 
 static inline
 int
-get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, SheetHandle _Nonnull *_Nonnull rhnd, intptr_t caller_row, intptr_t caller_col){
+get_range1dcol(SpreadContext*ctx, SheetData* sd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, SheetData* _Nonnull *_Nonnull rsd, intptr_t caller_row, intptr_t caller_col){
     if(arg->kind != EXPR_RANGE1D_COLUMN && arg->kind != EXPR_RANGE1D_COLUMN_FOREIGN)
         return 1;
     if(arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
         StringView sheet_name = ((ForeignRange1DColumn*)arg)->sheet_name;
-        SheetHandle _Nullable h = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
-        if(!h) return 1;
-        hnd = h;
-        *rhnd = h;
+        SheetData* hd = sheet_lookup_by_name(ctx, sheet_name.text, sheet_name.length);
+        if(!hd) return 1;
+        assert(hd);
+        sd = hd;
+        *rsd = sd;
     }
     Range1DColumn* rng = (Range1DColumn*)arg;
     intptr_t start = rng->row_start;
@@ -29,12 +30,12 @@ get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* co
         colnum = 0;
     }
     else {
-        colnum = sp_name_to_col_idx(ctx, hnd, rng->col_name.text, rng->col_name.length);
+        colnum = sp_name_to_col_idx(sd, rng->col_name.text, rng->col_name.length);
     }
-    if(start < 0) start += sp_col_height(ctx, hnd, colnum);
+    if(start < 0) start += sp_col_height(sd, colnum);
     intptr_t end = rng->row_end;
     if(end == IDX_DOLLAR) end = caller_row;
-    if(end < 0) end += sp_col_height(ctx, hnd, colnum);
+    if(end < 0) end += sp_col_height(sd, colnum);
     if(end < start){
         intptr_t tmp = end;
         end = start;
@@ -48,15 +49,15 @@ get_range1dcol(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* co
 
 static inline
 int
-get_range1drow(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* row, intptr_t* colstart, intptr_t* colend, SheetHandle _Nonnull *_Nonnull rhnd, intptr_t caller_row, intptr_t caller_col){
+get_range1drow(SpreadContext*ctx, SheetData* sd, Expression* arg, intptr_t* row, intptr_t* colstart, intptr_t* colend, SheetData* _Nonnull *_Nonnull rsd, intptr_t caller_row, intptr_t caller_col){
     if(arg->kind != EXPR_RANGE1D_ROW && arg->kind != EXPR_RANGE1D_ROW_FOREIGN)
         return 1;
     if(arg->kind == EXPR_RANGE1D_ROW_FOREIGN){
         StringView sheet_name = ((ForeignRange1DRow*)arg)->sheet_name;
-        SheetHandle _Nullable h = sp_name_to_sheet(ctx, sheet_name.text, sheet_name.length);
-        if(!h) return 1;
-        hnd = h;
-        *rhnd = h;
+        SheetData* hd = sheet_lookup_by_name(ctx, sheet_name.text, sheet_name.length);
+        if(!hd) return 1;
+        sd = hd;
+        *rsd = hd;
     }
     Range1DRow* rng = (Range1DRow*)arg;
     StringView sv_start = rng->col_start;
@@ -67,7 +68,7 @@ get_range1drow(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* ro
         start = 0;
     }
     else
-        start = sp_name_to_col_idx(ctx, hnd, sv_start.text, sv_start.length);
+        start = sp_name_to_col_idx(sd, sv_start.text, sv_start.length);
     intptr_t row_idx = rng->row_idx;
     if(row_idx == IDX_DOLLAR) row_idx = caller_row;
     StringView sv_end = rng->col_end;
@@ -75,10 +76,10 @@ get_range1drow(SpreadContext*ctx, SheetHandle hnd, Expression* arg, intptr_t* ro
     if(sv_equals(sv_end, SV("$")))
         end = caller_col;
     else if(!sv_end.length){
-        end = sp_row_width(ctx, hnd, row_idx);
+        end = sp_row_width(sd, row_idx);
     }
     else
-        end = sp_name_to_col_idx(ctx, hnd, sv_end.text, sv_end.length);
+        end = sp_name_to_col_idx(sd, sv_end.text, sv_end.length);
     if(end < start){
         intptr_t tmp = end;
         end = start;
@@ -151,13 +152,13 @@ expr_is_arraylike(Expression* e){
 
 static inline
 Expression*_Nullable
-convert_to_computed_array(SpreadContext* ctx, SheetHandle hnd, Expression* e, intptr_t caller_row, intptr_t caller_col){
+convert_to_computed_array(SpreadContext* ctx, SheetData* sd, Expression* e, intptr_t caller_row, intptr_t caller_col){
     if(e->kind == EXPR_COMPUTED_ARRAY)
         return e;
     if(e->kind == EXPR_RANGE1D_ROW || e->kind == EXPR_RANGE1D_ROW_FOREIGN){
-        SheetHandle rhnd = hnd;
+        SheetData* rsd = sd;
         intptr_t row, colstart, colend;
-        if(get_range1drow(ctx, hnd, e, &row, &colstart, &colend, &rhnd, caller_row, caller_col))
+        if(get_range1drow(ctx, sd, e, &row, &colstart, &colend, &rsd, caller_row, caller_col))
             return Error(ctx, "");
         intptr_t len = colend - colstart + 1;
         // Can't express a zero-length range
@@ -167,7 +168,7 @@ convert_to_computed_array(SpreadContext* ctx, SheetHandle hnd, Expression* e, in
         Expression** data = cc->data;
         intptr_t i = 0;
         for(intptr_t col = colstart; col <= colend; col++){
-            Expression* val = evaluate(ctx, rhnd, row, col);
+            Expression* val = evaluate(ctx, rsd, row, col);
             if(!val || val->kind == EXPR_ERROR) return val;
             if(evaled_is_not_scalar(val)) return Error(ctx, "");
             data[i++] = val;
@@ -175,9 +176,9 @@ convert_to_computed_array(SpreadContext* ctx, SheetHandle hnd, Expression* e, in
         assert(i == len);
         return &cc->e;
     }
-    SheetHandle rhnd = hnd;
+    SheetData* rsd = sd;
     intptr_t col, rstart, rend;
-    if(get_range1dcol(ctx, hnd, e, &col, &rstart, &rend, &rhnd, caller_row, caller_col))
+    if(get_range1dcol(ctx, sd, e, &col, &rstart, &rend, &rsd, caller_row, caller_col))
         return Error(ctx, "");
     intptr_t len = rend - rstart + 1;
     // Can't express a zero-length range
@@ -187,7 +188,7 @@ convert_to_computed_array(SpreadContext* ctx, SheetHandle hnd, Expression* e, in
     Expression** data = cc->data;
     intptr_t i = 0;
     for(intptr_t row = rstart; row <= rend; row++){
-        Expression* val = evaluate(ctx, rhnd, row, col);
+        Expression* val = evaluate(ctx, rsd, row, col);
         if(!val || val->kind == EXPR_ERROR) return val;
         if(evaled_is_not_scalar(val)) return Error(ctx, "");
         data[i++] = val;
