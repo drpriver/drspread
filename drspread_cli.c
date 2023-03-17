@@ -12,6 +12,7 @@
 int
 main(int argc, char** argv){
     _Bool multisheet = 0;
+    _Bool printit = 0;
     StringView filename;
     StringView expressions[20] = {0};
     ArgToParse pos_args[] = {
@@ -36,6 +37,12 @@ main(int argc, char** argv){
             .altname1 = SV("--multi"),
             .dest = ARGDEST(&multisheet),
             .help = "Parse the file as containing multiple sheets.",
+        },
+        {
+            .name = SV("-p"),
+            .altname1 = SV("--print"),
+            .dest = ARGDEST(&printit),
+            .help = "print the evaled spreadsheet then exit.",
         },
     };
     enum {HELP=0};
@@ -155,6 +162,9 @@ main(int argc, char** argv){
         for(int i = 0; i < ms.n; i++){
             SpreadSheet* sheet = &ms.sheets[i];
             write_display(sheet, stdout);
+        }
+        if(printit) {
+            return 0;
         }
         GetInputCtx gi = {
             .prompt = SV("> "),
