@@ -749,6 +749,10 @@ force_inline
 const char*_Nullable
 sp_cell_text(SpreadContext* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
     SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
+        *len = 0;
+        return "";
+    }
     if(!sd) return NULL;
     StringCache* cache = &sd->str_cache;
     StringView* cached = get_cached_string(cache, row, col);
