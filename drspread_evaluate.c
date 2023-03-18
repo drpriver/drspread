@@ -13,7 +13,7 @@
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate(SpreadContext* ctx, SheetData* sd, intptr_t row, intptr_t col){
+evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     {
         uintptr_t frm = (uintptr_t)__builtin_frame_address(0);
         uintptr_t limit;
@@ -92,7 +92,7 @@ evaluate(SpreadContext* ctx, SheetData* sd, intptr_t row, intptr_t col){
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, SheetData* sd, const char* txt, size_t len, intptr_t caller_row, intptr_t caller_col){
+evaluate_string(DrSpreadCtx* ctx, SheetData* sd, const char* txt, size_t len, intptr_t caller_row, intptr_t caller_col){
     Expression *root = parse(ctx, txt, len);
     if(!root || root->kind == EXPR_ERROR) return root;
     Expression *e = evaluate_expr(ctx, sd, root, caller_row, caller_col);
@@ -122,7 +122,7 @@ double_bin_cmp(BinaryKind op, double l, double r){
 
 static inline
 Expression*_Nullable
-evaluate_binary_op(SpreadContext* ctx, SheetData* sd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
+evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
     Expression* result = NULL;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
 #define BAD(x) do{result = x; goto cleanup;}while(0)
@@ -379,7 +379,7 @@ evaluate_binary_op(SpreadContext* ctx, SheetData* sd, BinaryKind op, Expression*
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_expr(SpreadContext* ctx, SheetData* sd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
+evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
     switch(expr->kind){
         case EXPR_NULL:
         case EXPR_ERROR:

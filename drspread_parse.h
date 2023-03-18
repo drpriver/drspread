@@ -13,7 +13,7 @@
 #endif
 DRSP_INTERNAL
 Expression*_Nullable
-parse(SpreadContext* ctx, const char* txt, size_t length);
+parse(DrSpreadCtx* ctx, const char* txt, size_t length);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

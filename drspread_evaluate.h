@@ -16,15 +16,15 @@
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_expr(SpreadContext*, SheetData*, Expression*, intptr_t caller_row, intptr_t caller_col);
+evaluate_expr(DrSpreadCtx*, SheetData*, Expression*, intptr_t caller_row, intptr_t caller_col);
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate(SpreadContext*, SheetData*, intptr_t row, intptr_t col);
+evaluate(DrSpreadCtx*, SheetData*, intptr_t row, intptr_t col);
 
 DRSP_INTERNAL
 Expression*_Nullable
-evaluate_string(SpreadContext* ctx, SheetData*, const char* txt, size_t len, intptr_t row, intptr_t col);
+evaluate_string(DrSpreadCtx* ctx, SheetData*, const char* txt, size_t len, intptr_t row, intptr_t col);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

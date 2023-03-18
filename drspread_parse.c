@@ -53,7 +53,7 @@
     case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z'
 #endif
 
-#define PARSEFUNC(x) Expression*_Nullable x(SpreadContext* ctx, StringView* sv)
+#define PARSEFUNC(x) Expression*_Nullable x(DrSpreadCtx* ctx, StringView* sv)
 DRSP_INTERNAL PARSEFUNC(parse_comparison);
 DRSP_INTERNAL PARSEFUNC(parse_addplus);
 DRSP_INTERNAL PARSEFUNC(parse_divmul);
@@ -67,7 +67,7 @@ DRSP_INTERNAL PARSEFUNC(parse_func_call);
 
 DRSP_INTERNAL
 Expression*_Nullable
-parse(SpreadContext* ctx, const char* txt, size_t length){
+parse(DrSpreadCtx* ctx, const char* txt, size_t length){
     StringView sv = {length, txt};
     lstrip(&sv);
     while(sv.length && sv.text[0] == '=')

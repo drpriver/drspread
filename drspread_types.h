@@ -111,7 +111,7 @@ sv_set(Value* v, StringView sv){
 
 
 
-typedef DrSpreadCtx SpreadContext;
+typedef DrSpreadCtx DrSpreadCtx;
 
 TYPED_ENUM(ExpressionKind, uintptr_t){
     EXPR_ERROR = 0,
@@ -165,7 +165,7 @@ struct Number {
 };
 typedef struct FunctionCall FunctionCall;
 typedef struct SheetData SheetData;
-#define FORMULAFUNC(name) Expression*_Nullable (name)(SpreadContext* ctx, SheetData* sd,  intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
+#define FORMULAFUNC(name) Expression*_Nullable (name)(DrSpreadCtx* ctx, SheetData* sd,  intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
 typedef FORMULAFUNC(FormulaFunc);
 struct FunctionCall {
     Expression e;
@@ -433,11 +433,11 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
 
 force_inline
 void*_Nullable
-expr_alloc(SpreadContext* ctx, ExpressionKind kind);
+expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind);
 
 force_inline
 ComputedArray*_Nullable
-computed_array_alloc(SpreadContext* ctx, size_t nitems);
+computed_array_alloc(DrSpreadCtx* ctx, size_t nitems);
 
 static inline
 Expression*_Nullable
@@ -569,7 +569,7 @@ free_string_arenas(StringArena*_Nullable arena){
 
 static inline
 void
-free_sheet_datas(SpreadContext* ctx){
+free_sheet_datas(DrSpreadCtx* ctx){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* d = &ctx->map.data[i];
         free(d->str_cache.data);
@@ -582,7 +582,7 @@ free_sheet_datas(SpreadContext* ctx){
 // static inline
 force_inline
 void*_Nullable
-expr_alloc(SpreadContext* ctx, ExpressionKind kind){
+expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
     size_t sz;
     switch(kind){
         case EXPR_ERROR:
@@ -615,7 +615,7 @@ expr_alloc(SpreadContext* ctx, ExpressionKind kind){
 
 force_inline
 ComputedArray*_Nullable
-computed_array_alloc(SpreadContext* ctx, size_t nitems){
+computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
     ComputedArray* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedArray, data)+sizeof(Expression*)*nitems);
     if(!cc) return NULL;
     cc->e.kind = EXPR_COMPUTED_ARRAY;
@@ -654,7 +654,7 @@ str_arena_alloc(StringArena*_Nullable*_Nonnull parena, size_t len){
 
 static inline
 int
-sv_cat(SpreadContext* ctx, size_t n, const StringView* strs, StringView* out){
+sv_cat(DrSpreadCtx* ctx, size_t n, const StringView* strs, StringView* out){
     size_t len = 0;
     for(size_t i = 0; i < n; i++)
         len += strs[i].length;
@@ -748,7 +748,7 @@ struct FuncInfo {
 
 force_inline
 const char*_Nullable
-sp_cell_text(SpreadContext* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
+sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
     SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
     if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
         *len = 0;
@@ -783,7 +783,7 @@ sp_row_width(const SheetData* sd, intptr_t row){
 #define SP_ARGS SheetHandle sheet
 #define SP_CALL(func, ...) sheet_##func(sheet, __VA_ARGS__)
 #else
-#define SP_ARGS const SpreadContext* ctx, SheetHandle sheet
+#define SP_ARGS const DrSpreadCtx* ctx, SheetHandle sheet
 #define SP_CALL(func, ...) ctx->_ops.func(ctx->_ops.ctx, sheet, __VA_ARGS__)
 #endif // use these inline functions instead of using _ops directly
 

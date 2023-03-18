@@ -8,7 +8,7 @@
 
 static inline
 int
-get_range1dcol(SpreadContext*ctx, SheetData* sd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, SheetData* _Nonnull *_Nonnull rsd, intptr_t caller_row, intptr_t caller_col){
+get_range1dcol(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* col, intptr_t* rowstart, intptr_t* rowend, SheetData* _Nonnull *_Nonnull rsd, intptr_t caller_row, intptr_t caller_col){
     if(arg->kind != EXPR_RANGE1D_COLUMN && arg->kind != EXPR_RANGE1D_COLUMN_FOREIGN)
         return 1;
     if(arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
@@ -53,7 +53,7 @@ get_range1dcol(SpreadContext*ctx, SheetData* sd, Expression* arg, intptr_t* col,
 
 static inline
 int
-get_range1drow(SpreadContext*ctx, SheetData* sd, Expression* arg, intptr_t* row, intptr_t* colstart, intptr_t* colend, SheetData* _Nonnull *_Nonnull rsd, intptr_t caller_row, intptr_t caller_col){
+get_range1drow(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* row, intptr_t* colstart, intptr_t* colend, SheetData* _Nonnull *_Nonnull rsd, intptr_t caller_row, intptr_t caller_col){
     if(arg->kind != EXPR_RANGE1D_ROW && arg->kind != EXPR_RANGE1D_ROW_FOREIGN)
         return 1;
     if(arg->kind == EXPR_RANGE1D_ROW_FOREIGN){
@@ -156,7 +156,7 @@ expr_is_arraylike(Expression* e){
 
 static inline
 Expression*_Nullable
-convert_to_computed_array(SpreadContext* ctx, SheetData* sd, Expression* e, intptr_t caller_row, intptr_t caller_col){
+convert_to_computed_array(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr_t caller_row, intptr_t caller_col){
     if(e->kind == EXPR_COMPUTED_ARRAY)
         return e;
     if(e->kind == EXPR_RANGE1D_ROW || e->kind == EXPR_RANGE1D_ROW_FOREIGN){

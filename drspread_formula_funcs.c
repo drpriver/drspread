@@ -1197,7 +1197,7 @@ FORMULAFUNC(drsp_cat){
 
 static inline
 Expression*_Nullable
-arraylike_tablelookup(SpreadContext* ctx, SheetData* sd, intptr_t caller_row, intptr_t caller_col, Expression* needle, int argc, Expression*_Nonnull*_Nonnull argv){
+arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intptr_t caller_col, Expression* needle, int argc, Expression*_Nonnull*_Nonnull argv){
     needle = convert_to_computed_array(ctx, sd, needle, caller_row, caller_col);
     if(!needle || needle->kind == EXPR_ERROR)
         return needle;
