@@ -5,6 +5,7 @@ static inline
 void* realloc(void* a, size_t sz){
     void* result = malloc(sz);
     memcpy(result, a, sz); // whatever, no mmu in wasm and it's just a read
+    free(a);
     return result;
 }
 
@@ -123,70 +124,6 @@ const char* strrchr(const char* haystack, char needle){
 }
 // #define SUPPRESS_TEST_MAIN 1
 #include "testing.h"
-#if 0
-int
-test_main(int argc, char** argv, void* unused){
-    (void)argc;
-    (void)argv;
-    (void)unused;
-    if(!TestOutFileCount) TestRegisterOutFile(stdout);
-    const char* gray   = "<span class=gray>";
-    const char* blue   = "<span class=blue>";
-    const char* green  = "<span class=green>";
-    const char* red    = "<span class=red>";
-    const char* reset  = "</span>";
-    const char* bold   = "<b>";
-    const char* nobold = "</b>";
-    _test_color_gray = gray;
-    _test_color_reset = reset;
-    _test_color_green = green;
-    _test_color_red = red;
-
-    size_t tests_to_run[arrlen(test_funcs)] = {0};
-    for(size_t i = 0; i < test_funcs_count; i++)
-        tests_to_run[i] = i;
-    struct TestResults result = {0};
-    run_the_tests(tests_to_run, test_funcs_count, &result);
-
-    const char* text = result.funcs_executed == 1?
-        "test function executed"
-        : "test functions executed";
-    TestPrintf("%s%s%s: %s%zu%s %s\n",
-            gray, "TestDrSpread.c", reset,
-            blue, result.funcs_executed, reset,
-            text);
-
-    text = result.executed == 1? "test executed" : "tests executed";
-    TestPrintf("%s%s%s: %s%zu%s %s\n",
-            gray, "TestDrSpread.c", reset,
-            blue, result.executed, reset,
-            text);
-
-    text = result.assert_failures == 1?
-        "test function aborted early"
-        : "test functions aborted early";
-    const char* color = result.assert_failures?red:green;
-    TestPrintf("%s%s%s: %s%zu%s %s\n",
-            gray, "TestDrSpread.c", reset,
-            color, result.assert_failures, reset,
-            text);
-
-    color = result.failures?red:green;
-    text = result.failures == 1? "test failed" : "tests failed";
-    TestPrintf("%s%s%s: %s%zu%s %s\n",
-            gray, "TestDrSpread.c", reset,
-            color, result.failures, reset,
-            text);
-    for(size_t i = 0; i < result.n_failed_tests; i++){
-        StringView name = test_funcs[result.failed_tests[i]].test_name;
-        TestPrintf("%s%.*s%s %sfailed%s.\n",
-                bold, (int)name.length, name.text, nobold,
-                red, reset);
-    }
-
-    return 0;
-}
-#endif
 
 // #define __FILE__ ""
 #include "TestDrSpread.c"
