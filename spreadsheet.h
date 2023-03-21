@@ -21,6 +21,10 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 #else
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
 #ifndef _Nonnull
 #define _Nonnull
 #endif
@@ -443,6 +447,9 @@ sheet_ops(void){
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
 #endif
