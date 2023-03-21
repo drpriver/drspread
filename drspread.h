@@ -65,8 +65,6 @@ typedef struct SheetOps SheetOps;
 // Callbacks
 struct SheetOps {
     void* ctx;
-    intptr_t (*col_height)(void* ctx, SheetHandle sheet, intptr_t col);
-    intptr_t (*row_width)(void*ctx, SheetHandle sheet, intptr_t row);
     int (*set_display_number)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
     int (*set_display_error)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
     int (*set_display_string)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*, size_t);

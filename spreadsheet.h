@@ -191,25 +191,6 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     return 0;
 }
 
-static
-intptr_t
-sheet_get_row_width(void*m, SheetHandle hnd, intptr_t row){
-    (void)m;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    if(unlikely(row < 0 || row >= sheet->rows)) return 0;
-    SheetRow* ro = &sheet->display[row];
-    return ro->n;
-}
-
-static
-intptr_t
-sheet_get_col_height(void*m, SheetHandle hnd, intptr_t col){
-    (void)m;
-    (void)col;
-    SpreadSheet* sheet =(SpreadSheet*)hnd;
-    return sheet->rows;
-}
-
 
 #ifndef __wasm__
 static
@@ -422,8 +403,6 @@ multisheet_ops(MultiSpreadSheet* ms){
         .set_display_number=&sheet_set_display_number,
         .set_display_error=&sheet_set_display_error,
         .set_display_string=&sheet_set_display_string,
-        .row_width=&sheet_get_row_width,
-        .col_height=&sheet_get_col_height,
     };
     return ops;
 }
@@ -437,8 +416,6 @@ sheet_ops(void){
         .set_display_number=&sheet_set_display_number,
         .set_display_error=&sheet_set_display_error,
         .set_display_string=&sheet_set_display_string,
-        .row_width=&sheet_get_row_width,
-        .col_height=&sheet_get_col_height,
     };
     return ops;
 }
