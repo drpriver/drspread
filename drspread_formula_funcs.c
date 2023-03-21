@@ -7,9 +7,6 @@
 #include "drspread_evaluate.h"
 #include "drspread_utils.h"
 #include "drspread_formula_funcs.h"
-#ifdef __clang__
-#pragma clang assume_nonnull begin
-#endif
 
 #ifndef arrlen
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
@@ -17,6 +14,14 @@
 
 #if defined(TESTING_H) && !defined(DRSP_INTRINS)
 #define DRSP_INTRINS 1
+#endif
+
+#ifdef DRSP_INTRINS
+#include <stdio.h>
+#endif
+
+#ifdef __clang__
+#pragma clang assume_nonnull begin
 #endif
 
 DRSP_INTERNAL
@@ -1944,7 +1949,7 @@ FORMULAFUNC(drsp_if){
         return evaluate_expr(ctx, sd, argv[2], caller_row, caller_col);
 }
 
-#ifdef DRSPREAD_CLI_C
+#if defined(DRSPREAD_CLI_C) || defined(DRSP_INTRINS)
 #ifdef __APPLE__
 #ifdef __clang__
 #pragma clang assume_nonnull end
@@ -1976,6 +1981,9 @@ const FuncInfo FUNC1[] = {
     {SV("f"),    &drsp_first},
     {SV("p"),    &drsp_print},
     {SV("r"),    &drsp_repr},
+#ifdef __APPLE__
+    {SV("t"),    &drsp_time},
+#endif
 };
 #endif
 DRSP_INTERNAL

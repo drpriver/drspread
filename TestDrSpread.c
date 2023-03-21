@@ -1452,4 +1452,6 @@ TestFunction(TestComplexMultisheet){
 #pragma pop_macro("__FILE__")
 #endif
 
+#ifndef DRSPREAD_TEST_DYLINK
 #include "drspread.c"
+#endif
