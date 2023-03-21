@@ -259,14 +259,6 @@ struct ComputedArray {
     _Alignas(uintptr_t) Expression*_Nonnull data[];
 };
 
-typedef struct SheetCache SheetCache;
-struct SheetCache {
-    struct {
-        StringView s;
-        SheetHandle sheet;
-    } items[8];
-};
-
 // This is a hash table
 typedef struct StringCache StringCache;
 struct StringCache {
@@ -304,9 +296,6 @@ int
 set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
 
 
-static inline
-SheetHandle _Nullable*_Nullable
-get_cached_sheet(SheetCache* cache, const char* name, size_t len);
 
 typedef struct ColName ColName;
 struct ColName {

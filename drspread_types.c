@@ -297,22 +297,6 @@ set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*res
 }
 
 static inline
-SheetHandle _Nullable*_Nullable
-get_cached_sheet(SheetCache* cache, const char* name, size_t len){
-    if(!len) return NULL;
-    for(size_t i = 0; i < arrlen(cache->items); i++){
-        if(!cache->items[i].s.length){
-            cache->items[i].s.text = name;
-            cache->items[i].s.length = len;
-            return &cache->items[i].sheet;
-        }
-        if(cache->items[i].s.length != len) continue;
-        if(sv_equals2(cache->items[i].s, name, len))
-            return &cache->items[i].sheet;
-    }
-    return NULL;
-}
-static inline
 int
 set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t value){
     if(cache->n*2 >= cache->cap){
