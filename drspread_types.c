@@ -227,7 +227,7 @@ get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
     RowCol key = {row, col};
     uint32_t hash = hash_alignany(&key, sizeof key);
     RowColSv *items = (RowColSv*)cache->data;
-    uint32_t* indexes = (uint32_t*)(cache->data + 4*sizeof(intptr_t)*cap);
+    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(RowColSv)*cap);
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
     for(;;){
         uint32_t i = indexes[idx];
@@ -248,9 +248,9 @@ set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*res
     if(unlikely(cache->n*2 >= cache->cap)){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
-        size_t new_size = new_cap*(4*sizeof(intptr_t)+sizeof(uint32_t));
+        size_t new_size = new_cap*(sizeof(RowColSv)+sizeof(uint32_t));
         #ifdef __wasm__
-            size_t old_size = old_cap*(4*sizeof(intptr_t)+sizeof(uint32_t));
+            size_t old_size = old_cap*(sizeof(RowColSv)+sizeof(uint32_t));
             unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
         #else
             // fprintf(stderr, "%zu\n", new_size);
@@ -259,7 +259,7 @@ set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*res
         if(!new_data) return 1;
         cache->data = new_data;
         cache->cap = new_cap;
-        uint32_t* indexes = (uint32_t*)(new_data + 4*sizeof(intptr_t)*new_cap);
+        uint32_t* indexes = (uint32_t*)(new_data + sizeof(RowColSv)*new_cap);
         __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
         RowColSv *items = (RowColSv*)new_data;
         for(size_t i = 0; i < cache->n; i++){
@@ -277,7 +277,7 @@ set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*res
     RowCol key = {row, col};
     uint32_t hash = hash_alignany(&key, sizeof key);
     RowColSv *items = (RowColSv*)cache->data;
-    uint32_t* indexes = (uint32_t*)(cache->data + 4*sizeof(intptr_t)*cap);
+    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(RowColSv)*cap);
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
     for(;;){
         uint32_t i = indexes[idx];
@@ -302,9 +302,9 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
     if(cache->n*2 >= cache->cap){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
-        size_t new_size = new_cap*(3*sizeof(intptr_t)+sizeof(uint32_t));
+        size_t new_size = new_cap*(sizeof(ColName)+sizeof(uint32_t));
         #ifdef __wasm__
-            size_t old_size = old_cap*(3*sizeof(intptr_t)+sizeof(uint32_t));
+            size_t old_size = old_cap*(sizeof(ColName)+sizeof(uint32_t));
             unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
         #else
             // fprintf(stderr, "%zu\n", new_size);
@@ -314,7 +314,7 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
             return 1;
         cache->data = new_data;
         cache->cap = new_cap;
-        uint32_t* indexes = (uint32_t*)(new_data + 3*sizeof(intptr_t)*new_cap);
+        uint32_t* indexes = (uint32_t*)(new_data + sizeof(ColName)*new_cap);
         __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
         ColName *items = (ColName*)new_data;
         for(size_t i = 0; i < cache->n; i++){
@@ -332,7 +332,7 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
     StringView key = {len, name};
     uint32_t hash = ascii_insensitive_hash_align1(key.text, key.length);
     ColName *items = (ColName*)cache->data;
-    uint32_t* indexes = (uint32_t*)(cache->data + 3*sizeof(intptr_t)*cap);
+    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(ColName)*cap);
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
     for(;;){
         uint32_t i = indexes[idx];
@@ -359,7 +359,7 @@ get_cached_col_name(ColCache* cache, const char* name, size_t len){
     StringView key = {len, name};
     uint32_t hash = ascii_insensitive_hash_align1(key.text, key.length);
     ColName *items = (ColName*)cache->data;
-    uint32_t* indexes = (uint32_t*)(cache->data + 3*sizeof(intptr_t)*cap);
+    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(ColName)*cap);
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
     for(;;){
         uint32_t i = indexes[idx];
