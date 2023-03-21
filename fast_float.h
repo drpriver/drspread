@@ -2305,12 +2305,11 @@ fast_float_parse_infnan_float(const char *first, const char *last, float *value)
 
 FASTFLOAT_REALLY_INLINE
 void
-fast_float_to_float_double(bool negative, fast_float_adjusted_mantissa am, void *value){
+fast_float_to_float_double(bool negative, fast_float_adjusted_mantissa am, double *value){
     uint64_t word = am.mantissa;
     word |= (uint64_t)(am.power2) << DOUBLE_MANTISSA_EXPLICIT_BITS;
-    word = negative
-    ? word | ((uint64_t)(1) << DOUBLE_SIGN_INDEX) : word;
-        ff_memcpy(value, &word, sizeof(double));
+    word = negative ? word | ((uint64_t)(1) << DOUBLE_SIGN_INDEX) : word;
+    ff_memcpy(value, &word, sizeof(double));
 }
 
 FASTFLOAT_REALLY_INLINE
@@ -2318,8 +2317,7 @@ void
 fast_float_to_float_float(bool negative, fast_float_adjusted_mantissa am, void *value){
     uint64_t word = am.mantissa;
     word |= (uint64_t)(am.power2) << FLOAT_MANTISSA_EXPLICIT_BITS;
-    word = negative
-    ? word | ((uint64_t)(1) << FLOAT_SIGN_INDEX) : word;
+    word = negative ? word | ((uint64_t)(1) << FLOAT_SIGN_INDEX) : word;
 #if FASTFLOAT_IS_BIG_ENDIAN == 1
      if(4 == sizeof(float))
          ff_memcpy(value, (char *)&word + 4, sizeof(float)); // extract value at offset 4-7 if float on big-endian
