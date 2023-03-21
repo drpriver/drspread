@@ -32,6 +32,12 @@
 #endif
 #endif
 
+#ifdef __wasm__
+extern
+void
+bt(void);
+#else
+
 typedef struct BacktraceArray BacktraceArray;
 struct BacktraceArray {
     int count;
@@ -243,6 +249,8 @@ void
 dump_bt(BacktraceArray* bta){
     (void)bta;
 }
+
+#endif
 
 #endif
 

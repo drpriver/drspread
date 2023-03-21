@@ -62,6 +62,9 @@ const imports = {
         abort: () => {
             throw new Error();
         },
+        bt: () => {
+            console.trace();
+        },
         pow: Math.pow,
         fwrite_: fwrite_,
     },
