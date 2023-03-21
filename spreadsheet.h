@@ -18,6 +18,8 @@
 
 #ifdef __clang__
 #pragma clang assume_nonnull begin
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
 #else
 #ifndef _Nonnull
 #define _Nonnull
@@ -440,6 +442,7 @@ sheet_ops(void){
 
 #ifdef __clang__
 #pragma clang assume_nonnull end
+#pragma clang diagnostic pop
 #endif
 
 #endif

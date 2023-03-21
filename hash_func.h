@@ -346,9 +346,9 @@ ascii_insensitive_hash_align1(const void* key_, size_t len){
 #endif
 
 #define hash_alignany(key, len) \
-      (_Alignof(*key)&7) == 0? hash_align8(key, len) \
-    : (_Alignof(*key)&3) == 0? hash_align4(key, len) \
-    : (_Alignof(*key)&1) == 0? hash_align2(key, len) \
+      (_Alignof(typeof(*key))&7) == 0? hash_align8(key, len) \
+    : (_Alignof(typeof(*key))&3) == 0? hash_align4(key, len) \
+    : (_Alignof(typeof(*key))&1) == 0? hash_align2(key, len) \
     :                        hash_align1(key, len)
 
 static inline
