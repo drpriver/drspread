@@ -41,7 +41,8 @@ struct FreeAllocation {
 _Static_assert(__builtin_offsetof(FreeAllocation, memory) == 16, "");
 
 
-static FreeAllocation*_Nullable free_allocations[31] = {0};
+enum {N_FREE_ALLOCATIONS=31};
+static FreeAllocation*_Nullable free_allocations[N_FREE_ALLOCATIONS] = {0};
 
 static inline
 size_t
@@ -64,6 +65,12 @@ malloc_true_size(size_t size){
     if(size < orig) abort();
     // logit("true_size: %#x -> %#x\n", orig, size);
     return size;
+}
+
+static inline
+size_t
+malloc_size(size_t size){
+    return malloc_true_size(size) - sizeof(max_align_t);
 }
 
 static inline
@@ -102,13 +109,15 @@ reset_memory(void){
     __builtin_memset(free_allocations, 0, sizeof free_allocations);
 }
 
+const
 static
-unsigned char zed[64];
+unsigned char zed[64] = {0};
 
 extern
 void*_Nonnull
 malloc(size_t size){
-    if(!size) return zed;
+    // size_t orig = size;
+    if(!size) return (void*)zed+8;
     size = malloc_true_size(size);
     // logit("malloc: %#x\n", size);
     size_t bucket = malloc_bucket(size);
@@ -125,7 +134,7 @@ malloc(size_t size){
         a = raw_alloc(size);
         if(!a) {
             // logit("malloc: raw_alloc failed for %zu\n", size);
-            return 0;
+            return (void*)0;
         }
     }
     a->size = size;
@@ -137,7 +146,8 @@ malloc(size_t size){
 extern
 void*
 calloc(size_t n_items, size_t item_size){
-    size_t sz = n_items * item_size;
+    size_t sz;
+    if(__builtin_mul_overflow(n_items, item_size, &sz)) return (void*)0;
     void* result = malloc(sz);
     if(result) __builtin_memset(result, 0, sz);
     return result;
@@ -177,14 +187,14 @@ sane_realloc(void* p, size_t orig_size, size_t size){
         return malloc(size);
     }
     if(size < orig_size) return p; // I don't think I ever actually do this.
-    size_t truth = malloc_true_size(orig_size) - sizeof(max_align_t);
+    size_t truth = malloc_size(orig_size);
     if(truth >= size){
         return p;
     }
     void* result = malloc(size);
     if(!result) return 0;
     if(orig_size){
-        __builtin_memcpy(result, p, orig_size);
+        __builtin_memcpy(result, p, orig_size < size? orig_size:size);
         free(p);
     }
     return result;
@@ -197,5 +207,34 @@ bytes_used(void){
     return (size_t)(_base_ptr - __heap_base);
 }
 
+
+
+#ifdef TEST_DRSPREAD_WASM_C
+static inline void logit(const char* fmt, ...);
+
+extern
+void
+malloc_report(void){
+    logit("bytes used: %zu\n", bytes_used());
+    return;
+    for(size_t i = 0; i < N_FREE_ALLOCATIONS; i++){
+        size_t j = 0;
+        size_t sz = 0;
+        size_t bsz = 0;
+        FreeAllocation* fa = free_allocations[i];
+        if(fa){
+            while(fa){
+                bsz = fa->sz;
+                sz += fa->sz;
+                // logit("\t[%zu] %zu\n", j, fa->sz);
+                fa = fa->next;
+                j++;
+            }
+            logit("bucket %2zu (%#7zx): %3zu allocs (%6zu bytes)\n", i, bsz, j, sz);
+        }
+    }
+}
+
+#endif
 
 #endif

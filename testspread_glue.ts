@@ -103,6 +103,10 @@ fetch('Bin/TestDrSpread.wasm')
             out.insertAdjacentElement('afterbegin', deets);
             const before = window.performance.now();
             main(args.length, argv);
+            // @ts-ignore
+            exports.free_argv(args.length, argv);
+            // @ts-ignore
+            exports.malloc_report();
             const after = window.performance.now();
             active.insertAdjacentText('afterbegin', `executed in ${(after-before).toFixed(2)}ms\n`);
         }

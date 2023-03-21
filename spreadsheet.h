@@ -49,9 +49,13 @@ struct SheetRow {
 static
 void
 sheet_row_push(SheetRow* ro, const char* txt){
-    ro->data = realloc(ro->data, ++ro->n*sizeof(txt));
+    void* d = realloc(ro->data, ++ro->n*sizeof(txt));
+    if(!d) abort();
+    ro->data = d;
     ro->data[ro->n-1] = txt;
-    ro->lengths = realloc(ro->lengths, ro->n*sizeof txt);
+    d = realloc(ro->lengths, ro->n*sizeof txt);
+    if(!d) abort();
+    ro->lengths = d;
     ro->lengths[ro->n-1] = strlen(txt);
 }
 
@@ -66,20 +70,23 @@ struct SpreadSheet {
     char* txt;
 };
 
+static void
+cleanup_row_pair(SheetRow* ro, SheetRow* disp){
+    free(ro->data);
+    free(ro->lengths);
+    for(int i = 0; i < disp->n; i++){
+        free((void*)disp->data[i]);
+    }
+    free(disp->data);
+    free(disp->lengths);
+}
+
 static
 void
 cleanup_sheet(SpreadSheet* sheet){
     if(sheet->txt) free(sheet->txt);
     for(intptr_t i = 0; i < sheet->rows; i++){
-        SheetRow* row = &sheet->cells[i];
-        free(row->data);
-        free(row->lengths);
-        row = &sheet->display[i];
-        for(int i = 0; i < row->n; i++){
-            free((void*)row->data[i]);
-        }
-        free(row->data);
-        free(row->lengths);
+        cleanup_row_pair(&sheet->cells[i], &sheet->display[i]);
     }
     free(sheet->cells);
     free(sheet->display);
@@ -113,6 +120,7 @@ void
 cleanup_multisheet(MultiSpreadSheet* ms){
     for(int i = 0; i < ms->n; i++)
         cleanup_sheet(&ms->sheets[i]);
+    free(ms->sheets);
     free(ms->txt);
 }
 
@@ -157,6 +165,7 @@ sheet_set_display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, con
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     (void)mess;
     (void)len;
+    free((void*)ro->data[col]);
     ro->data[col] = strdup("error");
     ro->lengths[col] = 5;
     return 0;
@@ -169,6 +178,7 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
+    free((void*)ro->data[col]);
     int printed = asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
     if(printed < 0) return 1;
     ro->lengths[col] = printed;
@@ -247,8 +257,7 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
         sheet->maxcols = max_cols;
     }
     if(sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0){
-        free(sheet->cells[sheet->rows-1].data);
-        free(sheet->cells[sheet->rows-1].lengths);
+        cleanup_row_pair(&sheet->cells[sheet->rows-1], &sheet->display[sheet->rows-1]);
         sheet->rows--;
     }
     return 0;
@@ -321,8 +330,10 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
         sheet_push_row(sheet, ro, disp);
         sheet->maxcols = max_cols;
     }
-    while(sheet && sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0)
+    while(sheet && sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0){
+        cleanup_row_pair(&sheet->cells[sheet->rows-1], &sheet->display[sheet->rows-1]);
         sheet->rows--;
+    }
     return 0;
 }
 

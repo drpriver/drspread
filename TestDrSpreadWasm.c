@@ -1,17 +1,23 @@
+#ifndef TEST_DRSPREAD_WASM_C
+#define TEST_DRSPREAD_WASM_C
 #include <allstd.h>
+#include "Wasm/malloc.h"
 #include "Wasm/jsinter.h"
 #include <stb_sprintf.c>
 static inline
 void* realloc(void* a, size_t sz){
     void* result = malloc(sz);
-    memcpy(result, a, sz); // whatever, no mmu in wasm and it's just a read
-    free(a);
+    if(a && result){
+        memcpy(result, a, sz); // whatever, no mmu in wasm and it's just a read
+        free(a);
+    }
     return result;
 }
 
 static inline
 char* strdup(const char* p){
     size_t len = strlen(p);
+    if(!len) return malloc(0);
     char* result = malloc(len+1);
     memcpy(result, p, len+1);
     return result;
@@ -118,9 +124,20 @@ int getchar(void){
 }
 static inline
 const char* strrchr(const char* haystack, char needle){
-    // wrong but who cares
-    (void)needle;
-    return haystack-1;
+    const char* p = NULL;
+    const char* p2 = NULL;
+    while((p = strchr(haystack, needle)))
+        haystack = p+1, p2 = p;
+    return p2;
+}
+
+extern
+void
+free_argv(int argc, char** argv){
+    for(int i = 0; i < argc; i++){
+        free(argv[i]);
+    }
+    free(argv);
 }
 // #define SUPPRESS_TEST_MAIN 1
 #include "testing.h"
@@ -134,3 +151,4 @@ static inline void logit(const char* fmt, ...){
     vprintf(fmt, vap);
     __builtin_va_end(vap);
 }
+#endif
