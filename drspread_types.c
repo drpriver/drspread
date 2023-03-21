@@ -301,7 +301,7 @@ int
 set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t value){
     if(cache->n*2 >= cache->cap){
         size_t old_cap = cache->cap;
-        size_t new_cap = old_cap?old_cap*2:128;
+        size_t new_cap = old_cap?old_cap*2:16;
         size_t new_size = new_cap*(sizeof(ColName)+sizeof(uint32_t));
         #ifdef __wasm__
             size_t old_size = old_cap*(sizeof(ColName)+sizeof(uint32_t));
