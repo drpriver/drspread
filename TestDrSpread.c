@@ -72,15 +72,6 @@ streq(const char* a, const char* b){
     return strcmp(a,b) == 0;
 }
 
-static inline
-_Bool
-streq2(const char* a, const char* b, size_t blen){
-    StringView l = {strlen(a), a};
-    StringView r = {blen, b};
-    return sv_equals(l, r);
-}
-
-
 static
 struct
 TestStats
