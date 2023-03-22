@@ -47,6 +47,16 @@
 //   'string', "string"
 //   (group)
 
+force_inline
+int
+sp_set_display_number(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
+force_inline
+int
+sp_set_display_error(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
+force_inline
+int
+sp_set_display_string(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* txt, size_t len);
+
 DRSP_EXPORT
 int
 drsp_evaluate_formulas(DrSpreadCtx* ctx){
@@ -166,6 +176,45 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
     buff_set(ctx->a, bc);
     return error;
 }
+
+force_inline
+int
+sp_set_display_number(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value){
+    #ifdef DRSPREAD_DIRECT_OPS
+        (void)ctx;
+        sheet_set_display_number(sheet, row, col, value);
+        return 0;
+    #else
+        return ctx->_ops.set_display_number(ctx->_ops.ctx, sheet, row, col, value);
+    #endif
+}
+
+force_inline
+int
+sp_set_display_error(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len){
+    #ifdef DRSPREAD_DIRECT_OPS
+        (void)ctx;
+        (void)errmess;
+        (void)errmess_len;
+        sheet_set_display_error(sheet, row, col);
+        return 0;
+    #else
+        return ctx->_ops.set_display_error(ctx->_ops.ctx, sheet, row, col, errmess, errmess_len);
+    #endif
+}
+
+force_inline
+int
+sp_set_display_string(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* txt, size_t len){
+    #ifdef DRSPREAD_DIRECT_OPS
+        (void)ctx;
+        sheet_set_display_string(sheet, row, col, txt, len);
+        return 0;
+    #else
+        return ctx->_ops.set_display_string(ctx->_ops.ctx, sheet, row, col, txt, len);
+    #endif
+}
+
 
 
 #ifdef __clang__

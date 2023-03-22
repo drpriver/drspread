@@ -219,6 +219,36 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
     }
 }
 
+DRSP_INTERNAL
+void
+destroy_string_heap(StringHeap* heap){
+    free_string_arenas(heap->arena);
+    free(heap->data);
+    __builtin_memset(heap, 0, sizeof *heap);
+}
+
+DRSP_INTERNAL
+void
+free_string_arenas(StringArena*_Nullable arena){
+    while(arena){
+        StringArena* to_free = arena;
+        arena = arena->next;
+        free(to_free);
+    }
+}
+
+DRSP_INTERNAL
+void
+free_sheet_datas(DrSpreadCtx* ctx){
+    for(size_t i = 0; i < ctx->map.n; i++){
+        SheetData* d = &ctx->map.data[i];
+        free(d->str_cache.data);
+        free(d->col_cache.data);
+        free(d->result_cache.data);
+    }
+    free(ctx->map.data);
+}
+
 static inline
 StringView*_Nullable
 get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
@@ -241,6 +271,7 @@ get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
         if(unlikely(idx >= cap)) idx = 0;
     }
 }
+
 
 static inline
 int
@@ -427,6 +458,77 @@ get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
         idx++;
         if(unlikely(idx >= cap)) idx = 0;
     }
+}
+
+DRSP_INTERNAL
+SheetData*_Nullable
+sheet_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle){
+    for(size_t i = 0; i < ctx->map.n; i++){
+        SheetData* data = &ctx->map.data[i];
+        if(data->handle == handle)
+            return data;
+    }
+    return NULL;
+}
+
+DRSP_INTERNAL
+SheetData*_Nullable
+sheet_get_or_create_by_handle(DrSpreadCtx* ctx, SheetHandle handle){
+    SheetData* sd = sheet_lookup_by_handle(ctx, handle);
+    if(sd) return sd;
+    if(ctx->map.n >= ctx->map.cap){
+        size_t cap = ctx->map.cap;
+        size_t newcap = 2*cap;
+        if(!newcap) newcap = 8;
+        size_t new_size = newcap * sizeof(SheetData);
+        #ifdef __wasm__
+            size_t old_size = cap*sizeof(SheetData);
+            SheetData* p = sane_realloc(ctx->map.data, old_size, new_size);
+        #else
+            SheetData* p = realloc(ctx->map.data, new_size);
+            // fprintf(stderr, "%zu\n", new_size);
+        #endif
+        if(!p) return NULL;
+        ctx->map.data = p;
+        ctx->map.cap = newcap;
+    }
+    sd = &ctx->map.data[ctx->map.n++];
+    memset(sd, 0, sizeof *sd);
+    sd->handle = handle;
+    return sd;
+}
+
+DRSP_INTERNAL
+SheetData*_Nullable
+sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
+    for(size_t i = 0; i < ctx->map.n; i++){
+        SheetData* data = &ctx->map.data[i];
+        if(sv_iequals2(drsp_to_sv(data->name), name, len))
+            return data;
+        if(!data->alias) continue;
+        if(sv_iequals2(drsp_to_sv(data->alias), name, len))
+            return data;
+    }
+    return NULL;
+}
+
+DRSP_INTERNAL
+const char*_Nullable
+sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
+        *len = 0;
+        return "";
+    }
+    if(!sd) return NULL;
+    StringCache* cache = &sd->str_cache;
+    StringView* cached = get_cached_string(cache, row, col);
+    if(!cached) {
+        *len = 0;
+        return "";
+    }
+    *len = cached->length;
+    return cached->text?cached->text:"";
 }
 
 #ifdef __clang__

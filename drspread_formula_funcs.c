@@ -1529,113 +1529,6 @@ print(PrintBuff* buff, const char* fmt, ...){
 
 DRSP_INTERNAL
 void
-print_expr(PrintBuff* buff, Expression* arg){
-    switch(arg->kind){
-        case EXPR_ERROR:
-            print(buff, "Error()");
-            break;
-        case EXPR_STRING:{
-            String* s = (String*)arg;
-            print(buff, "String('%.*s')", (int)s->sv.length, s->sv.text);
-        }break;
-        case EXPR_NULL:
-            print(buff, "Null()\n");
-            break;
-        case EXPR_NUMBER:{
-            Number* n = (Number*)arg;
-            print(buff, "Number(%g)", n->value);
-        }break;
-        case EXPR_FUNCTION_CALL:{
-            FunctionCall* f = (FunctionCall*)arg;
-            // TODO: print function name
-            print(buff, "FunctionCall(");
-            for(int i = 0; i < f->argc; i++){
-                if(i != 0){
-                    print(buff, ", ");
-                }
-                print_expr(buff, f->argv[i]);
-            }
-            print(buff, ")");
-        }break;
-        case EXPR_RANGE0D:{
-            Range0D* rng = (Range0D*)arg;
-            print(buff, "[%.*s, %zd]", (int)rng->col_name.length, rng->col_name.text, rng->row);
-        }break;
-        case EXPR_RANGE0D_FOREIGN:{
-            ForeignRange0D* rng = (ForeignRange0D*)arg;
-            print(buff, "[%.*s, %.*s, %zd]", 
-                    (int)rng->sheet_name.length, rng->sheet_name.text, 
-                    (int)rng->r.col_name.length, rng->r.col_name.text, 
-                    rng->r.row);
-        }break;
-        case EXPR_RANGE1D_COLUMN:{
-            Range1DColumn* rng = (Range1DColumn*)arg;
-            print(buff, "[%.*s, %zd:%zd]", 
-                    (int)rng->col_name.length, rng->col_name.text, 
-                    rng->row_start, rng->row_end);
-        }break;
-        case EXPR_RANGE1D_COLUMN_FOREIGN:{
-            ForeignRange1DColumn* rng = (ForeignRange1DColumn*)arg;
-            print(buff, "[%.*s, %.*s, %zd:%zd]", 
-                    (int)rng->sheet_name.length, rng->sheet_name.text, 
-                    (int)rng->r.col_name.length, rng->r.col_name.text, 
-                    rng->r.row_start, rng->r.row_end);
-        }break;
-        case EXPR_RANGE1D_ROW:{
-            Range1DRow* rng = (Range1DRow*)arg;
-            print(buff, "[%.*s:%.*s, %zd]", 
-                    (int)rng->col_start.length, rng->col_start.text,
-                    (int)rng->col_end.length, rng->col_end.text,
-                    rng->row_idx);
-        }break;
-        case EXPR_RANGE1D_ROW_FOREIGN:{
-            ForeignRange1DRow* rng = (ForeignRange1DRow*)arg;
-            print(buff, "[%.*s, %.*s:%.*s, %zd]", 
-                    (int)rng->sheet_name.length, rng->sheet_name.text,
-                    (int)rng->r.col_start.length, rng->r.col_start.text,
-                    (int)rng->r.col_end.length, rng->r.col_end.text,
-                    rng->r.row_idx);
-        }break;
-        case EXPR_GROUP:{
-            Group* g = (Group*)arg;
-            print(buff, "(");
-            print_expr(buff, g->expr);
-            print(buff, ")");
-        }break;
-        case EXPR_BINARY:{
-            Binary* b = (Binary*)arg;
-            print_expr(buff, b->lhs);
-            switch(b->op){
-                case BIN_ADD: print(buff, "+"); break;
-                case BIN_SUB: print(buff, "-"); break;
-                case BIN_MUL: print(buff, "*"); break;
-                case BIN_DIV: print(buff, "/"); break;
-                case BIN_LT:  print(buff, "<"); break;
-                case BIN_LE:  print(buff, "<="); break;
-                case BIN_GT:  print(buff, ">"); break;
-                case BIN_GE:  print(buff, ">="); break;
-                case BIN_EQ:  print(buff, "="); break;
-                case BIN_NE:  print(buff, "!="); break;
-            }
-            print_expr(buff, b->rhs);
-        }break;
-        case EXPR_UNARY:{
-            Unary* u = (Unary*)arg;
-            switch(u->op){
-                case UN_PLUS: print(buff, "+"); break;
-                case UN_NEG: print(buff, "-"); break;
-                case UN_NOT: print(buff, "!"); break;
-            }
-            print_expr(buff, u->expr);
-        }break;
-        case EXPR_COMPUTED_ARRAY:
-            print(buff, "ComputedArray()");
-            break;
-    }
-}
-
-DRSP_INTERNAL
-void
 repr_expr(PrintBuff* buff, Expression* arg){
     switch(arg->kind){
         case EXPR_ERROR:
@@ -1757,25 +1650,6 @@ repr_expr(PrintBuff* buff, Expression* arg){
     }
 }
 
-DRSP_INTERNAL
-FORMULAFUNC(drsp_print){
-    (void)caller_col; (void)caller_row;
-    (void)sd;
-    char buffer[4092];
-    PrintBuff buff = {0, sizeof buffer, buffer};
-    for(int i = 0; i < argc; i++){
-        Expression* arg = argv[i];
-        print_expr(&buff, arg);
-    }
-    if(buff.error) return Error(ctx, "");
-    DrspStr* str = drsp_create_str(ctx, buffer, sizeof(buffer) - buff.len);
-    if(!str) return NULL;
-    String* s = expr_alloc(ctx, EXPR_STRING);
-    if(!s) return NULL;
-    s->sv.text = str->data;
-    s->sv.length = str->length;
-    return &s->e;
-}
 DRSP_INTERNAL
 FORMULAFUNC(drsp_repr){
     (void)caller_col; (void)caller_row;
@@ -1949,7 +1823,7 @@ FORMULAFUNC(drsp_if){
         return evaluate_expr(ctx, sd, argv[2], caller_row, caller_col);
 }
 
-#if defined(DRSPREAD_CLI_C) || defined(DRSP_INTRINS)
+#if defined(DRSPREAD_CLI_C)
 #ifdef __APPLE__
 #ifdef __clang__
 #pragma clang assume_nonnull end
@@ -1958,6 +1832,7 @@ FORMULAFUNC(drsp_if){
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
+// GCOV_EXCL_START
 DRSP_INTERNAL
 FORMULAFUNC(drsp_time){
     if(argc != 1) return Error(ctx, "");
@@ -1967,6 +1842,7 @@ FORMULAFUNC(drsp_time){
     fprintf(stderr, "Took %zu ns\n", (size_t)(end - start));
     return e;
 }
+// GCOV_EXCL_STOP
 #endif
 #endif
 
@@ -1979,10 +1855,11 @@ DRSP_INTERNAL
 const FuncInfo FUNC1[] = {
     {SV("a"),    &drsp_array},
     {SV("f"),    &drsp_first},
-    {SV("p"),    &drsp_print},
     {SV("r"),    &drsp_repr},
+#if defined(DRSPREAD_CLI_C)
 #ifdef __APPLE__
     {SV("t"),    &drsp_time},
+#endif
 #endif
 };
 #endif

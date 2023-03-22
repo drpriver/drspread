@@ -331,7 +331,7 @@ DRSP_INTERNAL
 DrspStr*_Nullable
 drsp_create_str(DrSpreadCtx*, const char* txt, size_t len);
 
-static inline
+force_inline
 StringView
 drsp_to_sv(const DrspStr* s){
     return (StringView){s->length, s->data};
@@ -344,13 +344,9 @@ struct StringHeap {
     unsigned char* data;
 };
 
-static inline
+DRSP_INTERNAL
 void
-destroy_string_heap(StringHeap* heap){
-    free_string_arenas(heap->arena);
-    free(heap->data);
-    __builtin_memset(heap, 0, sizeof *heap);
-}
+destroy_string_heap(StringHeap* heap);
 
 typedef struct ResultCache ResultCache;
 struct ResultCache {
@@ -400,10 +396,6 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
             return 0;
         case EXPR_STRING:{
             String* s = (String*)e;
-            if(!s->sv.length){
-                out->kind = CACHED_RESULT_NULL;
-                return 0;
-            }
             DrspStr* str = drsp_create_str(ctx, s->sv.text, s->sv.length);
             if(!str) return 1;
             out->kind = CACHED_RESULT_STRING;
@@ -495,80 +487,24 @@ struct DrSpreadCtx {
 
 DRSP_INTERNAL
 SheetData*_Nullable
-sheet_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle){
-    for(size_t i = 0; i < ctx->map.n; i++){
-        SheetData* data = &ctx->map.data[i];
-        if(data->handle == handle)
-            return data;
-    }
-    return NULL;
-}
+sheet_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle);
 
 DRSP_INTERNAL
 SheetData*_Nullable
-sheet_get_or_create_by_handle(DrSpreadCtx* ctx, SheetHandle handle){
-    SheetData* sd = sheet_lookup_by_handle(ctx, handle);
-    if(sd) return sd;
-    if(ctx->map.n >= ctx->map.cap){
-        size_t cap = ctx->map.cap;
-        size_t newcap = 2*cap;
-        if(!newcap) newcap = 8;
-        size_t new_size = newcap * sizeof(SheetData);
-        #ifdef __wasm__
-            size_t old_size = cap*sizeof(SheetData);
-            SheetData* p = sane_realloc(ctx->map.data, old_size, new_size);
-        #else
-            SheetData* p = realloc(ctx->map.data, new_size);
-            // fprintf(stderr, "%zu\n", new_size);
-        #endif
-        if(!p) return NULL;
-        ctx->map.data = p;
-        ctx->map.cap = newcap;
-    }
-    sd = &ctx->map.data[ctx->map.n++];
-    memset(sd, 0, sizeof *sd);
-    sd->handle = handle;
-    return sd;
-
-}
+sheet_get_or_create_by_handle(DrSpreadCtx* ctx, SheetHandle handle);
 
 DRSP_INTERNAL
 SheetData*_Nullable
-sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
-    for(size_t i = 0; i < ctx->map.n; i++){
-        SheetData* data = &ctx->map.data[i];
-        if(sv_iequals2(drsp_to_sv(data->name), name, len))
-            return data;
-        if(!data->alias) continue;
-        if(sv_iequals2(drsp_to_sv(data->alias), name, len))
-            return data;
-    }
-    return NULL;
-}
+sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len);
 
-static inline
+DRSP_INTERNAL
 void
-free_string_arenas(StringArena*_Nullable arena){
-    while(arena){
-        StringArena* to_free = arena;
-        arena = arena->next;
-        free(to_free);
-    }
-}
+free_string_arenas(StringArena*_Nullable arena);
 
-static inline
+DRSP_INTERNAL
 void
-free_sheet_datas(DrSpreadCtx* ctx){
-    for(size_t i = 0; i < ctx->map.n; i++){
-        SheetData* d = &ctx->map.data[i];
-        free(d->str_cache.data);
-        free(d->col_cache.data);
-        free(d->result_cache.data);
-    }
-    free(ctx->map.data);
-}
+free_sheet_datas(DrSpreadCtx* ctx);
 
-// static inline
 force_inline
 void*_Nullable
 expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
@@ -615,8 +551,6 @@ computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
 static inline
 void*_Nullable
 str_arena_alloc(StringArena*_Nullable*_Nonnull parena, size_t len){
-    // return buff_alloc(&ctx->a, len*8);
-    // return malloc(len);
     if(len & 1) len++;
     if(len > STRING_ARENA_SIZE) return NULL;
     StringArena* arena = *parena;
@@ -627,7 +561,6 @@ str_arena_alloc(StringArena*_Nullable*_Nonnull parena, size_t len){
             }
             arena = arena->next;
         }
-        // fprintf(stderr, "%zu\n", sizeof *arena);
         arena = malloc(sizeof *arena);
         if(!arena) return NULL;
         arena->next = *parena;
@@ -652,7 +585,6 @@ sv_cat(DrSpreadCtx* ctx, size_t n, const StringView* strs, StringView* out){
         out->text = "";
         return 0;
     }
-    // char* data = malloc(len);
     char* data = str_arena_alloc(&ctx->temp_string_arena, len);
     if(!data) return 1;
     char* p = data;
@@ -735,25 +667,11 @@ struct FuncInfo {
 };
 
 
-force_inline
+DRSP_INTERNAL
 const char*_Nullable
-sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
-    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
-    if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
-        *len = 0;
-        return "";
-    }
-    if(!sd) return NULL;
-    StringCache* cache = &sd->str_cache;
-    StringView* cached = get_cached_string(cache, row, col);
-    if(!cached) {
-        *len = 0;
-        return "";
-    }
-    *len = cached->length;
-    return cached->text?cached->text:"";
-}
+sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len);
 
+// We pretend that we support ragged sheets, even though we don't.
 force_inline
 intptr_t
 sp_col_height(const SheetData* sd, intptr_t col){
@@ -766,50 +684,6 @@ intptr_t
 sp_row_width(const SheetData* sd, intptr_t row){
     (void)row;
     return sd->width;
-}
-
-#ifdef DRSPREAD_DIRECT_OPS
-#define SP_ARGS SheetHandle sheet
-#define SP_CALL(func, ...) sheet_##func(sheet, __VA_ARGS__)
-#else
-#define SP_ARGS const DrSpreadCtx* ctx, SheetHandle sheet
-#define SP_CALL(func, ...) ctx->_ops.func(ctx->_ops.ctx, sheet, __VA_ARGS__)
-#endif // use these inline functions instead of using _ops directly
-
-
-force_inline
-int
-sp_set_display_number(SP_ARGS, intptr_t row, intptr_t col, double value){
-    #ifdef DRSPREAD_DIRECT_OPS
-        SP_CALL(set_display_number, row, col, value);
-        return 0;
-    #else
-        return SP_CALL(set_display_number, row, col, value);
-    #endif
-}
-
-force_inline
-int
-sp_set_display_error(SP_ARGS, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len){
-    #ifdef DRSPREAD_DIRECT_OPS
-        (void)errmess;
-        (void)errmess_len;
-        SP_CALL(set_display_error, row, col);
-    #else
-        return SP_CALL(set_display_error, row, col, errmess, errmess_len);
-    #endif
-    return 0;
-}
-
-force_inline
-int
-sp_set_display_string(SP_ARGS, intptr_t row, intptr_t col, const char* txt, size_t len){
-    #ifdef DRSPREAD_DIRECT_OPS
-        SP_CALL(set_display_string, row, col, txt, len);
-        return 0;
-    #else
-        return SP_CALL(set_display_string, row, col, txt, len);
-    #endif
 }
 
 force_inline
@@ -834,13 +708,6 @@ sp_name_to_col_idx(SheetData* sd, const char* name, size_t len){
     if(pidx) return *pidx;
     return -1;
 }
-
-#ifdef DRSPREAD_DIRECT_OPS
-// alias these so the ctx is unused.
-#define sp_set_display_number(ctx, ...) ((void)ctx, sp_set_display_number(__VA_ARGS__))
-#define sp_set_display_error(ctx, ...) ((void)ctx, sp_set_display_error(__VA_ARGS__))
-#define sp_set_display_string(ctx, ...) ((void)ctx, sp_set_display_string(__VA_ARGS__))
-#endif
 
 #ifdef __clang__
 #pragma clang assume_nonnull end
