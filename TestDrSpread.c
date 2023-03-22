@@ -1624,7 +1624,11 @@ TestFunction(TestCaching){
     );
     SheetRow expected[] = {
         ROW("1"),
-        ROW("nan"),
+        #ifdef __wasm__
+            ROW("NaN"),
+        #else
+            ROW("nan"),
+        #endif
         ROW(""),
         ROW("a"),
         ROW("error"),
