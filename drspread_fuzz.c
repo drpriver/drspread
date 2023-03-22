@@ -43,7 +43,7 @@ LLVMFuzzerTestOneInput(const uint8_t*data, size_t size){
         }
     }
     for(int i = 0; i < ms.n; i++){
-        int nerr = drsp_evaluate_formulas(ctx, (SheetHandle)&ms.sheets[i], NULL, 0);
+        int nerr = drsp_evaluate_formulas(ctx);
         (void)nerr;
     }
     bad:
