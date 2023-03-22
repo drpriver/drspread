@@ -191,7 +191,7 @@ function show():void{
                 // const N = 1000;
                 const before = window.performance.now()
                 for(let i = 0; i < N; i++){
-                  get_ctx().evaluate_formulas(0);
+                  get_ctx().evaluate_formulas();
                 }
                 const after = window.performance.now();
                 console.log('after-before', after-before);
@@ -209,7 +209,7 @@ function show():void{
     }
 }
 type DrSpreadCtx = {
-    evaluate_formulas: (sheet:number) => Array<number>;
+    evaluate_formulas: () => void;
     evaluate_string: (sheet:number, s:string) => number | string;
     set_str:(sheet:number, row:number, col:number, s:string) => void;
     make_sheet:(sheet:number, name:string) => void;
@@ -222,7 +222,7 @@ type DrSpreadExports = {
     strlen: (p:number) => number;
     drsp_create_ctx: () => number;
     drsp_destroy_ctx: (ctx:number) => number;
-    drsp_evaluate_formulas: (ctx:number, sheet:number, handles: number, nhandles:number) => number;
+    drsp_evaluate_formulas: (ctx:number) => number;
     drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
     drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
@@ -231,7 +231,6 @@ type DrSpreadExports = {
     drsp_del_sheet:(ctx:number, sheet:number) => number;
     reset_memory: () => void;
     wasm_str_buff: {value:number};
-    wasm_deps_buff: {value:number};
     wasm_result: {value:number};
 };
 declare function drspread(
@@ -257,7 +256,7 @@ drspread(
     window.performance.mark('evaluate');
     const before = window.performance.now()
     for(let i = 0; i < N; i++){
-        get_ctx().evaluate_formulas(0);
+        get_ctx().evaluate_formulas();
     }
     window.performance.mark('done-evaluate');
     window.performance.measure('evaluate', 'evaluate', 'done-evaluate');
@@ -302,7 +301,7 @@ document.addEventListener('DOMContentLoaded', function(){
           ctx = undefined;
           cells = result;
           prep();
-          get_ctx().evaluate_formulas(0);
+          get_ctx().evaluate_formulas();
           show();
         });
 

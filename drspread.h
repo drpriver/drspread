@@ -73,7 +73,7 @@ struct SheetOps {
 
 DRSP_EXPORT
 int
-drsp_evaluate_formulas(DrSpreadCtx*, SheetHandle sheethandle, SheetHandle _Null_unspecified*_Nullable sheetdeps, size_t sheetdepslen);
+drsp_evaluate_formulas(DrSpreadCtx*);
 
 DRSP_EXPORT
 int

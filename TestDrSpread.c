@@ -98,7 +98,7 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
             if(e) TestAssertFalse(e);
         }
     }
-    int nerr = drsp_evaluate_formulas(ctx, sheethandle, NULL, 0);
+    int nerr = drsp_evaluate_formulas(ctx);
     TestExpectEquals(nerr, expected_nerr);
     for(size_t i = 0; i < expected_len; i++){
         const SheetRow* display_row = &sheet.display[i];
@@ -417,7 +417,7 @@ TestFunction(TestRanges){
         " 2 | =['a', $]\n"
         " 3 | =[\"$\", 3]\n"
         " 4 | =['$', 3]\n"
-        " 5 | =sum([a]) | =sum(a)\n"
+        " 5 | =sum([a]) | =sum(a) | =sum([a:, 1])\n"
         " 6 | =sum(['a', :])\n"
         " 7 | =sum(['a', 1:2]) | =sum(a1:a2)\n"
         " 8 | =sum(['a', :2])\n"
@@ -430,7 +430,7 @@ TestFunction(TestRanges){
         [ 2] = ROW("2", "2"),
         [ 3] = ROW("3", "2"),
         [ 4] = ROW("4", "2"),
-        [ 5] = ROW("5", "55", "55"),
+        [ 5] = ROW("5", "55", "55", "0"),
         [ 6] = ROW("6", "55"),
         [ 7] = ROW("7", "1", "1"),
         [ 8] = ROW("8", "1"),
@@ -1077,12 +1077,8 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
             }
         }
     }
-    SheetHandle deps[1] = {0};
-    int nerr = drsp_evaluate_formulas(ctx, handles[0], deps, arrlen(deps));
+    int nerr = drsp_evaluate_formulas(ctx);
     TestExpectEquals(nerr, expected_nerr);
-    for(size_t i = 0; i < arrlen(deps); i++){
-        // TestAssert(deps[i]);
-    }
     for(size_t i = 0; i < expected_len; i++){
         const SheetRow* display_row = &collection.sheets[0].display[i];
         const SheetRow* expected_row = &expected[i];
@@ -1420,8 +1416,7 @@ TestFunction(TestComplexMultisheet){
         }
     }
     {
-        SpreadSheet* sheet = &ms.sheets[0];
-        int err = drsp_evaluate_formulas(ctx, (SheetHandle)sheet, NULL, 0);
+        int err = drsp_evaluate_formulas(ctx);
         TestExpectEquals(err, 0);
     }
     StringView expected[] = {

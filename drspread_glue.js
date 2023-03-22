@@ -56,20 +56,9 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
         function create_ctx() {
             const result = {
                 id: exports.drsp_create_ctx(),
-                evaluate_formulas: (sheet) => {
+                evaluate_formulas: () => {
                     const ctx = result.id;
-                    const handles = exports.wasm_deps_buff.value;
-                    exports.drsp_evaluate_formulas(ctx, sheet, handles, 1024);
-                    const deps = [];
-                    for (let i = 0; i < 1024; i++) {
-                        const hnd = read4(handles + i * 4);
-                        if (!hnd)
-                            break;
-                        if (hnd == sheet)
-                            continue;
-                        deps.push(hnd);
-                    }
-                    return deps;
+                    exports.drsp_evaluate_formulas(ctx);
                 },
                 evaluate_string: (sheet, s) => {
                     const ctx = result.id;

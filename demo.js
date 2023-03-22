@@ -176,7 +176,7 @@ function show() {
                 const N = 1;
                 const before = window.performance.now();
                 for (let i = 0; i < N; i++) {
-                    get_ctx().evaluate_formulas(0);
+                    get_ctx().evaluate_formulas();
                 }
                 const after = window.performance.now();
                 console.log('after-before', after - before);
@@ -198,7 +198,7 @@ drspread('/Bin/drspread.wasm', display_number, display_string, display_error).th
     window.performance.mark('evaluate');
     const before = window.performance.now();
     for (let i = 0; i < N; i++) {
-        get_ctx().evaluate_formulas(0);
+        get_ctx().evaluate_formulas();
     }
     window.performance.mark('done-evaluate');
     window.performance.measure('evaluate', 'evaluate', 'done-evaluate');
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ctx = undefined;
             cells = result;
             prep();
-            get_ctx().evaluate_formulas(0);
+            get_ctx().evaluate_formulas();
             show();
         });
     };

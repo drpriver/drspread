@@ -7,7 +7,7 @@ const enum DrspResultKind {
     STRING = 2,
 }
 type DrSpreadCtx = {
-    evaluate_formulas: (sheet:number) => Array<number>;
+    evaluate_formulas: () => void;
     evaluate_string: (sheet:number, s:string) => number | string;
     set_str:(sheet:number, row:number, col:number, s:string) => void;
     make_sheet:(sheet:number, name:string) => void;
@@ -20,7 +20,7 @@ type DrSpreadExports = {
     strlen: (p:number) => number;
     drsp_create_ctx: () => number;
     drsp_destroy_ctx: (ctx:number) => number;
-    drsp_evaluate_formulas: (ctx:number, sheet:number, handles: number, nhandles:number) => number;
+    drsp_evaluate_formulas: (ctx:number) => number;
     drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
     drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
@@ -29,7 +29,6 @@ type DrSpreadExports = {
     drsp_del_sheet:(ctx:number, sheet:number) => number;
     reset_memory: () => void;
     wasm_str_buff: {value:number};
-    wasm_deps_buff: {value:number};
     wasm_result: {value:number};
 };
 function drspread(
@@ -117,19 +116,9 @@ return fetch(wasm_path)
         function create_ctx():DrSpreadCtx{
             const result = {
                 id: exports.drsp_create_ctx() as number,
-                evaluate_formulas: (sheet:number):Array<number> =>{
+                evaluate_formulas: ():void =>{
                     const ctx = result.id;
-                    const enum _ {NHANDLES=1024}
-                    const handles = exports.wasm_deps_buff.value;
-                    exports.drsp_evaluate_formulas(ctx, sheet, handles, _.NHANDLES);
-                    const deps = [];
-                    for(let i = 0; i < _.NHANDLES; i++){
-                        const hnd = read4(handles+i*4);
-                        if(!hnd) break;
-                        if(hnd == sheet) continue;
-                        deps.push(hnd);
-                    }
-                    return deps;
+                    exports.drsp_evaluate_formulas(ctx);
                 },
                 evaluate_string: (sheet:number, s:string):number|string => {
                     const ctx = result.id;

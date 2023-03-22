@@ -15,9 +15,6 @@ _Static_assert(__builtin_offsetof(DrSpreadResult, s.text)==12, "");
 DRSP_EXPORT unsigned char wasm_str_buff[1024];
 unsigned char wasm_str_buff[1024] = {0};
 
-DRSP_EXPORT void* wasm_deps_buff[1024];
-void* wasm_deps_buff[1024] = {0};
-
 DRSP_EXPORT DrSpreadResult wasm_result;
 DrSpreadResult wasm_result = {0};
 
