@@ -30,6 +30,7 @@ static TestFunc TestRanges;
 static TestFunc TestBadRanges;
 static TestFunc TestNames;
 static TestFunc TestComplexMultisheet;
+static TestFunc TestCaching;
 
 int main(int argc, char** argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -52,6 +53,7 @@ int main(int argc, char** argv){
         RegisterTest(TestColFunc);
         RegisterTest(TestNames);
         RegisterTest(TestComplexMultisheet);
+        RegisterTest(TestCaching);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -531,20 +533,113 @@ TestFunction(TestSpreadsheet2){
 
 TestFunction(TestBinOps){
     const char* input =
+        "1 | 2 | 3 | 4 \n"
+        "a | b | c \n"
+        "='1'\n"
+
         "=1+1   | =1-1    | =4/2       | =3*4 \n"
         "=2 = 1 | =2 == 1 | =2 != 1\n"
         "=1 < 2 | =1 > 2  | =1 >= 1    | =1 <= 2\n"
+
+        "='a' != 'a' | ='a' = ''  | = 'a' = 'a' \n"
+        "= '1' = 2 | = '1' < 2 | = '1' < '2'\n"
+
+        "=f(a('1')  = '1')| = f('1'  = a('1'))| = f(a('1')  = a('1'))\n"
+        "=f(a('1') != '1')| = f('1' != a('1'))| = f(a('1') != a('1'))\n"
+
+        "=f(a(1)+1)   | =f(a(1)-1)    | =f(a(4)/2)       | =f(a(3)*4) \n"
+        "=f(a(2) = 1) | =f(a(2) == 1) | =f(a(2) != 1)\n"
+        "=f(a(1) < 2) | =f(a(1) > 2)  | =f(a(1) >= 1)    | =f(a(1) <= 2)\n"
+
+        "=f(1+a(1))   | =f(1-a(1))    | =f(4/a(2))       | =f(3*a(4)) \n"
+        "=f(2 = a(1)) | =f(2 == a(1)) | =f(2 != a(1))\n"
+        "=f(1 < a(2)) | =f(1 > a(2))  | =f(1 >= a(1))    | =f(1 <= a(2))\n"
+
+        "=f(a(1)+a(1))   | =f(a(1)-a(1))    | =f(a(4)/a(2))       | =f(a(3)*a(4)) \n"
+        "=f(a(2) = a(1)) | =f(a(2) == a(1)) | =f(a(2) != a(1))\n"
+        "=f(a(1) < a(2)) | =f(a(1) > a(2))  | =f(a(1) >= a(1))    | =f(a(1) <= a(2))\n"
+
+        // using range references instead of computed arrays
+        "=f(a3:a3  = '1')| = f('1'  = a3:a3)| = f(a3:a3  = a3:a3)\n"
+        "=f(a3:a3 != '1')| = f('1' != a3:a3)| = f(a3:a3 != a3:a3)\n"
+
+        "=f(a1:a1+1)   | =f(a1:a1-1)    | =f(d1:d1/2)       | =f(c1:c1*4) \n"
+        "=f(b1:b1 = 1) | =f(b1:b1 == 1) | =f(b1:b1 != 1)\n"
+        "=f(a1:a1 < 2) | =f(a1:a1 > 2)  | =f(a1:a1 >= 1)    | =f(a1:a1 <= 2)\n"
+
+        "=f(1+a1:a1)   | =f(1-a1:a1)    | =f(4/b1:b1)       | =f(3*d1:d1) \n"
+        "=f(2 = a1:a1) | =f(2 == a1:a1) | =f(2 != a1:a1)\n"
+        "=f(1 < b1:b1) | =f(1 > b1:b1)  | =f(1 >= a1:a1)    | =f(1 <= b1:b1)\n"
+
+        "=f(a1:a1+a1:a1)   | =f(a1:a1-a1:a1)    | =f(d1:d1/b1:b1)       | =f(c1:c1*d1:d1) \n"
+        "=f(b1:b1 = a1:a1) | =f(b1:b1 == a1:a1) | =f(b1:b1 != a1:a1)\n"
+        "=f(a1:a1 < b1:b1) | =f(a1:a1 > b1:b1)  | =f(a1:a1 >= a1:a1)    | =f(a1:a1 <= b1:b1)\n"
+
+        // This exercises the swapping code path
+        "=f(a1:a1 + a(1)) | =f(a1:a1 - a(1))  | =f(a1:a1 * a(1)) | =f(a1:a1 / a(1))\n"
+        "=f(a1:a1 < a(1)) | =f(a1:a1 <= a(1)) | =f(a1:a1 > a(1)) | =f(a1:a1 >= a(1))\n"
+        "=f(a1:a1 = a(1)) | =f(a1:a1 != a(1))\n"
+
+        // Arrays of different lengths
+        "=f(a1:a1 = a(1, 2)) | =f(a1:a2 = a(1))\n"
+
     ;
     SheetRow expected[] = {
+        ROW("1", "2", "3", "4"),
+        ROW("a", "b", "c"),
+        ROW("1"),
+
         ROW("2", "0", "2", "12"),
         ROW("0", "0", "1"),
         ROW("1", "0", "1", "1"),
+
+        ROW("0", "", "1"),
+        ROW("error", "error", "error"),
+
+        ROW("1", "1", "1"),
+        ROW("0", "0", "0"),
+
+        ROW("2", "0", "2", "12"),
+        ROW("0", "0", "1"),
+        ROW("1", "0", "1", "1"),
+
+        ROW("2", "0", "2", "12"),
+        ROW("0", "0", "1"),
+        ROW("1", "0", "1", "1"),
+
+        ROW("2", "0", "2", "12"),
+        ROW("0", "0", "1"),
+        ROW("1", "0", "1", "1"),
+
+        ROW("1", "1", "1"),
+        ROW("0", "0", "0"),
+
+        ROW("2", "0", "2", "12"),
+        ROW("0", "0", "1"),
+        ROW("1", "0", "1", "1"),
+
+        ROW("2", "0", "2", "12"),
+        ROW("0", "0", "1"),
+        ROW("1", "0", "1", "1"),
+
+        ROW("2", "0", "2", "12"),
+        ROW("0", "0", "1"),
+        ROW("1", "0", "1", "1"),
+
+        ROW("2", "0", "1", "1"),
+        ROW("0", "1", "0", "1"),
+        ROW("1", "0"),
+
+        ROW("error", "error"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 5);
 }
 TestFunction(TestUnOps){
     const char* input =
         "=!1      | =-2    | =+2\n"
+        // Unary minus gets handled in the parser for number
+        // literals, so we need an expression.
+        "=-!!(1+1-1)| =--(1+1)   | =-+(1+1)\n"
         "=!!1     | =-!1   | =+!2\n"
         "=!!!1    | =-!!1  | =+!!2\n"
         "=-!-!-!1 | =-!+!1 | =+!-!2\n"
@@ -552,6 +647,7 @@ TestFunction(TestUnOps){
     ;
     SheetRow expected[] = {
         ROW("0", "-2", "2"),
+        ROW("-1", "2", "-2"),
         ROW("1",  "0", "0"),
         ROW("0", "-1", "1"),
         ROW("0", "-1", "1"),
@@ -574,6 +670,7 @@ TestFunction(TestFuncs){
         "=round([b,1])      | \n"
         "=tlu(44, [b], [c]) | \n"
         "=find(44, [b]) | \n"
+        "=count([b])\n"
         "\n"
         "=ceil(-12.1)\n"
         "=floor(-12.1)\n"
@@ -608,6 +705,7 @@ TestFunction(TestFuncs){
 
         "=if(1, 2, 3)\n"
         "=if('', 2, 3)\n"
+        "=if('a', 2, 3)\n"
 
         "=max(1, 2)\n"
         "=max(1, 2, 3)\n"
@@ -633,82 +731,94 @@ TestFunction(TestFuncs){
 
     ;
     SheetRow expected[] = {
-        [ 0] = ROW("60", "-1.5"),
-        [ 1] = ROW("15", "3.5"),
-        [ 2] = ROW("-1.5", "44", "hello"),
-        [ 3] = ROW("44", "14"),
-        [ 4] = ROW("2", ""),
-        [ 5] = ROW("1.5", ""),
-        [ 6] = ROW("-2", ""),
-        [ 7] = ROW("-1", ""),
-        [ 8] = ROW("-1", ""),
-        [ 9] = ROW("-2", ""),
-        [10] = ROW("hello", ""),
+        ROW("60", "-1.5"),
+        ROW("15", "3.5"),
+        ROW("-1.5", "44", "hello"),
+        ROW("44", "14"),
+        ROW("2", ""),
+        ROW("1.5", ""),
+        ROW("-2", ""),
+        ROW("-1", ""),
+        ROW("-1", ""),
+        ROW("-2", ""),
+        ROW("hello", ""),
+        ROW("3", ""),
+        ROW("4"),
 
-        [11] = ROW("3", ""),
-        [12] = ROW(""),
-        [13] = ROW("-12"),
-        [14] = ROW("-13"),
-        [15] = ROW("-12"),
-        [16] = ROW("-12"),
-        [17] = ROW(""),
-        [18] = ROW("-12"),
-        [19] = ROW("-13"),
-        [20] = ROW("-13"),
-        [21] = ROW("-12"),
-        [22] = ROW(""),
-        [23] = ROW("13"),
-        [24] = ROW("12"),
-        [25] = ROW("12"),
-        [26] = ROW("12"),
-        [27] = ROW(""),
-        [28] = ROW("13"),
-        [29] = ROW("12"),
-        [30] = ROW("13"),
-        [31] = ROW("12"),
-        [32] = ROW(""),
-        [33] = ROW("1"),
-        [34] = ROW("2"),
-        [35] = ROW("0"),
-        [36] = ROW("b"),
-        [37] = ROW("1"),
-        [38] = ROW("8"),
-        [39] = ROW("16"),
-        [40] = ROW("243"),
-        [41] = ROW("3"),
-        [42] = ROW("-3234"),
+        ROW(""),
+        ROW("-12"),
+        ROW("-13"),
+        ROW("-12"),
+        ROW("-12"),
+        ROW(""),
+        ROW("-12"),
+        ROW("-13"),
+        ROW("-13"),
+        ROW("-12"),
+        ROW(""),
+        ROW("13"),
+        ROW("12"),
+        ROW("12"),
+        ROW("12"),
+        ROW(""),
+        ROW("13"),
+        ROW("12"),
+        ROW("13"),
+        ROW("12"),
+        ROW(""),
+        ROW("1"),
+        ROW("2"),
+        ROW("0"),
+        ROW("b"),
+        ROW("1"),
+        ROW("8"),
+        ROW("16"),
+        ROW("243"),
+        ROW("3"),
+        ROW("-3234"),
 
-        [43] = ROW("2"),
-        [44] = ROW("3"),
+        ROW("2"),
+        ROW("3"),
+        ROW("2"),
 
-        [45] = ROW("2"),
-        [46] = ROW("3"),
-        [47] = ROW("4"),
+        ROW("2"),
+        ROW("3"),
+        ROW("4"),
 
-        [48] = ROW("-2"),
-        [49] = ROW("-3"),
-        [50] = ROW("-4"),
+        ROW("-2"),
+        ROW("-3"),
+        ROW("-4"),
 
-        [51] = ROW("ab"),
-        [52] = ROW("1234567890abcdefghijklmnopqrstuvwxyz"),
-        [53] = ROW("12345678901234567890abcdefghijklmnopqrstuvwxyz"),
-        [54] = ROW("abcde"),
-        [55] = ROW("abc"),
-        [56] = ROW("abcd"),
-        [57] = ROW("a"),
-        [58] = ROW("b"),
-        [59] = ROW(""),
-        [60] = ROW(""),
-        [61] = ROW(""),
+        ROW("ab"),
+        ROW("1234567890abcdefghijklmnopqrstuvwxyz"),
+        ROW("12345678901234567890abcdefghijklmnopqrstuvwxyz"),
+        ROW("abcde"),
+        ROW("abc"),
+        ROW("abcd"),
+        ROW("a"),
+        ROW("b"),
+        ROW(""),
+        ROW(""),
+        ROW(""),
 
-        [62] = ROW("-1"),
+        ROW("-1"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
 TestFunction(TestFuncsV){
     const char* input =
+        "0\n"
+        "1\n"
+        "2\n"
+        "3\n"
+        "4\n"
+        "5\n"
+
         "=f(a(1))\n"
         "=f(mod(a(13)))\n"
+
+        "=f(abs(a(-13)))\n"
+        "=f(sqrt(a(9)))\n"
 
         "=f(trunc(a(13.1)))\n"
         "=f(floor(a(13.1)))\n"
@@ -746,8 +856,15 @@ TestFunction(TestFuncsV){
         "=f(cat(a('a'), a('b')))\n"
         "=f(cat('a', a('b')))\n"
         "=f(cat(a('a'), 'b'))\n"
+        "=f(cat(a('a'), ''))\n"
+        "=f(cat(a(''), 'b'))\n"
+        "=f(cat(a(''), a('b')))\n"
+        "=f(cat(a('a'), a('')))\n"
         "=f(cat('a', a('b'), 'c'))\n"
         "=f(cat('a', a('b'), 'c', a('d')))\n"
+        "=f(cat('a', a(''), 'c', a('')))\n"
+        "=f(cat('a', '', 'c', a('')))\n"
+        "=cat('a', '', 'c', '')\n"
 
         "=f(eval(a('pow(2,4)')))\n"
         "=sum(eval(a('pow(2,4)', 'pow(2, 3)', '')))\n"
@@ -758,63 +875,110 @@ TestFunction(TestFuncsV){
         "=max(a(2, 4, 6))\n"
 
         "=find(2, a(2, 4, 6))\n"
+        "=find(1, a(2, 4, 6), 3)\n"
+        "=find('', a('2', 4, ''))\n"
+        "=find('2', a('2', 4, ''))\n"
+        "=tlu(4, a(2, '4', 4, 6), a(7, 8, 9, 10))\n"
+        "=tlu('4', a(4, '4', '6'), a('a', 'b', 'c'))\n"
+        "=tlu('a', [b:b, $], [c:c, $]) | a | 3\n"
+        "=tlu(3, [b:b, $], [c:c, $]) | 3 | a\n"
+        "=tlu(2, a(1), a(1), 9)\n"
+        // NOTE: last arg is a scalar and is for every missing value
+        "=f(tlu(a(2), a('', 1), a('', 7), 9))\n"
+        "=f(tlu(a(2), a('', 2), a('', 7), 9))\n"
+        "=f(tlu(a(''), a('', 2), a('', 7), 9))\n"
+        "=f(tlu(a(3), a(1,3), a(7)))\n"
+
+
+        "=f(if(a1:a2, 1, 2)) | =f(if(a1:a2, 1, a3:a4)) | =f(if(a2:a3, a5:a6, 3))\n"
     ;
     SheetRow expected[] = {
         // Designated initializers are so you can figure out which row
         // when a test fails.
-        [ 0] = ROW("1"),
-        [ 1] = ROW("1"),
+        ROW("0"),
+        ROW("1"),
+        ROW("2"),
+        ROW("3"),
+        ROW("4"),
+        ROW("5"),
 
-        [ 2] = ROW("13"),
-        [ 3] = ROW("13"),
-        [ 4] = ROW("14"),
-        [ 5] = ROW("13"),
+        ROW("1"),
+        ROW("1"),
 
-        [ 6] = ROW("-13"),
-        [ 7] = ROW("-14"),
-        [ 8] = ROW("-13"),
-        [ 9] = ROW("-13"),
+        ROW("13"),
+        ROW("3"),
 
-        [10] = ROW("13"),
-        [11] = ROW("13"),
-        [12] = ROW("14"),
-        [13] = ROW("14"),
+        ROW("13"),
+        ROW("13"),
+        ROW("14"),
+        ROW("13"),
 
-        [14] = ROW("-13"),
-        [15] = ROW("-14"),
-        [16] = ROW("-13"),
-        [17] = ROW("-14"),
+        ROW("-13"),
+        ROW("-14"),
+        ROW("-13"),
+        ROW("-13"),
 
-        [18] = ROW("8"),
-        [19] = ROW("81"),
+        ROW("13"),
+        ROW("13"),
+        ROW("14"),
+        ROW("14"),
 
-        [20] = ROW("24"),
-        [21] = ROW("10"),
+        ROW("-13"),
+        ROW("-14"),
+        ROW("-13"),
+        ROW("-14"),
 
-        [22] = ROW("11"),
-        [23] = ROW("19"),
-        [24] = ROW("86"),
-        [25] = ROW("82"),
+        ROW("8"),
+        ROW("81"),
 
-        [26] = ROW("3"),
+        ROW("24"),
+        ROW("10"),
 
-        [27] = ROW("ab"),
-        [28] = ROW("ab"),
-        [29] = ROW("ab"),
-        [30] = ROW("abc"),
-        [31] = ROW("abcd"),
+        ROW("11"),
+        ROW("19"),
+        ROW("86"),
+        ROW("82"),
 
-        [32] = ROW("16"),
-        [33] = ROW("24"),
+        ROW("3"),
 
-        [34] = ROW("3"), // skips the empty string, includes 0
-        [35] = ROW("4"),
-        [36] = ROW("2"),
-        [37] = ROW("6"),
+        ROW("ab"),
+        ROW("ab"),
+        ROW("ab"),
+        ROW("a"),
+        ROW("b"),
+        ROW("b"),
+        ROW("a"),
+        ROW("abc"),
+        ROW("abcd"),
+        ROW("ac"),
+        ROW("ac"),
+        ROW("ac"),
 
-        [38] = ROW("1"),
+        ROW("16"),
+        ROW("24"),
+
+        ROW("3"), // skips the empty string, includes 0
+        ROW("4"),
+        ROW("2"),
+        ROW("6"),
+
+        ROW("1"),
+        ROW("3"),
+        ROW("3"),
+        ROW("1"),
+        ROW("9"),
+        ROW("b"),
+        ROW("3", "a", "3"),
+        ROW("a", "3", "a"),
+        ROW("9"),
+        ROW("9"),
+        ROW("7"),
+        ROW(""),
+        ROW("error"),
+
+        ROW("2", "2", "4"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
 }
 TestFunction(TestFuncsRowArray){
     const char* input =
@@ -824,7 +988,8 @@ TestFunction(TestFuncsRowArray){
         "pow(2,4) | pow(2,3) |\n"
         "   | 1  | 0    | a     |      | 2     | 4   | 6\n"
 
-        "=f(row('a', 'a', 1)) | =f([a:a,1])\n"
+        "=f(row('$', '$', 1)) | =f(row('$', 'a', 1)) | =f([a:a,1]) | = f(row('', '', 1))\n"
+        "=f(col('$', 1, 1))   | =f([a,1:1]) | = f(col('', 1, 1))\n"
         "=f(mod(row('b', 'b', 1)))\n"
 
         "=f(trunc(row('c', 'c', 1)))\n"
@@ -875,6 +1040,9 @@ TestFunction(TestFuncsRowArray){
         "=max(row('f', 'h', 4))\n"
 
         "=find(2, row('f', 'h', 4))\n"
+        "=find('b', row('m', 'p', 2))\n"
+        "=find('', row('m', 'z', 2))\n"
+        "=find('', col('p', 2))\n"
 
         "=f(row('b', 'c', 4)+row('f', 'g', 4))\n"
         "=sum(row('b', 'c', 4)+row('f', 'g', 4))\n"
@@ -887,60 +1055,64 @@ TestFunction(TestFuncsRowArray){
         [ 2] = ROW("pow(2,4)", "pow(2,3)", ""),
         [ 3] = ROW("", "1", "0", "a", "", "2", "4", "6"),
 
-        [ 4] = ROW("1", "1"),
-        [ 5] = ROW("1"),
+        [ 4] = ROW("1", "1", "1", "1"),
+        [ 5] = ROW("1", "1", "1"),
+        [ 6] = ROW("1"),
 
-        [ 6] = ROW("13"),
         [ 7] = ROW("13"),
-        [ 8] = ROW("14"),
-        [ 9] = ROW("13"),
+        [ 8] = ROW("13"),
+        [ 9] = ROW("14"),
+        [10] = ROW("13"),
 
-        [10] = ROW("-13"),
-        [11] = ROW("-14"),
-        [12] = ROW("-13"),
+        [11] = ROW("-13"),
+        [12] = ROW("-14"),
         [13] = ROW("-13"),
+        [14] = ROW("-13"),
 
-        [14] = ROW("13"),
         [15] = ROW("13"),
-        [16] = ROW("14"),
+        [16] = ROW("13"),
         [17] = ROW("14"),
+        [18] = ROW("14"),
 
-        [18] = ROW("-13"),
-        [19] = ROW("-14"),
-        [20] = ROW("-13"),
-        [21] = ROW("-14"),
+        [19] = ROW("-13"),
+        [20] = ROW("-14"),
+        [21] = ROW("-13"),
+        [22] = ROW("-14"),
 
-        [22] = ROW("8"),
-        [23] = ROW("81"),
+        [23] = ROW("8"),
+        [24] = ROW("81"),
 
-        [24] = ROW("24"),
-        [25] = ROW("10"),
+        [25] = ROW("24"),
+        [26] = ROW("10"),
 
-        [26] = ROW("11"),
-        [27] = ROW("19"),
-        [28] = ROW("86"),
-        [29] = ROW("82"),
+        [27] = ROW("11"),
+        [28] = ROW("19"),
+        [29] = ROW("86"),
+        [30] = ROW("82"),
 
-        [30] = ROW("3"),
+        [31] = ROW("3"),
 
-        [31] = ROW("ab"),
         [32] = ROW("ab"),
         [33] = ROW("ab"),
-        [34] = ROW("abc"),
-        [35] = ROW("abcd"),
+        [34] = ROW("ab"),
+        [35] = ROW("abc"),
+        [36] = ROW("abcd"),
 
-        [36] = ROW("16"),
-        [37] = ROW("24"),
+        [37] = ROW("16"),
+        [38] = ROW("24"),
 
-        [38] = ROW("3"), // skips the empty string, includes 0
-        [39] = ROW("4"),
-        [40] = ROW("2"),
-        [41] = ROW("6"),
+        [39] = ROW("3"), // skips the empty string, includes 0
+        [40] = ROW("4"),
+        [41] = ROW("2"),
+        [42] = ROW("6"),
 
-        [42] = ROW("1"),
+        [43] = ROW("1"),
+        [44] = ROW("2"),
+        [45] = ROW("5"),
+        [46] = ROW("2"),
 
-        [43] = ROW("3"),
-        [44] = ROW("7"),
+        [47] = ROW("3"),
+        [48] = ROW("7"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }
@@ -1339,6 +1511,8 @@ TestFunction(TestComplexMultisheet){
         { SV("[Overview, Encumbrance, 1]"),                   2. },
         // case insensitive
         { SV("[overview, encumbrance, 1]"),                   2. },
+        { SV("f(col('overview', 'encumbrance', 1, 1))"),      2. },
+        { SV("f(row('overview', 'encumbrance', 'encumbrance', 1))"),  2. },
     };
     DrSpreadCtx* ctx = drsp_create_ctx(&ops);
     {
@@ -1437,6 +1611,106 @@ TestFunction(TestComplexMultisheet){
     cleanup_multisheet(&ms);
     TESTEND();
 }
+
+TestFunction(TestCaching){
+    struct TestStats TEST_stats = {0};
+    SpreadSheet sheet = {0};
+    int err = read_csv_from_string(&sheet,
+        "=1\n"
+        "=0/0\n"
+        "\n"
+        "a\n"
+        "=asd()\n"
+    );
+    SheetRow expected[] = {
+        ROW("1"),
+        ROW("nan"),
+        ROW(""),
+        ROW("a"),
+        ROW("error"),
+    };
+    SheetRow expected2[] = {
+        ROW(""),
+        ROW(""),
+        ROW(""),
+        ROW(""),
+        ROW(""),
+    };
+    TestAssertFalse(err);
+    TestAssertEquals(sheet.rows, arrlen(expected));
+    SheetOps ops = sheet_ops();
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    SheetHandle sheethandle = (SheetHandle)&sheet;
+    int e = drsp_set_sheet_name(ctx, sheethandle, "$this", 5);
+    TestAssertFalse(e);
+    for(intptr_t r = 0; r < sheet.rows; r++){
+        const SheetRow* row = &sheet.cells[r];
+        for(int c = 0; c < row->n; c++){
+            if(!row->lengths[c]) continue;
+            e = drsp_set_cell_str(ctx, sheethandle, r, c, row->data[c], row->lengths[c]);
+            // don't bloat the stats
+            if(e) TestAssertFalse(e);
+        }
+    }
+    int nerr = drsp_evaluate_formulas(ctx);
+    TestExpectEquals(nerr, 1);
+    for(size_t i = 0; i < arrlen(expected); i++){
+        const SheetRow* display_row = &sheet.display[i];
+        const SheetRow* expected_row = &expected[i];
+        TestAssertEquals(display_row->n, expected_row->n);
+        for(int j = 0; j < display_row->n; j++){
+            TEST_stats.executed++;
+            const char* lhs = display_row->data[j];
+            const char* rhs = expected_row->data[j];
+            if(!streq(lhs, rhs)){
+                TEST_stats.failures++;
+                  TestReport("Test condition failed");
+                  TestReport("row %zu, col %d", i, j);
+                  TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                          _test_color_green, lhs, _test_color_reset,
+                          _test_color_red, _test_color_reset,
+                          _test_color_green, rhs, _test_color_reset);
+            }
+        }
+    }
+    cleanup_sheet(&sheet);
+    sheet = (SpreadSheet){0};
+    err = read_csv_from_string(&sheet,
+        "=1\n"
+        "=0/0\n"
+        "\n"
+        "a\n"
+        "=asd()\n");
+    TestAssertFalse(err);
+    TestAssertEquals(sheet.rows, arrlen(expected));
+    // At this point, the ctx thinks our display is full of the values, but we
+    // have reset it to blank.
+    nerr = drsp_evaluate_formulas(ctx);
+    TestExpectEquals(nerr, 1);
+    for(size_t i = 0; i < arrlen(expected2); i++){
+        const SheetRow* display_row = &sheet.display[i];
+        const SheetRow* expected_row = &expected2[i];
+        TestAssertEquals(display_row->n, expected_row->n);
+        for(int j = 0; j < display_row->n; j++){
+            TEST_stats.executed++;
+            const char* lhs = display_row->data[j];
+            const char* rhs = expected_row->data[j];
+            if(!streq(lhs, rhs)){
+                TEST_stats.failures++;
+                  TestReport("Test condition failed");
+                  TestReport("row %zu, col %d", i, j);
+                  TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                          _test_color_green, lhs, _test_color_reset,
+                          _test_color_red, _test_color_reset,
+                          _test_color_green, rhs, _test_color_reset);
+            }
+        }
+    }
+    drsp_destroy_ctx(ctx);
+    cleanup_sheet(&sheet);
+    return TEST_stats;
+}
+
 
 
 

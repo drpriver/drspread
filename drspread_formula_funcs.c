@@ -726,8 +726,11 @@ FORMULAFUNC(drsp_col){
     {
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind != EXPR_STRING) return Error(ctx, "");
-        colname = ((String*)arg)->sv;
+        if(arg->kind != EXPR_STRING && arg->kind != EXPR_NULL) return Error(ctx, "");
+        if(arg->kind == EXPR_NULL)
+            colname = SV("");
+        else
+            colname = ((String*)arg)->sv;
         argc--, argv++;
     }
     if(argc){
@@ -766,7 +769,8 @@ FORMULAFUNC(drsp_col){
         rowend = (intptr_t)((Number*)arg)->value;
         argc--, argv++;
     }
-    if(!colname.length) return Error(ctx, "");
+    // idk
+    // if(!colname.length) return Error(ctx, "");
     if(rowstart == IDX_UNSET)
         rowstart = 0;
     if(rowstart) rowstart--;
@@ -1225,6 +1229,7 @@ arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intp
     if(!values || values->kind == EXPR_ERROR)
         return values;
     ComputedArray* cvalues = (ComputedArray*)values;
+    argc--, argv++;
     Expression* default_ = NULL;
     for(intptr_t i = 0; i < cneedle->length; i++){
         Expression* n = cneedle->data[i];
@@ -1303,33 +1308,91 @@ FORMULAFUNC(drsp_tablelookup){
     {
         Expression* haystack = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
         if(!haystack || haystack->kind == EXPR_ERROR) return haystack;
-        intptr_t col, start, end;
-        SheetData* rsd = sd;
-        if(get_range1dcol(ctx, sd, haystack, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+        if(haystack->kind == EXPR_COMPUTED_ARRAY){
+            ComputedArray* c = (ComputedArray*)haystack;
+            if(nkind == EXPR_STRING){
+                for(intptr_t i = 0; i < c->length; i++){
+                    Expression* e = c->data[i];
+                    if(e->kind != EXPR_STRING) continue;
+                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                        offset = i;
+                        break;
+                    }
+                }
+            }
+            else {
+                for(intptr_t i = 0; i < c->length; i++){
+                    Expression* e = c->data[i];
+                    if(e->kind != EXPR_NUMBER) continue;
+                    if(nval.d == ((Number*)e)->value){
+                        offset = i;
+                        break;
+                    }
+                }
+            }
+        }
+        else if(haystack->kind == EXPR_RANGE1D_COLUMN || haystack->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+            intptr_t col, start, end;
+            SheetData* rsd = sd;
+            if(get_range1dcol(ctx, sd, haystack, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
+                return Error(ctx, "");
 
-        BuffCheckpoint loopbc = buff_checkpoint(ctx->a);
-        if(nkind == EXPR_STRING){
-            for(intptr_t row = start; row <= end; buff_set(ctx->a,loopbc), row++){
-                Expression* e = evaluate(ctx, rsd, row, col);
-                if(!e) return e;
-                if(e->kind != EXPR_STRING) continue;
-                if(sv_equals(nval.s, ((String*)e)->sv)){
-                    offset = row - start;
-                    break;
+            BuffCheckpoint loopbc = buff_checkpoint(ctx->a);
+            if(nkind == EXPR_STRING){
+                for(intptr_t row = start; row <= end; buff_set(ctx->a,loopbc), row++){
+                    Expression* e = evaluate(ctx, rsd, row, col);
+                    if(!e) return e;
+                    if(e->kind != EXPR_STRING) continue;
+                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                        offset = row - start;
+                        break;
+                    }
+                }
+            }
+            else {
+                for(intptr_t row = start; row <= end; buff_set(ctx->a, loopbc), row++){
+                    Expression* e = evaluate(ctx, rsd, row, col);
+                    if(!e) return e;
+                    if(e->kind != EXPR_NUMBER) continue;
+                    if(nval.d == ((Number*)e)->value){
+                        offset = row - start;
+                        break;
+                    }
+                }
+            }
+        }
+        else if(haystack->kind == EXPR_RANGE1D_ROW || haystack->kind == EXPR_RANGE1D_ROW_FOREIGN){
+            intptr_t row, start, end;
+            SheetData* rsd = sd;
+            if(get_range1drow(ctx, sd, haystack, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
+                return Error(ctx, "");
+
+            BuffCheckpoint loopbc = buff_checkpoint(ctx->a);
+            if(nkind == EXPR_STRING){
+                for(intptr_t col = start; col <= end; buff_set(ctx->a,loopbc), col++){
+                    Expression* e = evaluate(ctx, rsd, row, col);
+                    if(!e) return e;
+                    if(e->kind != EXPR_STRING) continue;
+                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                        offset = col - start;
+                        break;
+                    }
+                }
+            }
+            else {
+                for(intptr_t col = start; col <= end; buff_set(ctx->a, loopbc), col++){
+                    Expression* e = evaluate(ctx, rsd, row, col);
+                    if(!e) return e;
+                    if(e->kind != EXPR_NUMBER) continue;
+                    if(nval.d == ((Number*)e)->value){
+                        offset = col - start;
+                        break;
+                    }
                 }
             }
         }
         else {
-            for(intptr_t row = start; row <= end; buff_set(ctx->a, loopbc), row++){
-                Expression* e = evaluate(ctx, rsd, row, col);
-                if(!e) return e;
-                if(e->kind != EXPR_NUMBER) continue;
-                if(nval.d == ((Number*)e)->value){
-                    offset = row - start;
-                    break;
-                }
-            }
+            return Error(ctx, "haystack is the wrong type");
         }
         buff_set(ctx->a, bc);
         if(offset < 0) {
@@ -1341,13 +1404,30 @@ FORMULAFUNC(drsp_tablelookup){
     {
         Expression* values = evaluate_expr(ctx, sd, argv[2], caller_row, caller_col);
         if(!values || values->kind == EXPR_ERROR) return values;
-        intptr_t col, start, end;
-        SheetData* rsd = sd;
-        if(get_range1dcol(ctx, sd, values, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "invalid column range");
-        buff_set(ctx->a, bc);
-        if(start+offset > end) return Error(ctx, "out of bounds");
-        return evaluate(ctx, rsd, start+offset, col);
+        if(values->kind == EXPR_COMPUTED_ARRAY){
+            ComputedArray* c = (ComputedArray*)values;
+            if(offset >= c->length)
+                return Error(ctx, "out of bounds");
+            return c->data[offset];
+        }
+        if(values->kind == EXPR_RANGE1D_COLUMN || values->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+            intptr_t col, start, end;
+            SheetData* rsd = sd;
+            if(get_range1dcol(ctx, sd, values, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
+                return Error(ctx, "invalid column range");
+            buff_set(ctx->a, bc);
+            if(start+offset > end) return Error(ctx, "out of bounds");
+            return evaluate(ctx, rsd, start+offset, col);
+        }
+        else {
+            intptr_t row, start, end;
+            SheetData* rsd = sd;
+            if(get_range1drow(ctx, sd, values, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
+                return Error(ctx, "invalid column range");
+            buff_set(ctx->a, bc);
+            if(start+offset > end) return Error(ctx, "out of bounds");
+            return evaluate(ctx, rsd, row, start+offset);
+        }
     }
 }
 
@@ -1527,6 +1607,7 @@ print(PrintBuff* buff, const char* fmt, ...){
 }
 
 
+// GCOV_EXCL_START
 DRSP_INTERNAL
 void
 repr_expr(PrintBuff* buff, Expression* arg){
@@ -1649,6 +1730,7 @@ repr_expr(PrintBuff* buff, Expression* arg){
             break;
     }
 }
+// GCOV_EXCL_STOP
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_repr){

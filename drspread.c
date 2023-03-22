@@ -113,6 +113,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                     }
                 }
                 // Fallback, don't cache the result.
+                // GCOV_EXCL_START
                 switch(e->kind){
                     case EXPR_NUMBER:
                         sp_set_display_number(ctx, sd->handle, row, col, ((Number*)e)->value);
@@ -127,6 +128,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 }
                 nerrs++;
                 sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+                // GCOV_EXCL_STOP
             }
         }
     }

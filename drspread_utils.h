@@ -95,6 +95,7 @@ get_range1drow(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* row, i
     return 0;
 }
 
+// GCOV_EXCL_START
 static inline
 _Bool
 evaled_is_not_scalar(Expression*_Nullable e){
@@ -153,6 +154,7 @@ expr_is_arraylike(Expression* e){
             return 0;
     }
 }
+// GCOV_EXCL_STOP
 
 static inline
 Expression*_Nullable

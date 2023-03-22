@@ -505,6 +505,7 @@ DRSP_INTERNAL
 void
 free_sheet_datas(DrSpreadCtx* ctx);
 
+// GCOV_EXCL_START
 force_inline
 void*_Nullable
 expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
@@ -547,6 +548,7 @@ computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
     cc->length = nitems;
     return cc;
 }
+// GCOV_EXCL_STOP
 
 static inline
 void*_Nullable
@@ -597,6 +599,7 @@ sv_cat(DrSpreadCtx* ctx, size_t n, const StringView* strs, StringView* out){
     return 0;
 }
 
+// GCOV_EXCL_START
 static inline
 size_t
 expr_size(ExpressionKind kind){
@@ -621,6 +624,7 @@ expr_size(ExpressionKind kind){
     }
     return sz;
 }
+// GCOV_EXCL_STOP
 
 union ExprU{
     Expression e;

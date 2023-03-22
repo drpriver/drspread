@@ -120,6 +120,7 @@ double_bin_cmp(BinaryKind op, double l, double r){
 }
 
 
+// XXX: where are lhs and rhs nullable?
 static inline
 Expression*_Nullable
 evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_Nullable lhs, Expression*_Nullable rhs, intptr_t caller_row, intptr_t caller_col){
@@ -245,10 +246,10 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         case BIN_SUB: break;
                         case BIN_MUL: can_swap = 1; break;
                         case BIN_DIV: break;
-                        case BIN_LT:  can_swap = 1; op = BIN_GE; break;
-                        case BIN_LE:  can_swap = 1; op = BIN_GT; break;
-                        case BIN_GT:  can_swap = 1; op = BIN_LE; break;
-                        case BIN_GE:  can_swap = 1; op = BIN_LT; break;
+                        case BIN_LT:  can_swap = 1; op = BIN_GT; break;
+                        case BIN_LE:  can_swap = 1; op = BIN_GE; break;
+                        case BIN_GT:  can_swap = 1; op = BIN_LT; break;
+                        case BIN_GE:  can_swap = 1; op = BIN_LE; break;
                         case BIN_EQ:  can_swap = 1; break;
                         case BIN_NE:  can_swap = 1; break;
                     }
@@ -316,9 +317,10 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                                 BAD(Error(ctx, ""));
                         }
                         buff_set(ctx->a, bc);
-                        Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
+                        Number* res = expr_alloc(ctx, EXPR_NUMBER);
                         res->value = cmp;
                         l->data[i] = &res->e;
+                        continue;
                     }
                     BAD(Error(ctx, ""));
                 }
@@ -440,8 +442,10 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             switch(u->op){
                 case UN_NEG: value = -d; break;
                 case UN_NOT: value = !d; break;
+                // GCOV_EXCL_START
                 case UN_PLUS: __builtin_unreachable();
                 default: __builtin_trap();
+                // GCOV_EXCL_STOP
             }
             ctx->a->cursor = chk;
             Number* r = expr_alloc(ctx, EXPR_NUMBER);
@@ -449,6 +453,8 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             r->value = value;
             return &r->e;
         }
+        // GCOV_EXCL_START
+        // This is actually unreachable due to the way we parse things.
         case EXPR_GROUP:{
             Group* g = (Group*)expr;
             // TODO: check if this tail calls.
@@ -456,7 +462,9 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             return evaluate_expr(ctx, sd, g->expr, caller_row, caller_col);
         }
     }
+    // should be unreachable
     return NULL;
+    // GCOV_EXCL_STOP
 }
 
 #ifdef __clang__
