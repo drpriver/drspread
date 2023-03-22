@@ -215,7 +215,8 @@ static inline void logit(const char* fmt, ...);
 extern
 void
 malloc_report(void){
-    logit("bytes used: %zu\n", bytes_used());
+    // This uses stb formatting.
+    logit("bytes used: %_$$zuB\n", bytes_used());
     return;
     for(size_t i = 0; i < N_FREE_ALLOCATIONS; i++){
         size_t j = 0;
