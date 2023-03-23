@@ -42,6 +42,27 @@
 #define unlikely(x) (x)
 #endif
 #endif
+#if defined(__wasm__) || defined(_WIN32)
+static inline
+char* strsep(char*_Nullable*_Nonnull stringp, const char* delim){
+    char* result = *stringp;
+    char* s = *stringp;
+    if(s){
+        for(;*s;s++){
+            for(const char* d=delim;*d;d++){
+                if(*s == *d){
+                    *s = '\0';
+                    *stringp = s+1;
+                    return result;
+                }
+            }
+        }
+    }
+    *stringp = NULL;
+    return result;
+}
+#endif
+
 
 // This code is only intended for testing and the demo cli app.
 // So it leaks memory all over the place.

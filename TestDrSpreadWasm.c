@@ -24,25 +24,6 @@ char* strdup(const char* p){
 }
 
 static inline
-char* strsep(char** stringp, const char* delim){
-    char* result = *stringp;
-    char* s = *stringp;
-    if(s){
-        for(;*s;s++){
-            for(const char* d=delim;*d;d++){
-                if(*s == *d){
-                    *s = '\0';
-                    *stringp = s+1;
-                    return result;
-                }
-            }
-        }
-    }
-    *stringp = NULL;
-    return result;
-}
-
-static inline
 int
 asprintf(char** out, const char* fmt, ...){
     __builtin_va_list vap, vap2;
