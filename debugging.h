@@ -106,7 +106,11 @@ bt(void){
 #pragma clang assume_nonnull end
 #endif
 
-#include "Platform/Windows/windowsheader.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#define WIN32_EXTRA_LEAN
+#include <Windows.h>
+#endif
 #include <dbghelp.h>
 #include <stdlib.h>
 #include <stdio.h>

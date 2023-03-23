@@ -35,7 +35,11 @@ int isatty(int fd){
     return _isatty(fd);
 }
 
-#include "windowsheader.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#define WIN32_EXTRA_LEAN
+#include <Windows.h>
+#endif
 static inline
 TermSize
 get_terminal_size(void){
