@@ -21,7 +21,7 @@
 #endif
 
 #ifndef DRSP_EXPORT
-#ifndef _WIN32
+#if !defined(_WIN32) || !defined(DRSP_LIB)
 #define DRSP_EXPORT extern __attribute__((visibility("default")))
 #elif defined(DRSPREAD_C) // building the lib
 #define DRSP_EXPORT extern __declspec(dllexport)
