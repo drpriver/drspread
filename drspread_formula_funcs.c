@@ -1586,7 +1586,7 @@ FORMULAFUNC(drsp_first){
 typedef struct PrintBuff PrintBuff;
 struct PrintBuff {
     int error;
-    ssize_t len;
+    intptr_t len;
     char* buff;
 };
 
