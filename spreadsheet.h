@@ -51,6 +51,10 @@ char* strsep(char*_Nullable*_Nonnull stringp, const char* delim){
         for(;*s;s++){
             for(const char* d=delim;*d;d++){
                 if(*s == *d){
+                    // This is garbage, but whatever, it's just for
+                    // demo/testing purposes.
+                    if(*d == '\n' && s != result && s[-1] == '\r')
+                        s[-1] = '\0';
                     *s = '\0';
                     *stringp = s+1;
                     return result;
