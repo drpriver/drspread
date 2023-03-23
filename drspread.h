@@ -21,7 +21,13 @@
 #endif
 
 #ifndef DRSP_EXPORT
+#ifndef _WIN32
 #define DRSP_EXPORT extern __attribute__((visibility("default")))
+#elif defined(DRSPREAD_C) // building the lib
+#define DRSP_EXPORT extern __declspec(dllexport)
+#else
+#define DRSP_EXPORT extern __declspec(dllimport)
+#endif
 #endif
 
 #ifndef DRSP_TYPED_ENUM

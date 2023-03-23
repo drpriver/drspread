@@ -30,6 +30,7 @@ drspread_dylib = both_libraries(
   c_args: ignore_bogus_deprecations + arches,
   link_args: arches,
 )
+
 drspread_test_lib = both_libraries(
   'drspread-test',
   'drspread.c',
@@ -44,8 +45,19 @@ drspread_test_lib = both_libraries(
 
 executable('drspread', 'drspread_cli.c', install:false, c_args:ignore_bogus_deprecations, dependencies:[m_dep])
 
-test_drspread_dy = executable('test-drspread-dy-link', 'TestDrSpread.c', link_with:drspread_test_lib, c_args: ignore_bogus_deprecations+arches+['-DDRSPREAD_TEST_DYLINK=1'], dependencies:[m_dep])
+test_drspread_dy = executable(
+  'test-drspread-dy-link',
+  'TestDrSpread.c',
+  link_with: drspread_test_lib,
+  c_args: ignore_bogus_deprecations+arches+['-DDRSPREAD_TEST_DYLINK=1'],
+  dependencies:[m_dep]
+)
 test('test-drspread-dy', test_drspread_dy)
 
-test_drspread_unity = executable('test-drspread-unity', 'TestDrSpread.c', c_args: ignore_bogus_deprecations+arches, dependencies:[m_dep])
+test_drspread_unity = executable(
+  'test-drspread-unity',
+  'TestDrSpread.c',
+  c_args: ignore_bogus_deprecations+arches,
+  dependencies:[m_dep]
+)
 test('test-drspread-unity', test_drspread_unity)
