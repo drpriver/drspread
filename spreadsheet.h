@@ -63,6 +63,23 @@ char* strsep(char*_Nullable*_Nonnull stringp, const char* delim){
 }
 #endif
 
+#if defined(_WIN32)
+static inline
+int
+asprintf(char*_Nullable*_Nonnull out, const char* fmt, ...){
+    __builtin_va_list vap, vap2;
+    __builtin_va_start(vap, fmt);
+    __builtin_va_copy(vap2, vap);
+    int len = vsnprintf(NULL, 0, fmt, vap);
+    char* buff = malloc(len+1);
+    int ret = vsnprintf(buff, len+1, fmt, vap2);
+    *out = buff;
+    __builtin_va_end(vap);
+    __builtin_va_end(vap2);
+    return ret;
+}
+#endif
+
 
 // This code is only intended for testing and the demo cli app.
 // So it leaks memory all over the place.
