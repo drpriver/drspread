@@ -77,7 +77,7 @@ drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, int
         sd->width = col+1;
     DrspStr* str = drsp_create_str(ctx, text, length);
     if(!str) return 1;
-    return set_cached_string(&sd->str_cache, row, col, str->data, str->length);
+    return set_cached_cell(&sd->cell_cache, row, col, str->data, str->length);
 }
 
 DRSP_EXPORT
@@ -111,7 +111,7 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
 DRSP_INTERNAL
 void
 cleanup_sheet_data(SheetData* d){
-    free(d->str_cache.data);
+    free(d->cell_cache.data);
     free(d->col_cache.data);
     free(d->result_cache.data);
 }
@@ -248,7 +248,7 @@ void
 free_sheet_datas(DrSpreadCtx* ctx){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* d = &ctx->map.data[i];
-        free(d->str_cache.data);
+        free(d->cell_cache.data);
         free(d->col_cache.data);
         free(d->result_cache.data);
     }
@@ -257,7 +257,7 @@ free_sheet_datas(DrSpreadCtx* ctx){
 
 static inline
 StringView*_Nullable
-get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
+get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
     size_t cap = cache->cap;
     if(!cap) return NULL;
     RowCol key = {row, col};
@@ -281,7 +281,7 @@ get_cached_string(StringCache* cache, intptr_t row, intptr_t col){
 
 static inline
 int
-set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len){
+set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len){
     if(unlikely(cache->n*2 >= cache->cap)){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
@@ -525,8 +525,8 @@ sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len){
         *len = 0;
         return "";
     }
-    StringCache* cache = &sd->str_cache;
-    StringView* cached = get_cached_string(cache, row, col);
+    CellCache* cache = &sd->cell_cache;
+    StringView* cached = get_cached_cell(cache, row, col);
     if(!cached) {
         *len = 0;
         return "";

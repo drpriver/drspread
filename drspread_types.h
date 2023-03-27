@@ -269,8 +269,8 @@ struct ComputedArray {
 };
 
 // This is a hash table
-typedef struct StringCache StringCache;
-struct StringCache {
+typedef struct CellCache CellCache;
+struct CellCache {
     SheetHandle handle;
     size_t n;
     size_t cap;
@@ -298,11 +298,11 @@ struct RowColSv {
 };
 static inline
 StringView*_Nullable
-get_cached_string(StringCache* cache, intptr_t row, intptr_t col);
+get_cached_cell(CellCache* cache, intptr_t row, intptr_t col);
 
 static inline
 int
-set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
+set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
 
 
 
@@ -477,7 +477,7 @@ struct SheetData {
     DrspStr* name;
     DrspStr*_Nullable alias;
     SheetHandle handle;
-    StringCache str_cache;
+    CellCache cell_cache;
     ColCache col_cache;
     intptr_t width, height;
     ResultCache result_cache;
