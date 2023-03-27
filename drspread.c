@@ -50,9 +50,11 @@
 force_inline
 int
 sp_set_display_number(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
+
 force_inline
 int
 sp_set_display_error(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
+
 force_inline
 int
 sp_set_display_string(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* txt, size_t len);
