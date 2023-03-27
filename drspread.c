@@ -179,6 +179,69 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
     return error;
 }
 
+DRSP_EXPORT
+int
+drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const StringView*_Null_unspecified targs, DrSpreadResult* outval){
+    #ifndef __wasm__
+    ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
+    #endif
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    if(nargs > 4) return 1;
+    if(nargs && !targs) return 1;
+    SheetData* udf = sheet_lookup_by_handle(ctx, func);
+    if(!udf) return 1;
+    if(!(udf->flags & DRSP_SHEET_FLAGS_IS_FUNCTION))
+        return 1;
+    Expression* args[4];
+    int error = 0;
+    SheetData tmp = {0};
+    for(size_t i = 0; i < nargs; i++){
+        // Having to pass in a sheet data is weird as we end up
+        // with access to non-existent sheets...
+        // Maybe we should require the caller to pass in a SheetHandle?
+        Expression* e = evaluate_string(ctx, &tmp, targs[i].text, targs[i].length, -2, -2);
+        if(!e || e->kind == EXPR_ERROR){
+            error = 1;
+            goto finish;
+        }
+        args[i] = e;
+    }
+    Expression* e = call_udf(ctx, udf, nargs, args);
+    if(!e){
+        error = 1;
+        goto finish;
+    }
+    switch(e->kind){
+        case EXPR_NULL:
+            outval->kind = DRSP_RESULT_NULL;
+            break;
+        case EXPR_NUMBER:
+            outval->kind = DRSP_RESULT_NUMBER;
+            outval->d = ((Number*)e)->value;
+            break;
+        case EXPR_STRING:{
+            outval->kind = DRSP_RESULT_STRING;
+            StringView sv = ((String*)e)->sv;
+            DrspStr* s = drsp_create_str(ctx, sv.text, sv.length);
+            if(!s){
+                error = 1;
+                goto finish;
+            }
+            outval->s.length = s->length;
+            outval->s.text = s->data;
+        }break;
+        default:
+            error = 1;
+            break;
+    }
+    finish:
+    // XXX: I don't think this is needed as sheetdata could actually be
+    // const?
+    cleanup_sheet_data(&tmp);
+    buff_set(ctx->a, bc);
+    return error;
+}
+
 force_inline
 int
 sp_set_display_number(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value){
@@ -216,7 +279,6 @@ sp_set_display_string(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, i
         return ctx->_ops.set_display_string(ctx->_ops.ctx, sheet, row, col, txt, len);
     #endif
 }
-
 
 
 #ifdef __clang__

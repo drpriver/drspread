@@ -97,9 +97,7 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* d = &ctx->map.data[i];
         if(d->handle != sheet) continue;
-        free(d->str_cache.data);
-        free(d->col_cache.data);
-        free(d->result_cache.data);
+        cleanup_sheet_data(d);
         // unordered remove
         if(i != ctx->map.n-1)
             ctx->map.data[i] = ctx->map.data[--ctx->map.n];
@@ -108,6 +106,14 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
         return 0;
     }
     return 1;
+}
+
+DRSP_INTERNAL
+void
+cleanup_sheet_data(SheetData* d){
+    free(d->str_cache.data);
+    free(d->col_cache.data);
+    free(d->result_cache.data);
 }
 
 // preload empty string and length 1 strings
@@ -514,13 +520,11 @@ sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
 
 DRSP_INTERNAL
 const char*_Nullable
-sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len){
-    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len){
     if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
         *len = 0;
         return "";
     }
-    if(!sd) return NULL;
     StringCache* cache = &sd->str_cache;
     StringView* cached = get_cached_string(cache, row, col);
     if(!cached) {
@@ -529,6 +533,95 @@ sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, si
     }
     *len = cached->length;
     return cached->text?cached->text:"";
+}
+
+DRSP_INTERNAL
+SheetData*_Nullable
+udf_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle){
+    SheetData* udf = sheet_lookup_by_handle(ctx, handle);
+    if(udf && !(udf->flags & DRSP_SHEET_FLAGS_IS_FUNCTION))
+        return NULL;
+    return udf;
+}
+
+DRSP_INTERNAL
+SheetData*_Nullable
+udf_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
+    SheetData* udf = sheet_lookup_by_name(ctx, name, len);
+    if(udf && !(udf->flags & DRSP_SHEET_FLAGS_IS_FUNCTION))
+        return NULL;
+    return udf;
+}
+
+DRSP_EXPORT
+int
+drsp_set_function_params(DrSpreadCtx*restrict ctx, SheetHandle function, size_t n_params, const intptr_t* rows, const intptr_t* cols){
+    SheetData* udf = udf_lookup_by_handle(ctx, function);
+    if(!udf) return 1;
+    if(n_params >= arrlen(udf->params)) return 1;
+    udf->paramc = 0;
+    for(size_t i = 0; i < n_params; i++){
+        UserDefinedFunctionParameter* p = &udf->params[i];
+        p->col = cols[i];
+        p->row = rows[i];
+        if(p->row+1 > udf->height)
+            udf->height = p->row+1;
+        if(p->col+1 > udf->width)
+            udf->width = p->col+1;
+    }
+    udf->paramc = n_params;
+    return 0;
+}
+
+DRSP_EXPORT
+int
+drsp_clear_function_params(DrSpreadCtx* restrict ctx, SheetHandle function){
+    SheetData* udf = udf_lookup_by_handle(ctx, function);
+    if(!udf) return 1;
+    udf->paramc = 0;
+    return 0;
+}
+
+DRSP_EXPORT
+int
+drsp_set_function_output(DrSpreadCtx* restrict ctx, SheetHandle function, intptr_t row, intptr_t col){
+    SheetData* udf = udf_lookup_by_handle(ctx, function);
+    if(!udf) return 1;
+    udf->out_col = col;
+    udf->out_row = row;
+    if(row+1 > udf->height)
+        udf->height = row+1;
+    if(col+1 > udf->width)
+        udf->width = col+1;
+    return 0;
+}
+
+DRSP_EXPORT
+int
+drsp_set_sheet_flags(DrSpreadCtx*restrict ctx, SheetHandle sheet, unsigned flags){
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    // Should we mask here?
+    sd->flags = flags;
+    return 0;
+}
+
+DRSP_EXPORT
+int
+drsp_set_sheet_flag(DrSpreadCtx*restrict ctx, SheetHandle sheet, unsigned flag, _Bool on){
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    if(on) sd->flags |= flag;
+    else   sd->flags &= ~flag;
+    return 0;
+}
+
+DRSP_EXPORT
+unsigned
+drsp_get_sheet_flags(DrSpreadCtx*restrict ctx, SheetHandle sheet){
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 0;
+    return sd->flags;
 }
 
 #ifdef __clang__

@@ -27,7 +27,7 @@ drspread_dylib = both_libraries(
   version: meson.project_version(),
   soversion: meson.project_version(),
   darwin_versions:[COMPAT_VERSION, meson.project_version()],
-  c_args: ignore_bogus_deprecations + arches+['-DDRSP_LIB'],
+  c_args: ignore_bogus_deprecations + arches+['-DDRSP_DYLIB=1'],
   link_args: arches,
 )
 
@@ -39,7 +39,7 @@ drspread_test_lib = both_libraries(
   version: meson.project_version(),
   soversion: meson.project_version(),
   darwin_versions:[COMPAT_VERSION, meson.project_version()],
-  c_args: ignore_bogus_deprecations + arches + ['-DDRSP_INTRINS=1', '-DDRSP_LIB'],
+  c_args: ignore_bogus_deprecations + arches + ['-DDRSP_INTRINS=1', '-DDRSP_DYLIB=1', '-DDRSP_TEST_DYLINK=1'],
   link_args: arches,
 )
 

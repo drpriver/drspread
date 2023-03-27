@@ -26,6 +26,10 @@ DRSP_INTERNAL
 Expression*_Nullable
 evaluate_string(DrSpreadCtx* ctx, SheetData*, const char* txt, size_t len, intptr_t row, intptr_t col);
 
+DRSP_INTERNAL
+Expression*_Nullable
+call_udf(DrSpreadCtx* ctx, SheetData*, size_t nargs, Expression*_Nonnull*_Nonnull args);
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

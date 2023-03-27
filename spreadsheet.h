@@ -229,7 +229,6 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     return 0;
 }
 
-
 #ifndef __wasm__
 static
 char*_Nullable

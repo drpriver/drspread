@@ -21,12 +21,16 @@
 #endif
 
 #ifndef DRSP_EXPORT
-#if !defined(_WIN32) || !defined(DRSP_LIB)
+#if !defined(_WIN32) && !defined(DRSP_DYLIB) // Don't re-export the symbols, but make them visible in .o files.
+#define DRSP_EXPORT extern __attribute__((visibility("hidden")))
+#elif !defined(_WIN32) && defined(DRSP_DYLIB) // Export from the dylib
 #define DRSP_EXPORT extern __attribute__((visibility("default")))
-#elif defined(DRSPREAD_C) // building the lib
+#elif defined(DRSPREAD_C) && defined(DRSP_DYLIB) // building the lib, Export from dll
 #define DRSP_EXPORT extern __declspec(dllexport)
-#else
+#elif defined(DRSP_DYLIB) // Will be imported from a dll
 #define DRSP_EXPORT extern __declspec(dllimport)
+#else // Building a static library/.o file on win32
+#define DRSP_EXPORT extern
 #endif
 #endif
 
@@ -49,18 +53,19 @@ DRSP_TYPED_ENUM(DrspResultKind, uintptr_t){
 // Safer than void*
 typedef struct _sheet_handle* SheetHandle;
 
+
 typedef struct DrSpreadResult DrSpreadResult;
 struct  DrSpreadResult {
     // oneof DRSP_RESULT_NULL, DRSP_RESULT_NUMBER, DRSP_RESULT_STRING
     DrspResultKind kind;
     union {
         double d; // DRSP_RESULT_NUMBER
-        struct {  // DRSP_RESULT_STRING
+        // NOTE: This is a pointer to an interned string and will
+        //       live as long as the context.
+        struct {
             size_t length;
-            // NOTE: This is a pointer to an interned string and will
-            //       live as long as the context.
             const char* text;
-        } s;
+        }s;  // DRSP_RESULT_STRING
     };
 };
 
@@ -102,12 +107,18 @@ drsp_destroy_ctx(DrSpreadCtx*_Nullable);
 
 typedef struct DrspStr DrspStr;
 
+// If the sheet does not exist, this also creates the sheet.
+// This means that sheets always have a name.
+// Names do not have to be unique, but looking up sheets by name
+// will arbitrarily pick one.
 // This has to be called before any other usage of that sheet.
 DRSP_EXPORT
 int
 drsp_set_sheet_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* name, size_t length);
 
 // We support 1 alias
+// Calling this more than once with the same sheet will override the
+// previous alias.
 DRSP_EXPORT
 int
 drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* name, size_t length);
@@ -124,6 +135,36 @@ drsp_set_col_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t idx, con
 DRSP_EXPORT
 int
 drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet);
+
+enum DrspSheetFlags {
+    DRSP_SHEET_FLAGS_NONE = 0x0,
+    DRSP_SHEET_FLAGS_IS_FUNCTION = 0x1,
+};
+
+DRSP_EXPORT
+int
+drsp_set_sheet_flags(DrSpreadCtx*restrict ctx, SheetHandle sheet, unsigned flags);
+
+DRSP_EXPORT
+int
+drsp_set_sheet_flag(DrSpreadCtx*restrict ctx, SheetHandle sheet, unsigned flag, _Bool on);
+
+DRSP_EXPORT
+unsigned
+drsp_get_sheet_flags(DrSpreadCtx*restrict ctx, SheetHandle sheet);
+
+// overrides all function params
+DRSP_EXPORT
+int
+drsp_set_function_params(DrSpreadCtx*restrict ctx, SheetHandle function, size_t n_params, const intptr_t* rows, const intptr_t* cols);
+
+DRSP_EXPORT
+int
+drsp_clear_function_params(DrSpreadCtx* restrict ctx, SheetHandle);
+
+DRSP_EXPORT
+int
+drsp_set_function_output(DrSpreadCtx* restrict ctx, SheetHandle function, intptr_t row, intptr_t col);
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

@@ -1638,6 +1638,18 @@ repr_expr(PrintBuff* buff, Expression* arg){
             }
             print(buff, ")");
         }break;
+        case EXPR_USER_DEFINED_FUNC_CALL:{
+            UserFunctionCall* f = (UserFunctionCall*)arg;
+            // TODO: print function name
+            print(buff, "UserFuncCall-%.*s(", (int)f->name.length, f->name.text);
+            for(int i = 0; i < f->argc; i++){
+                if(i != 0){
+                    print(buff, ", ");
+                }
+                repr_expr(buff, f->argv[i]);
+            }
+            print(buff, ")");
+        }break;
         case EXPR_RANGE0D:{
             print(buff, "R0(");
             Range0D* rng = (Range0D*)arg;
