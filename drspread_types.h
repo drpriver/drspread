@@ -41,6 +41,7 @@
 
 #ifdef __clang__
 #pragma clang assume_nonnull begin
+#pragma clang diagnostic ignored "-Wmicrosoft-fixed-enum"
 #else
 #ifndef _Nullable
 #define _Nullable
@@ -48,6 +49,7 @@
 #endif
 
 #ifndef TYPED_ENUM
+// Does MSVC also support this?
 #if defined(__clang__) || __STDC_VERSION__ >= 202300L
 #define TYPED_ENUM(name, type) enum name: type; typedef enum name name; enum name : type
 #else

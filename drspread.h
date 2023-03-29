@@ -8,6 +8,8 @@
 #include <stddef.h>
 #ifdef __clang__
 #pragma clang assume_nonnull begin
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmicrosoft-fixed-enum"
 #else
 #ifndef _Nullable
 #define _Nullable
@@ -168,6 +170,7 @@ drsp_set_function_output(DrSpreadCtx* restrict ctx, SheetHandle function, intptr
 
 #ifdef __clang__
 #pragma clang assume_nonnull end
+#pragma clang diagnostic pop
 #endif
 
 

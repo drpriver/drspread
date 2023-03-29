@@ -3,6 +3,10 @@
 //
 #ifndef DRSPREAD_CLI_C
 #define DRSPREAD_CLI_C
+#ifdef _WIN32
+#define _CRT_NONSTDC_NO_WARNINGS 1 
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif
 #include "spreadsheet.h"
 #include "drspread.h"
 #include "get_input.h"

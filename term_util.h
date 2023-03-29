@@ -26,14 +26,8 @@ static inline TermSize get_terminal_size(void);
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
-static inline
-int fileno(FILE* stream){
-    return _fileno(stream);
-}
-static inline
-int isatty(int fd){
-    return _isatty(fd);
-}
+#define fileno _fileno
+#define isatty _isatty
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

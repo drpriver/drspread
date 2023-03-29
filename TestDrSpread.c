@@ -1,6 +1,10 @@
 //
 // Copyright © 2023, David Priver
 //
+#ifdef _WIN32
+#define _CRT_NONSTDC_NO_WARNINGS 1 
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif
 
 #ifndef DRSP_TEST_DYLINK
 #define DRSP_EXPORT static
