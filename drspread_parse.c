@@ -550,7 +550,7 @@ PARSEFUNC(parse_range){
     sv->length--, sv->text++;
     StringView strings_0[2];
     StringView strings_1[2];
-    intptr_t numbers[2];
+    intptr_t numbers[2] = {0};
     int nstrings[2] = {0};
     int nnumbers = 0;
     lstrip(sv);

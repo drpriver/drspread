@@ -1645,15 +1645,7 @@ TestFunction(TestCaching){
     );
     SheetRow expected[] = {
         ROW("1"),
-        // We should really use stb_sprintf on all platforms for
-        // consistent results.
-        #if defined(__wasm__)
-            ROW("NaN"),
-        #elif defined(_WIN32)
-            ROW("-nan(ind)"),
-        #else
-            ROW("nan"),
-        #endif
+        ROW("nan"),
         ROW(""),
         ROW("a"),
         ROW("error"),

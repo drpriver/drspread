@@ -8,22 +8,34 @@ TestResults: ; mkdir $@
 %.dep: ;
 DEPFILES:=$(wildcard Depends/*.dep)
 include $(DEPFILES)
-WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
 WCC?=clang
-SANITIZE=-fsanitize=address,nullability,undefined
 
 ifeq ($(OS),Windows_NT)
 EXE=.exe
 LM=
+CC=clang
 else
 EXE=
 UNAME := $(shell uname)
 ifeq ($(UNAME),Darwin)
 LM=
+CC=clang
 else
+CC=gcc
 LM=-lm
 endif
 endif
+
+ifneq (,$(findstring gcc,$(CC)))
+SANITIZE=-fsanitize=address,undefined
+WFLAGS=-Wall -Wextra -Werror=int-conversion -Werror=incompatible-pointer-types -Werror=return-type -Wno-missing-field-initializers
+endif
+
+ifneq (,$(findstring clang,$(CC)))
+SANITIZE=-fsanitize=address,undefined,nullability
+WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
+endif
+WWFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
 
 
 Bin/drspread$(EXE): drspread_cli.c Makefile | Bin Depends
@@ -39,9 +51,10 @@ clean:
 	rm -rf Bin
 	rm -rf Depends
 
-WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mreference-types -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
+# not using -mreference-types
+WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
 Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
-	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WFLAGS) -iquote. $(WASMCFLAGS) -O3 -std=gnu2x
+	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WWFLAGS) -iquote. $(WASMCFLAGS) -O3 -std=gnu2x
 %.js: %.ts
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
@@ -50,7 +63,7 @@ Bin/TestDrSpread$(EXE): TestDrSpread.c Makefile | Bin Depends
 
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
-	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O3 -g -std=gnu2x
+	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WWFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O3 -g -std=gnu2x
 test.html: testspread_glue.js Bin/TestDrSpread.wasm
 
 Bin/drspread_fuzz$(EXE): drspread_fuzz.c | Bin Depends
