@@ -11,6 +11,9 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
         const text = decoder.decode(sub);
         return text;
     }
+    function write4(p, val) {
+        memview.setInt32(p, val, true);
+    }
     function read4(p) {
         return memview.getInt32(p, true);
     }
@@ -20,14 +23,6 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
     }
     const imports = {
         env: {
-            logline: function (p, l) {
-                const len = exports.strlen(p);
-                const s = wasm_string_to_js(p, len);
-                console.trace(`${s}: ${l}`);
-            },
-            logsz: function (sz) {
-                console.trace(sz);
-            },
             round: (num) => {
                 return Math.sign(num) * Math.round(Math.abs(num));
             },
@@ -58,7 +53,8 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                 id: exports.drsp_create_ctx(),
                 evaluate_formulas: () => {
                     const ctx = result.id;
-                    exports.drsp_evaluate_formulas(ctx);
+                    const e = exports.drsp_evaluate_formulas(ctx);
+                    return e;
                 },
                 evaluate_string: (sheet, s) => {
                     const ctx = result.id;
@@ -87,28 +83,68 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                     const ctx = result.id;
                     const encoded = encoder.encode(s);
                     mem.set(encoded, exports.wasm_str_buff.value);
-                    exports.drsp_set_cell_str(ctx, sheet, row, col, exports.wasm_str_buff.value, encoded.length);
+                    const e = exports.drsp_set_cell_str(ctx, sheet, row, col, exports.wasm_str_buff.value, encoded.length);
+                    return e;
                 },
                 make_sheet: (sheet, name) => {
                     const ctx = result.id;
                     const encoded = encoder.encode(name);
                     mem.set(encoded, exports.wasm_str_buff.value);
-                    exports.drsp_set_sheet_name(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                    const e = exports.drsp_set_sheet_name(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                    return e;
                 },
                 set_sheet_alias: (sheet, name) => {
                     const ctx = result.id;
                     const encoded = encoder.encode(name);
                     mem.set(encoded, exports.wasm_str_buff.value);
-                    exports.drsp_set_sheet_alias(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                    const e = exports.drsp_set_sheet_alias(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                    return e;
                 },
                 set_col_name: (sheet, idx, name) => {
                     const ctx = result.id;
                     const encoded = encoder.encode(name);
                     mem.set(encoded, exports.wasm_str_buff.value);
-                    exports.drsp_set_col_name(ctx, sheet, idx, exports.wasm_str_buff.value, encoded.length);
+                    const e = exports.drsp_set_col_name(ctx, sheet, idx, exports.wasm_str_buff.value, encoded.length);
+                    return e;
                 },
                 del_sheet: (sheet) => {
-                    exports.drsp_del_sheet(result.id, sheet);
+                    const e = exports.drsp_del_sheet(result.id, sheet);
+                    return e;
+                },
+                set_flags: (sheet, flags) => {
+                    const e = exports.drsp_set_sheet_flags(result.id, sheet, flags);
+                    return e;
+                },
+                get_flags: (sheet) => {
+                    return exports.drsp_get_sheet_flags(result.id, sheet);
+                },
+                set_flag: (sheet, flag, on) => {
+                    const e = exports.drsp_set_sheet_flag(result.id, sheet, flag, on | 0);
+                    return e;
+                },
+                clear_func_params: (func) => {
+                    const ctx = result.id;
+                    const e = exports.drsp_clear_function_params(ctx, func);
+                    return e;
+                },
+                set_func_output: (func, row, col) => {
+                    const ctx = result.id;
+                    const e = exports.drsp_set_function_output(ctx, func, row, col);
+                    return e;
+                },
+                set_func_params: (func, rows, cols) => {
+                    const ctx = result.id;
+                    if (rows.length != cols.length)
+                        return 1;
+                    const n = rows.length;
+                    const rowbuff = exports.wasm_parambuff_row.value;
+                    const colbuff = exports.wasm_parambuff_col.value;
+                    for (let i = 0; i < n; i++) {
+                        write4(rowbuff + i * 4, rows[i]);
+                        write4(colbuff + i * 4, cols[i]);
+                    }
+                    const e = exports.drsp_set_function_params(ctx, func, n, rowbuff, colbuff);
+                    return e;
                 },
             };
             return result;

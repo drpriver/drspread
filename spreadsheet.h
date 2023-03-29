@@ -116,6 +116,7 @@ struct SpreadSheet {
     intptr_t rows;
     intptr_t maxcols;
     char* txt;
+    int paramc, outx, outy;
 };
 
 static void
@@ -181,6 +182,8 @@ multisheet_alloc(MultiSpreadSheet* ms){
     ms->sheets = newsheets;
     SpreadSheet* result = &newsheets[ms->n++];
     memset(result, 0, sizeof *result);
+    result->outx = -1;
+    result->outy = -1;
     return result;
 }
 
@@ -232,7 +235,6 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     ro->lengths[col] = printed;
     return 0;
 }
-
 
 #ifndef __wasm__
 static
@@ -327,6 +329,21 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
             max_cols = 0;
             sheet = multisheet_alloc(ms);
             if(!sheet) return 1;
+        }
+        if(len > 5 && memcmp(line, "func ", 5) == 0){
+            line += 5;
+            int paramc = 0;
+            int params[3] = {0};
+            char* tok;
+            while((tok = strsep(&line, " "))){
+                if(paramc >= 3)
+                    break;
+                params[paramc++] = parse_int(tok, strlen(tok)).result;
+            }
+            sheet->paramc = params[0];
+            sheet->outy = params[1];
+            sheet->outx = params[2];
+            continue;
         }
         if(!sheet->name.length){
             sheet->name.length = len;

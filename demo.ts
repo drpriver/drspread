@@ -1,11 +1,29 @@
 //
 // Copyright © 2023, David Priver
 //
+let func_cells: Array<Array<string|number>> = [['', ''], ['', ''], ['', '']];
 declare let cells: Array<Array<string|number>>;
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
+let func_display: Array<Array<string>> = [
+];
 let display:Array<Array<string>> = [
 ];
 function prep():void{
+    func_display = [];
+    for(let r = 0; r < func_cells.length; r++){
+        const row = func_cells[0];
+        const d: Array<string> = [];
+        func_display.push(d);
+        for(let c = 0; c < row.length; c++){
+            const val = row[c];
+            if(typeof val === 'string' && val[0] == '='){
+                d.push('');
+            }
+            else {
+                d.push(''+val);
+            }
+        }
+    }
     display = [];
     for(let r = 0; r < cells.length; r++){
         const row = cells[r];
@@ -25,26 +43,38 @@ function prep():void{
 prep();
 
 function display_number(i:number, row:number, col:number, val:number):void{
-    if((val | 0) == val)
-        display[row][col] = ""+val;
-    else
-        display[row][col] = val.toFixed(2);
+    if(i == 0){
+        if((val | 0) == val)
+            display[row][col] = ""+val;
+        else
+            display[row][col] = val.toFixed(2);
+    }
+    else{
+        if((val | 0) == val)
+            func_display[row][col] = ""+val;
+        else
+            func_display[row][col] = val.toFixed(2);
+    }
 }
-
 function display_string(i:number, row:number, col:number, val:string):void{
-    display[row][col] = val;
+    if(i == 0){
+        display[row][col] = val;
+    }
+    else {
+        func_display[row][col] = val;
+    }
 }
-
 function display_error(i:number, row:number, col:number):void{
-    display[row][col] = 'err';
+    if(i == 0){
+        display[row][col] = 'err';
+    }
+    else {
+        func_display[row][col] = 'err';
+    }
 }
-
-function name_to_col_idx(i:number, s:string):number{
-    return -1;
-}
-
 
 let table:HTMLTableElement;
+let functable:HTMLTableElement;
 let raw:HTMLTableElement;
 let pre:HTMLPreElement;
 let ex:DrSpreadExports;
@@ -61,6 +91,16 @@ function get_ctx(): DrSpreadCtx{
             ctx.set_str(0, i, j, ""+s);
         }
     }
+    ctx.make_sheet(1, 'func');
+    ctx.set_flag(1, DrspSheetFlags.IS_FUNCTION, true);
+    for(let i = 0; i < func_cells.length; i++){
+        for(let j = 0; j < func_cells[i].length; j++){
+            const s = func_cells[i][j];
+            ctx.set_str(1, i, j, ""+s);
+        }
+    }
+    ctx.set_func_params(1, [0, 0], [0, 1]);
+    ctx.set_func_output(1, func_cells.length-1, 0);
     return ctx;
 }
 
@@ -87,18 +127,23 @@ function make_elems():void{
     document.body.appendChild(d);
     d.appendChild(showraw);
     d.appendChild(showcalc);
-    raw = document.createElement('table');
-    document.body.appendChild(raw);
-    raw.style.display = 'none';
-
-    table = document.createElement('table');
-    document.body.appendChild(table);
 
     pre = document.createElement('pre');
     document.body.appendChild(pre);
     const input = document.createElement('input');
     input.spellcheck = false;
     document.body.appendChild(input);
+
+    raw = document.createElement('table');
+    document.body.appendChild(raw);
+    raw.style.display = 'none';
+
+
+    functable = document.createElement('table');
+    document.body.appendChild(functable);
+    table = document.createElement('table');
+    document.body.appendChild(table);
+
     input.onkeydown = function(e){
         if(e.key == 'Enter'){
             e.preventDefault();
@@ -112,6 +157,31 @@ function make_elems():void{
 }
 
 function show():void{
+    {
+    let html = '<thead>';
+    html  += '<tr>\n  <th>\n';
+    for(let i = 0; i < func_cells[0].length; i++){
+        const col = column_names[i];
+        html += '  <th>'+col+'\n';
+    }
+    html += '</tr>';
+    html += '</thead>'
+
+    for(let r = 0; r < func_display.length; r++){
+        let row = func_display[r];
+        html += '<tr>\n';
+        html += '  <td>'+(r+1)+'\n';
+        for(let i = 0; i < row.length; i++){
+            let c = row[i];
+            if(c == 'err')
+                html += `  <td class=error data-row=${r} data-col=${i} data-func=1 ${!r?'class="input"':i==0&&r==func_display.length-1?'class=output':''}>`+c+'\n';
+            else
+                html += `  <td data-row=${r} data-col=${i} data-func=1 ${!r?'class="input"':i==0&&r==func_display.length-1?'class=output':''}>`+c+'\n';
+        }
+        html += '</tr>\n';
+    }
+    functable.innerHTML = html;
+    }
     {
     let html = '<thead>';
     html  += '<tr>\n  <th>\n';
@@ -165,7 +235,8 @@ function show():void{
             const inp = document.createElement('input');
             const r = +td.dataset.row!;
             const c = +td.dataset.col!;
-            const txt = cells[r][c];
+            const is_func = !!td.dataset.func;
+            const txt = (is_func?func_cells:cells)[r][c];
             inp.value = ""+txt;
             td.textContent = '';
             td.appendChild(inp);
@@ -182,10 +253,12 @@ function show():void{
             inp.onblur = function(){
                 const t = inp.value.trim();
                 inp.remove();
-                if(!t) cells[r][c] = t;
+                if(!t) (is_func?func_cells:cells)[r][c] = t;
                 // @ts-ignore
-                else   cells[r][c] = !isNaN(t)?+t:t;
-                get_ctx().set_str(0, r, c, t);
+                else   (is_func?func_cells:cells)[r][c] = !isNaN(t)?+t:t;
+
+                get_ctx().set_str(is_func?1:0, r, c, t);
+
                 // prep();
                 const N = 1;
                 // const N = 1000;
@@ -197,29 +270,41 @@ function show():void{
                 console.log('after-before', after-before);
                 // @ts-ignore
                 console.log('bytes used:', ex.bytes_used());
+                /*
                 if(ctx){
                     // @ts-ignore
                     ex.drsp_destroy_ctx(ctx.id);
                     ctx = undefined;
                 }
+                */
                 show();
             };
             inp.focus();
         };
     }
 }
+const enum DrspSheetFlags {
+    NONE = 0x0,
+    IS_FUNCTION = 0x1,
+}
 type DrSpreadCtx = {
-    evaluate_formulas: () => void;
+    id: number;
+    evaluate_formulas: () => number;
     evaluate_string: (sheet:number, s:string) => number | string;
-    set_str:(sheet:number, row:number, col:number, s:string) => void;
-    make_sheet:(sheet:number, name:string) => void;
-    set_sheet_alias:(sheet:number, name:string) => void;
-    set_col_name:(sheet:number, idx: number, name:string) => void;
-    del_sheet:(sheet:number) => void;
+    set_str:(sheet:number, row:number, col:number, s:string) => number;
+    make_sheet:(sheet:number, name:string) => number;
+    set_sheet_alias:(sheet:number, name:string) => number;
+    set_col_name:(sheet:number, idx: number, name:string) => number;
+    del_sheet:(sheet:number) => number;
+    set_flags:(sheet:number, flags:DrspSheetFlags) => number;
+    set_flag:(sheet:number, flag: DrspSheetFlags, on:boolean|number) => number;
+    get_flags:(sheet:number) => number;
+
+    set_func_params:(func:number, rows:Array<number>, cols:Array<number>) => number;
+    clear_func_params:(func:number) => number;
+    set_func_output:(func:number, row:number, col:number) => number;
 };
 type DrSpreadExports = {
-    memory: WebAssembly.Memory;
-    strlen: (p:number) => number;
     drsp_create_ctx: () => number;
     drsp_destroy_ctx: (ctx:number) => number;
     drsp_evaluate_formulas: (ctx:number) => number;
@@ -229,9 +314,21 @@ type DrSpreadExports = {
     drsp_set_sheet_alias:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_col_name:(ctx:number, sheet:number, idx:number, ptxt:number, txtlen:number) => number;
     drsp_del_sheet:(ctx:number, sheet:number) => number;
+    drsp_set_sheet_flags:(ctx:number, sheet:number, flags:number) => number;
+    drsp_set_sheet_flag:(ctx:number, sheet:number, flag:number, on:number) => number;
+    drsp_get_sheet_flags:(ctx:number, sheet:number) => number;
+    drsp_set_function_param:(ctx:number, func:number, param_idx:number, row:number, col:number) => number;
+    drsp_set_function_params:(ctx:number, func:number, n_params:number, prows:number, pcols:number) => number;
+    drsp_clear_function_params:(ctx:number, func:number) => number;
+    drsp_set_function_output:(ctx:number, func:number, row:number, col:number) => number;
+
+    memory: WebAssembly.Memory;
     reset_memory: () => void;
+
     wasm_str_buff: {value:number};
     wasm_result: {value:number};
+    wasm_parambuff_row: {value:number};
+    wasm_parambuff_col: {value:number};
 };
 declare function drspread(
     wasm_path:string,

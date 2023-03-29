@@ -1,7 +1,24 @@
 "use strict";
+let func_cells = [['', ''], ['', ''], ['', '']];
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
+let func_display = [];
 let display = [];
 function prep() {
+    func_display = [];
+    for (let r = 0; r < func_cells.length; r++) {
+        const row = func_cells[0];
+        const d = [];
+        func_display.push(d);
+        for (let c = 0; c < row.length; c++) {
+            const val = row[c];
+            if (typeof val === 'string' && val[0] == '=') {
+                d.push('');
+            }
+            else {
+                d.push('' + val);
+            }
+        }
+    }
     display = [];
     for (let r = 0; r < cells.length; r++) {
         const row = cells[r];
@@ -20,21 +37,37 @@ function prep() {
 }
 prep();
 function display_number(i, row, col, val) {
-    if ((val | 0) == val)
-        display[row][col] = "" + val;
-    else
-        display[row][col] = val.toFixed(2);
+    if (i == 0) {
+        if ((val | 0) == val)
+            display[row][col] = "" + val;
+        else
+            display[row][col] = val.toFixed(2);
+    }
+    else {
+        if ((val | 0) == val)
+            func_display[row][col] = "" + val;
+        else
+            func_display[row][col] = val.toFixed(2);
+    }
 }
 function display_string(i, row, col, val) {
-    display[row][col] = val;
+    if (i == 0) {
+        display[row][col] = val;
+    }
+    else {
+        func_display[row][col] = val;
+    }
 }
 function display_error(i, row, col) {
-    display[row][col] = 'err';
-}
-function name_to_col_idx(i, s) {
-    return -1;
+    if (i == 0) {
+        display[row][col] = 'err';
+    }
+    else {
+        func_display[row][col] = 'err';
+    }
 }
 let table;
+let functable;
 let raw;
 let pre;
 let ex;
@@ -51,6 +84,16 @@ function get_ctx() {
             ctx.set_str(0, i, j, "" + s);
         }
     }
+    ctx.make_sheet(1, 'func');
+    ctx.set_flag(1, 1, true);
+    for (let i = 0; i < func_cells.length; i++) {
+        for (let j = 0; j < func_cells[i].length; j++) {
+            const s = func_cells[i][j];
+            ctx.set_str(1, i, j, "" + s);
+        }
+    }
+    ctx.set_func_params(1, [0, 0], [0, 1]);
+    ctx.set_func_output(1, func_cells.length - 1, 0);
     return ctx;
 }
 function process(v) {
@@ -75,16 +118,18 @@ function make_elems() {
     document.body.appendChild(d);
     d.appendChild(showraw);
     d.appendChild(showcalc);
-    raw = document.createElement('table');
-    document.body.appendChild(raw);
-    raw.style.display = 'none';
-    table = document.createElement('table');
-    document.body.appendChild(table);
     pre = document.createElement('pre');
     document.body.appendChild(pre);
     const input = document.createElement('input');
     input.spellcheck = false;
     document.body.appendChild(input);
+    raw = document.createElement('table');
+    document.body.appendChild(raw);
+    raw.style.display = 'none';
+    functable = document.createElement('table');
+    document.body.appendChild(functable);
+    table = document.createElement('table');
+    document.body.appendChild(table);
     input.onkeydown = function (e) {
         if (e.key == 'Enter') {
             e.preventDefault();
@@ -98,6 +143,30 @@ function make_elems() {
     };
 }
 function show() {
+    {
+        let html = '<thead>';
+        html += '<tr>\n  <th>\n';
+        for (let i = 0; i < func_cells[0].length; i++) {
+            const col = column_names[i];
+            html += '  <th>' + col + '\n';
+        }
+        html += '</tr>';
+        html += '</thead>';
+        for (let r = 0; r < func_display.length; r++) {
+            let row = func_display[r];
+            html += '<tr>\n';
+            html += '  <td>' + (r + 1) + '\n';
+            for (let i = 0; i < row.length; i++) {
+                let c = row[i];
+                if (c == 'err')
+                    html += `  <td class=error data-row=${r} data-col=${i} data-func=1 ${!r ? 'class="input"' : i == 0 && r == func_display.length - 1 ? 'class=output' : ''}>` + c + '\n';
+                else
+                    html += `  <td data-row=${r} data-col=${i} data-func=1 ${!r ? 'class="input"' : i == 0 && r == func_display.length - 1 ? 'class=output' : ''}>` + c + '\n';
+            }
+            html += '</tr>\n';
+        }
+        functable.innerHTML = html;
+    }
     {
         let html = '<thead>';
         html += '<tr>\n  <th>\n';
@@ -151,7 +220,8 @@ function show() {
             const inp = document.createElement('input');
             const r = +td.dataset.row;
             const c = +td.dataset.col;
-            const txt = cells[r][c];
+            const is_func = !!td.dataset.func;
+            const txt = (is_func ? func_cells : cells)[r][c];
             inp.value = "" + txt;
             td.textContent = '';
             td.appendChild(inp);
@@ -169,10 +239,10 @@ function show() {
                 const t = inp.value.trim();
                 inp.remove();
                 if (!t)
-                    cells[r][c] = t;
+                    (is_func ? func_cells : cells)[r][c] = t;
                 else
-                    cells[r][c] = !isNaN(t) ? +t : t;
-                get_ctx().set_str(0, r, c, t);
+                    (is_func ? func_cells : cells)[r][c] = !isNaN(t) ? +t : t;
+                get_ctx().set_str(is_func ? 1 : 0, r, c, t);
                 const N = 1;
                 const before = window.performance.now();
                 for (let i = 0; i < N; i++) {
@@ -181,10 +251,6 @@ function show() {
                 const after = window.performance.now();
                 console.log('after-before', after - before);
                 console.log('bytes used:', ex.bytes_used());
-                if (ctx) {
-                    ex.drsp_destroy_ctx(ctx.id);
-                    ctx = undefined;
-                }
                 show();
             };
             inp.focus();

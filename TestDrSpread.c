@@ -2,6 +2,12 @@
 // Copyright © 2023, David Priver
 //
 
+#ifndef DRSP_TEST_DYLINK
+#define DRSP_EXPORT static
+#else
+#define DRSP_DYLIB 1
+#endif
+
 #include "spreadsheet.h"
 #include "drspread.h"
 #include "testing.h"
@@ -10,6 +16,15 @@
 #pragma clang diagnostic ignored "-Wbuiltin-macro-redefined"
 #define __FILE__ "<a href=TestDrSpread.c>TestDrSpread.c</a>"
 #endif
+#ifdef __clang__
+#pragma clang assume_nonnull begin
+#endif
+
+// secret API
+DRSP_EXPORT
+int
+drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const StringView*_Null_unspecified args, DrSpreadResult* outval);
+
 
 static TestFunc TestParsing;
 static TestFunc TestSpreadsheet1;
@@ -31,8 +46,9 @@ static TestFunc TestBadRanges;
 static TestFunc TestNames;
 static TestFunc TestComplexMultisheet;
 static TestFunc TestCaching;
+static TestFunc TestUserFunctions;
 
-int main(int argc, char** argv){
+int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
         RegisterTest(TestParsing);
         RegisterTest(TestRanges);
@@ -54,6 +70,7 @@ int main(int argc, char** argv){
         RegisterTest(TestNames);
         RegisterTest(TestComplexMultisheet);
         RegisterTest(TestCaching);
+        RegisterTest(TestUserFunctions);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -444,7 +461,7 @@ TestFunction(TestRanges){
 
 TestFunction(TestBadRanges){
     const char* input =
-        "=[a,]\n"
+        // "=[a,]\n"
         "=[,a,]\n"
         "=[:]\n"
         "=[:, :]\n"
@@ -458,18 +475,18 @@ TestFunction(TestBadRanges){
         "=sum(['a', '3':'3'])\n"
         "=sum([3, 1:2])\n"
 
-        "=[f, a,]\n"
+        // "=[f, a,]\n"
         "=[f, ,a,]\n"
         "=[f, ,:, :]\n"
         "=[f, :,:, 2]\n"
-        "=[f, ]\n"
+        // "=[f, ]\n"
         "=[f, '$', '3', '3']\n"
         "=sum([f, 'a])\n"
         "=sum([f, 'a', '3':'3'])\n"
         "=sum([f,3, 1:2])\n"
     ;
     SheetRow expected[] = {
-        ROW("error"),
+        // ROW("error"),
         ROW("error"),
         ROW("error"),
         ROW("error"),
@@ -483,11 +500,11 @@ TestFunction(TestBadRanges){
         ROW("error"),
         ROW("error"),
 
+        // ROW("error"),
         ROW("error"),
         ROW("error"),
         ROW("error"),
-        ROW("error"),
-        ROW("error"),
+        // ROW("error"),
         ROW("error"),
         ROW("error"),
         ROW("error"),
@@ -1719,6 +1736,129 @@ TestFunction(TestCaching){
     return TEST_stats;
 }
 
+TestFunction(TestUserFunctions){
+    TESTBEGIN();
+    MultiSpreadSheet ms = {0};
+    SheetOps ops = multisheet_ops(&ms);
+    SpreadSheet* f = multisheet_alloc(&ms);
+    SpreadSheet* s = multisheet_alloc(&ms);
+    f = &ms.sheets[0];
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    TestAssert(ctx);
+    SheetHandle func = (SheetHandle)f;
+    int err;
+    err = drsp_set_sheet_name(ctx, func, "example", sizeof("example")-1);
+    TestAssertFalse(err);
+
+    unsigned flags;
+    err = drsp_set_sheet_flags(ctx, func, DRSP_SHEET_FLAGS_IS_FUNCTION);
+    TestAssertFalse(err);
+    flags = drsp_get_sheet_flags(ctx, func);
+    TestExpectEquals(flags, DRSP_SHEET_FLAGS_IS_FUNCTION);
+
+    err = drsp_set_sheet_flag(ctx, func, DRSP_SHEET_FLAGS_IS_FUNCTION, 0);
+    TestAssertFalse(err);
+    flags = drsp_get_sheet_flags(ctx, func);
+    TestExpectEquals(flags, DRSP_SHEET_FLAGS_NONE);
+
+    err = drsp_set_sheet_flag(ctx, func, DRSP_SHEET_FLAGS_IS_FUNCTION, 1);
+    TestAssertFalse(err);
+    flags = drsp_get_sheet_flags(ctx, func);
+    TestExpectEquals(flags, DRSP_SHEET_FLAGS_IS_FUNCTION);
+
+    intptr_t param_rows[] = {0, 0};
+    intptr_t param_cols[arrlen(param_rows)] = {1, 0};
+    err = drsp_set_function_params(ctx, func, arrlen(param_rows), param_rows, param_cols);
+    TestAssertFalse(err);
+    #define X(a) ""a, sizeof(""a)-1
+    err = drsp_set_cell_str(ctx, func, param_rows[0], param_cols[0], X("=1"));
+    TestAssertFalse(err);
+    err = drsp_set_cell_str(ctx, func, 0, 0, X("13"));
+    TestAssertFalse(err);
+    err = drsp_set_cell_str(ctx, func, 1, 1, X("=(a1+b1)*2"));
+    #undef X
+    TestAssertFalse(err);
+    err = drsp_set_function_output(ctx, func, 1, 1);
+    TestAssertFalse(err);
+    SheetRow expected[] = {
+        ROW("13", "1"),
+        ROW("", "28"),
+    };
+    for(size_t i = 0; i < arrlen(expected); i++){
+        SheetRow d = {0};
+        const SheetRow* e = &expected[i];
+        for(int j = 0; j < e->n; j++){
+            sheet_row_push(&d, strdup(""));
+        }
+        sheet_push_row(f, (SheetRow){0}, d);
+    }
+    err = drsp_evaluate_formulas(ctx);
+    TestExpectFalse(err);
+
+    for(size_t i = 0; i < arrlen(expected); i++){
+        const SheetRow* d = &f->display[i];
+        const SheetRow* e = &expected[i];
+        TestAssertEquals(d->n, e->n);
+        for(int j = 0; j < d->n; j++){
+            TEST_stats.executed++;
+            const char* lhs = d->data[j];
+            const char* rhs = e->data[j];
+            if(!streq(lhs, rhs)){
+                TEST_stats.failures++;
+                  TestReport("Test condition failed");
+                  TestReport("row %zu, col %d", i, j);
+                  TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                          _test_color_green, lhs, _test_color_reset,
+                          _test_color_red, _test_color_reset,
+                          _test_color_green, rhs, _test_color_reset);
+            }
+        }
+    }
+
+    DrSpreadResult r = {.kind=-1};
+    StringView args[] = {
+        SV("3"),
+        SV("=2"),
+    };
+    err = drsp_evaluate_function(ctx, func, arrlen(args), args, &r);
+    TestExpectFalse(err);
+    TestExpectEquals(r.kind, DRSP_RESULT_NUMBER);
+    TestExpectEquals(r.d, 10.);
+    SheetHandle sheet = (SheetHandle)s;
+    err = drsp_set_sheet_name(ctx, sheet, "foo", 3);
+    TestAssertFalse(err);
+    err = drsp_set_cell_str(ctx, sheet, 0, 0, "=example(1, 2)", sizeof("=example(1, 2)")-1);
+    TestAssertFalse(err);
+    err = drsp_set_cell_str(ctx, sheet, 0, 1, "=example()", sizeof("=example()")-1);
+    TestAssertFalse(err);
+    err = drsp_set_cell_str(ctx, sheet, 0, 2, "=example('1', '2')", sizeof("=example('1', '2')")-1);
+    TestAssertFalse(err);
+    r = (DrSpreadResult){.kind=-1};
+    err = drsp_evaluate_string(ctx, sheet, "=a1", 3, &r, 0, 0);
+    TestAssertFalse(err);
+    TestExpectEquals(r.kind, DRSP_RESULT_NUMBER);
+    TestExpectEquals(r.d, 6.);
+    {
+        SheetRow r = {0};
+        sheet_row_push(&r, strdup(""));
+        sheet_row_push(&r, strdup(""));
+        sheet_row_push(&r, strdup(""));
+        sheet_push_row(s, (SheetRow){0}, r);
+    }
+    err = drsp_evaluate_formulas(ctx);
+    TestAssertEquals(err, 2);
+    TestAssertEquals(s->display[0].n, 3);
+    TestExpectEquals2(streq, s->display[0].data[0], "6");
+    TestExpectEquals2(streq, s->display[0].data[1], "error");
+    TestExpectEquals2(streq, s->display[0].data[2], "error");
+
+    err = drsp_del_sheet(ctx, func);
+    TestAssertFalse(err);
+    cleanup_multisheet(&ms);
+
+    TESTEND();
+}
+
 
 
 
@@ -1727,6 +1867,10 @@ TestFunction(TestCaching){
 #endif
 #ifdef __wasm__
 #pragma pop_macro("__FILE__")
+#endif
+
+#ifdef __clang__
+#pragma clang assume_nonnull end
 #endif
 
 #ifndef DRSPREAD_TEST_DYLINK

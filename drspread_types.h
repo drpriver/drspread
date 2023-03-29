@@ -129,6 +129,7 @@ TYPED_ENUM(ExpressionKind, uintptr_t){
     EXPR_BINARY,
     EXPR_UNARY,
     EXPR_COMPUTED_ARRAY,
+    EXPR_USER_DEFINED_FUNC_CALL,
     // EXPR_TYPED_COLUMN,
 };
 
@@ -170,6 +171,14 @@ typedef FORMULAFUNC(FormulaFunc);
 struct FunctionCall {
     Expression e;
     FormulaFunc* func;
+    int argc;
+    Expression*_Nonnull*_Nonnull argv;
+};
+
+typedef struct UserFunctionCall UserFunctionCall;
+struct UserFunctionCall {
+    Expression e;
+    StringView name;
     int argc;
     Expression*_Nonnull*_Nonnull argv;
 };
@@ -260,8 +269,8 @@ struct ComputedArray {
 };
 
 // This is a hash table
-typedef struct StringCache StringCache;
-struct StringCache {
+typedef struct CellCache CellCache;
+struct CellCache {
     SheetHandle handle;
     size_t n;
     size_t cap;
@@ -289,11 +298,11 @@ struct RowColSv {
 };
 static inline
 StringView*_Nullable
-get_cached_string(StringCache* cache, intptr_t row, intptr_t col);
+get_cached_cell(CellCache* cache, intptr_t row, intptr_t col);
 
 static inline
 int
-set_cached_string(StringCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
+set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
 
 
 
@@ -405,6 +414,17 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
         case EXPR_NULL:
             out->kind = CACHED_RESULT_NULL;
             return 0;
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN:
+        case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
+        case EXPR_COMPUTED_ARRAY:{
+            DrspStr* str = drsp_create_str(ctx, "[[array]]", sizeof("[[array]]")-1);
+            if(!str) return 1;
+            out->kind = CACHED_RESULT_STRING;
+            out->string = str;
+            return 0;
+        }
         default:
         case EXPR_ERROR:
             out->kind = CACHED_RESULT_ERROR;
@@ -448,19 +468,37 @@ CachedResult*_Nullable
 get_cached_result(ResultCache* cache, intptr_t row, intptr_t col);
 
 
+typedef struct UserDefinedFunctionParameter UserDefinedFunctionParameter;
+struct UserDefinedFunctionParameter {
+    intptr_t row, col;
+};
 typedef struct SheetData SheetData;
 struct SheetData {
     DrspStr* name;
     DrspStr*_Nullable alias;
     SheetHandle handle;
-    StringCache str_cache;
+    CellCache cell_cache;
     ColCache col_cache;
     intptr_t width, height;
     ResultCache result_cache;
+    unsigned flags;
+    int paramc;
+    UserDefinedFunctionParameter params[4];
+    intptr_t out_row, out_col;
+    // HACK
+    struct HackyFuncArg {
+        intptr_t row;
+        intptr_t col;
+        Expression* e;
+    }hacky_func_args[4];
 };
 
+DRSP_INTERNAL
+void
+cleanup_sheet_data(SheetData*);
 
-
+// Note: this is just a dynamic array, it is not a hash table.
+// It could be turned into a hash table though, idk.
 typedef struct SheetMap SheetMap;
 struct SheetMap {
     size_t cap;
@@ -498,6 +536,14 @@ SheetData*_Nullable
 sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len);
 
 DRSP_INTERNAL
+SheetData*_Nullable
+udf_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle);
+
+DRSP_INTERNAL
+SheetData*_Nullable
+udf_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len);
+
+DRSP_INTERNAL
 void
 free_string_arenas(StringArena*_Nullable arena);
 
@@ -531,6 +577,7 @@ expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
             break;
         case EXPR_COMPUTED_ARRAY:
             __builtin_trap();
+        case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();
     }
     void* result = buff_alloc(ctx->a, sz);
@@ -620,6 +667,7 @@ expr_size(ExpressionKind kind){
         case EXPR_STRING:                 sz = sizeof(String); break;
         case EXPR_NULL:                   sz = sizeof(Expression); break;
         case EXPR_COMPUTED_ARRAY: __builtin_trap();
+        case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();
     }
     return sz;
@@ -640,6 +688,7 @@ union ExprU{
     Binary b;
     Unary u;
     String s;
+    UserFunctionCall ufc;
 };
 
 #if 0
@@ -673,7 +722,7 @@ struct FuncInfo {
 
 DRSP_INTERNAL
 const char*_Nullable
-sp_cell_text(DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, size_t* len);
+sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len);
 
 // We pretend that we support ragged sheets, even though we don't.
 force_inline

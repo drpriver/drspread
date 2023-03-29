@@ -58,6 +58,12 @@
   input {
     font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
   }
+  td.input {
+    border: 2px solid yellow;
+  }
+  td.output {
+    border: 2px solid green;
+  }
   /*endcss*/
 ::script #id(data)
 ::js

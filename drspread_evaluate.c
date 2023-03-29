@@ -24,10 +24,17 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         #endif
         if(frm < limit) return NULL;
     }
+    // HACK
+    for(size_t i = 0; i < arrlen(sd->hacky_func_args); i++){
+        const struct HackyFuncArg* hfa = &sd->hacky_func_args[i];
+        if(!hfa->e) break;
+        if(hfa->row == row && hfa->col == col)
+            return hfa->e;
+    }
     size_t len = 0;
     if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
         return expr_alloc(ctx, EXPR_NULL);
-    const char* txt = sp_cell_text(ctx, sd->handle, row, col, &len);
+    const char* txt = sp_cell_text(sd, row, col, &len);
     if(!txt) return expr_alloc(ctx, EXPR_NULL);
     StringView sv = stripped2(txt, len);
     // These `goto`s are a bit unorthodox, but it is basically a switch,
@@ -461,10 +468,52 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             // Otherwise we need a goto to the top.
             return evaluate_expr(ctx, sd, g->expr, caller_row, caller_col);
         }
+        case EXPR_USER_DEFINED_FUNC_CALL:{
+            UserFunctionCall* ufc = (UserFunctionCall*)expr;
+            SheetData* udf = udf_lookup_by_name(ctx, ufc->name.text, ufc->name.length);
+            if(!udf) return Error(ctx, "Can't find udf of this name");
+            if(udf->paramc != ufc->argc){
+                return Error(ctx, "Wrong number of args");
+            }
+            int argc = ufc->argc;
+            Expression* args[4];
+            for(int i = 0; i < argc; i++){
+                Expression* e = evaluate_expr(ctx, sd, ufc->argv[i], caller_row, caller_col);
+                if(!e || e->kind == EXPR_ERROR) return e;
+                if(expr_is_arraylike(e))
+                    e = convert_to_computed_array(ctx, sd, e, caller_row, caller_col);
+                if(!e || e->kind == EXPR_ERROR) return e;
+                args[i] = e;
+            }
+            return call_udf(ctx, udf, argc, args);
+        }
     }
     // should be unreachable
     return NULL;
     // GCOV_EXCL_STOP
+}
+
+DRSP_INTERNAL
+Expression*_Nullable
+call_udf(DrSpreadCtx* ctx, SheetData* func, size_t nargs, Expression*_Nonnull*_Nonnull args){
+    if(nargs != (size_t)func->paramc)
+        return Error(ctx, "mismatched number of args");
+    // XXX
+    // FIXME
+    // This is not a solution as it doesn't handle recursion
+    // We can ban recursion, but then we need to detect that we are
+    // recursing.
+    __builtin_memset(func->hacky_func_args, 0, sizeof func->hacky_func_args);
+    for(size_t i = 0; i < nargs; i++){
+        func->hacky_func_args[i] = (struct HackyFuncArg){
+            .col = func->params[i].col,
+            .row = func->params[i].row,
+            .e = args[i],
+        };
+    }
+    Expression* result = evaluate(ctx, func, func->out_row, func->out_col);
+    __builtin_memset(func->hacky_func_args, 0, sizeof func->hacky_func_args);
+    return result;
 }
 
 #ifdef __clang__

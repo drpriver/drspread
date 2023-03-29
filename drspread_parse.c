@@ -874,7 +874,7 @@ PARSEFUNC(parse_func_call){
     StringView name = {end-begin, begin};
     rstrip(&name);
     FormulaFunc* func = lookup_func(name);
-    if(!func) return Error(ctx, "");
+    // if(!func) return Error(ctx, "");
     // This is pretty sloppy - always allocates space
     // for exactly 4 args - can't do less or more.
     enum {argmax=4};
@@ -892,12 +892,22 @@ PARSEFUNC(parse_func_call){
     if(!sv->length || sv->text[0] != ')')
         return Error(ctx, "");
     sv->length--, sv->text++;
-    FunctionCall* fc = expr_alloc(ctx, EXPR_FUNCTION_CALL);
-    if(!fc) return NULL;
-    fc->func = func;
-    fc->argc = argc;
-    fc->argv = argv;
-    return &fc->e;
+    if(func){
+        FunctionCall* fc = expr_alloc(ctx, EXPR_FUNCTION_CALL);
+        if(!fc) return NULL;
+        fc->func = func;
+        fc->argc = argc;
+        fc->argv = argv;
+        return &fc->e;
+    }
+    else {
+        UserFunctionCall* fc = expr_alloc(ctx, EXPR_USER_DEFINED_FUNC_CALL);
+        if(!fc) return NULL;
+        fc->name = name;
+        fc->argc = argc;
+        fc->argv = argv;
+        return &fc->e;
+    }
 }
 
 #ifdef __clang__

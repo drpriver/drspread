@@ -108,6 +108,14 @@ main(int argc, char** argv){
         SpreadSheet* sheet = &ms.sheets[i];
         int e = drsp_set_sheet_name(ctx, (SheetHandle)sheet, sheet->name.text, sheet->name.length);
         if(e) return e;
+        if(sheet->paramc){
+            e = drsp_set_sheet_flag(ctx, (SheetHandle)sheet, DRSP_SHEET_FLAGS_IS_FUNCTION, 1);
+            if(e) return e;
+            drsp_set_function_output(ctx, (SheetHandle)sheet, sheet->outy, sheet->outx);
+            intptr_t col[4] = {0, 1, 2, 3};
+            intptr_t row[4] = {0, 0, 0, 0};
+            drsp_set_function_params(ctx, (SheetHandle)sheet, sheet->paramc, row, col);
+        }
         for(int i = 0; i < sheet->colnames.n; i++){
             int e = drsp_set_col_name(ctx, (SheetHandle)sheet, i, sheet->colnames.data[i], sheet->colnames.lengths[i]);
             if(e) return e;
