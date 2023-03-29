@@ -14,22 +14,30 @@ SANITIZE=-fsanitize=address,nullability,undefined
 
 ifeq ($(OS),Windows_NT)
 EXE=.exe
+LM=
 else
 EXE=
+UNAME := $(shell uname)
+ifeq ($(UNAME),Darwin)
+LM=
+else
+LM=-lm
+endif
 endif
 
 
 Bin/drspread$(EXE): drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3  -std=gnu2x
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3  -std=gnu2x $(LM)
 Bin/drspread_bench$(EXE): drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1 -std=gnu2x
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1 -std=gnu2x $(LM)
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3 -std=gnu2x
+
+# This doesn't work on windows.
 .PHONY: clean
 clean:
 	rm -rf Bin
 	rm -rf Depends
-.DEFAULT_GOAL:=Bin/drspread
 
 WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mreference-types -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
 Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
@@ -38,7 +46,7 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
 Bin/TestDrSpread$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM)
 
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
@@ -46,7 +54,7 @@ Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
 test.html: testspread_glue.js Bin/TestDrSpread.wasm
 
 Bin/drspread_fuzz$(EXE): drspread_fuzz.c | Bin Depends
-	$(CC) $< -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -fsanitize=fuzzer,address,undefined -o $@ -std=gnu2x
+	$(CC) $< -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -fsanitize=fuzzer,address,undefined -o $@ -std=gnu2x $(LM)
 .PHONY: fuzz
 fuzz: Bin/drspread_fuzz$(EXE) | FuzzDir
 	$< FuzzDir -fork=6 -only_ascii=1 -max_len=8000
