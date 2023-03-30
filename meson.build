@@ -1,4 +1,4 @@
-project('DrSpread', 'c', version: '1.0.0')
+project('DrSpread', 'c', version: '1.0.0', default_options:['c_std=gnu17'])
 COMPAT_VERSION='1.0.0' # for macos dylib
 
 # untested
