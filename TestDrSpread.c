@@ -1848,6 +1848,9 @@ TestFunction(TestUserFunctions){
     TestExpectEquals2(streq, s->display[0].data[1], "error");
     TestExpectEquals2(streq, s->display[0].data[2], "error");
 
+    err = drsp_clear_function_params(ctx, func);
+    TestAssertFalse(err);
+
     err = drsp_del_sheet(ctx, func);
     TestAssertFalse(err);
     cleanup_multisheet(&ms);
