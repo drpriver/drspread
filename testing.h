@@ -845,6 +845,11 @@ run_the_tests(size_t*_Nonnull which_tests, int test_count, struct TestResults* r
 static uint64_t _testing_rng_inc;
 static uint64_t _testing_rng_state;
 
+#ifdef _MSC_VER
+#pragma warning push
+#pragma warning( disable : 4146 )
+#endif
+
 static inline
 uint32_t testing_rng_random(void){
     uint64_t oldstate = _testing_rng_state;
@@ -853,6 +858,11 @@ uint32_t testing_rng_random(void){
     uint32_t rot = oldstate >> 59u;
     return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
+
+#ifdef _MSC_VER
+#pragma warning pop
+#endif
+
 static inline
 void
 testing_seed_rng(uint64_t*_Nonnull seed_){

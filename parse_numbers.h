@@ -34,6 +34,11 @@
 #pragma clang assume_nonnull begin
 #endif
 
+#ifdef _MSC_VER
+#pragma warning push
+#pragma warning( disable : 4146 )
+#endif
+
 #if defined(__IMPORTC__)
 __import core.checkedint;
 
@@ -787,6 +792,10 @@ parse_double(const char* str, size_t length){
 #endif
 #ifdef __clang__
 #pragma clang assume_nonnull end
+#endif
+
+#ifdef _MSC_VER
+#pragma warning pop
 #endif
 
 #endif

@@ -12,6 +12,9 @@
 #ifdef _WIN32
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
+#ifdef _MSC_VER
+#pragma warning( disable : 5105)
+#endif
 #include <Windows.h>
 #include <conio.h>
 #include <io.h>

@@ -1557,7 +1557,7 @@ FORMULAFUNC(drsp_find){
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
-    n->value = offset+1;
+    n->value = (double)offset+1;
     return &n->e;
 }
 

@@ -32,6 +32,9 @@ static inline TermSize get_terminal_size(void);
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #define WIN32_EXTRA_LEAN
+#ifdef _MSC_VER
+#pragma warning( disable : 5105)
+#endif
 #include <Windows.h>
 #endif
 static inline
