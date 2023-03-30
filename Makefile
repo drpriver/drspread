@@ -45,11 +45,13 @@ Bin/drspread_bench$(EXE): drspread_cli.c Makefile | Bin Depends
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3 -std=gnu2x
 
+ifneq ($(OS),Windows_NT)
 # This doesn't work on windows.
 .PHONY: clean
 clean:
 	rm -rf Bin
 	rm -rf Depends
+endif
 
 # not using -mreference-types
 WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
