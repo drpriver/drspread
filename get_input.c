@@ -664,7 +664,7 @@ redisplay(GetInputCtx*ctx){
     #undef ERASERIGHT
     // Move cursor back to original position.
     char tmp[128];
-    int printsize = snprintf(tmp, sizeof tmp, "\r\x1b[%zuC", pos+plen);
+    int printsize = (snprintf)(tmp, sizeof tmp, "\r\x1b[%zuC", pos+plen);
     gis_write(&writer, tmp, printsize);
 
     // Actually write to the terminal.

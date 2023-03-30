@@ -63,12 +63,8 @@ DRSP_EXPORT
 int
 drsp_evaluate_formulas(DrSpreadCtx* ctx){
     int nerrs = 0;
-    #ifndef __wasm__
-    #ifdef __GNUC__
-        ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
-    #else
-        ctx->limit = (uintptr_t)_AddressOfReturnAddress() - 300000;
-    #endif
+    #if !defined(__wasm__) && defined(FrameAddress)
+        ctx->limit = FrameAddress() - 300000;
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     for(size_t i = 0; i < ctx->map.n; i++){
@@ -145,12 +141,8 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
 DRSP_EXPORT
 int
 drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt, size_t len, DrSpreadResult* outval, intptr_t row, intptr_t col){
-    #ifndef __wasm__
-    #ifdef __GNUC__
-        ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
-    #else
-        ctx->limit = (uintptr_t)_AddressOfReturnAddress() - 300000;
-    #endif
+    #if !defined(__wasm__) && defined(FrameAddress)
+        ctx->limit = FrameAddress() - 300000;
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     SheetData* sd = sheet_lookup_by_handle(ctx, sheethandle);
@@ -192,12 +184,8 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
 DRSP_EXPORT
 int
 drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const StringView*_Null_unspecified targs, DrSpreadResult* outval){
-    #ifndef __wasm__
-    #ifdef __GNUC__
-        ctx->limit = (uintptr_t)__builtin_frame_address(0) - 300000;
-    #else
-        ctx->limit = (uintptr_t)_AddressOfReturnAddress() - 300000;
-    #endif
+    #if !defined(__wasm__) && defined(FrameAddress)
+        ctx->limit = FrameAddress() - 300000;
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     if(nargs > 4) return 1;

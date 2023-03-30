@@ -198,6 +198,10 @@ fast_float_from_chars_float(const char *first, const char *last, float *value, e
 // memcpy
 #include <string.h>
 
+#if defined(__IMPORTC__)
+#define __builtin_nanf nanf
+#endif
+
 #if !defined(__GNUC__) || defined(__IMPORTC__)
 #define ff_memcpy memcpy
 #else

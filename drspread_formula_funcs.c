@@ -8,7 +8,7 @@
 #include "drspread_utils.h"
 #include "drspread_formula_funcs.h"
 #include <stdarg.h>
-#if defined(_MSC_VER) && !defined(__clang__)
+#if (defined(_MSC_VER) && !defined(__clang__)) || defined(__IMPORTC__)
 #include <math.h>
 #define __builtin_floor floor
 #define __builtin_ceil ceil
@@ -1607,7 +1607,7 @@ print(PrintBuff* buff, const char* fmt, ...){
     if(buff->error) return;
     va_list vap;
     va_start(vap, fmt);
-    int n = vsnprintf(buff->buff, buff->len, fmt, vap);
+    int n = (vsnprintf)(buff->buff, buff->len, fmt, vap);
     if(n < 0) buff->error = 1;
     if(n > buff->len) buff->error = 1;
     else {

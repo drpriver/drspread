@@ -1574,14 +1574,14 @@ TestFunction(TestComplexMultisheet){
         SpreadSheet* sheet = &ms.sheets[0];
         int err = drsp_evaluate_string(ctx, (SheetHandle)sheet, sv.text, sv.length, &val, -1, -1);
         TestExpectFalse(err);
-        TestExpectEquals(val.kind, DRSP_RESULT_NUMBER);
+        TestExpectEquals((uintptr_t)val.kind, DRSP_RESULT_NUMBER);
         TestExpectEquals(val.d, c->value); // suck it, "always use an epsilon" bots.
     }
     {   // Test that deleting a sheet works (and asan doesn't get mad).
         DrSpreadResult val = {0};
         int err = drsp_evaluate_string(ctx, (SheetHandle)&ms.sheets[0], "[Encumbrance, 1]", sizeof("[Encumbrance, 1]")-1, &val, -1, -1);
         TestAssertFalse(err);
-        TestExpectEquals(val.kind, DRSP_RESULT_NUMBER);
+        TestExpectEquals((uintptr_t)val.kind, DRSP_RESULT_NUMBER);
         TestExpectEquals(val.d, 2.);
         int e = drsp_del_sheet(ctx, (SheetHandle)&ms.sheets[1]);
         TestAssertFalse(e);
@@ -1818,7 +1818,7 @@ TestFunction(TestUserFunctions){
     };
     err = drsp_evaluate_function(ctx, func, arrlen(args), args, &r);
     TestExpectFalse(err);
-    TestExpectEquals(r.kind, DRSP_RESULT_NUMBER);
+    TestExpectEquals((uintptr_t)r.kind, DRSP_RESULT_NUMBER);
     TestExpectEquals(r.d, 10.);
     SheetHandle sheet = (SheetHandle)s;
     err = drsp_set_sheet_name(ctx, sheet, "foo", 3);
@@ -1832,7 +1832,7 @@ TestFunction(TestUserFunctions){
     r = (DrSpreadResult){.kind=-1};
     err = drsp_evaluate_string(ctx, sheet, "=a1", 3, &r, 0, 0);
     TestAssertFalse(err);
-    TestExpectEquals(r.kind, DRSP_RESULT_NUMBER);
+    TestExpectEquals((uintptr_t)r.kind, DRSP_RESULT_NUMBER);
     TestExpectEquals(r.d, 6.);
     {
         SheetRow r = {0};

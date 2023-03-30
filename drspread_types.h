@@ -10,11 +10,20 @@
 #include "buff_allocator.h"
 #include "stringview.h"
 
+#if defined(__IMPORTC__)
+#elif defined(__GNUC__) || defined(__clang__)
+#define FrameAddress() (uintptr_t)__builtin_frame_address(0)
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#define FrameAddress() (uintptr_t)_AddressOfReturnAddress()
+#endif
+
+
 #ifdef __wasm__
 #include "drspread_wasm.h"
 #endif
 
-#if defined(_MSC_VER) && !defined(__clang__)
+#if (defined(_MSC_VER) && !defined(__clang__)) || defined(__IMPORTC__)
 #define __builtin_memset memset
 #define __builtin_memcpy memcpy
 #define __builtin_trap abort

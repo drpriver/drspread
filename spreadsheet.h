@@ -17,7 +17,7 @@
 #include "stringview.h"
 #include "parse_numbers.h"
 
-#if defined(_MSC_VER) && !defined(__clang__)
+#if (defined(_MSC_VER) && !defined(__clang__)) || defined(__IMPORTC__)
 #include <math.h>
 #define __builtin_lround lround
 #endif

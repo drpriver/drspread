@@ -105,7 +105,7 @@ TestPrintf(const char* fmt, ...){
             // since the test output could have control codes and thus
             // diffing outputs would be wrong.
             // Oh well.
-            int printed = vsnprintf(buff, sizeof buff, fmt, arg);
+            int printed = (vsnprintf)(buff, sizeof buff, fmt, arg);
             if(printed > (int)sizeof buff) printed = sizeof buff;
             char* p = buff;
             char* begin = p;
