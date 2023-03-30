@@ -177,12 +177,12 @@ typedef enum ArgType {
 } ArgType;
 
 static const StringView ArgTypeNames[] = {
-#define X(a,b, string) SV(string),
+#define X(a,b, string) {sizeof(string)-1, string},
     ARGS(X)
 #undef X
-    SV("flag"),
-    SV("enum"),
-    SV("USER DEFINED THIS IS A BUG"),
+    {sizeof("flag")-1, "flag"},
+    {sizeof("enum")-1, "enum"},
+    {sizeof("USER DEFINED THIS IS A BUG")-1, "USER DEFINED THIS IS A BUG"},
 };
 
 #undef ARGS

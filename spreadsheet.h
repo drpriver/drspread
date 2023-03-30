@@ -12,9 +12,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stdarg.h>
 #include "drspread.h"
 #include "stringview.h"
 #include "parse_numbers.h"
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <math.h>
+#define __builtin_lround lround
+#endif
 
 #ifdef __clang__
 #pragma clang assume_nonnull begin
@@ -72,15 +78,15 @@ strsep(char*_Nullable*_Nonnull stringp, const char* delim){
 static inline
 int
 asprintf(char*_Nullable*_Nonnull out, const char* fmt, ...){
-    __builtin_va_list vap, vap2;
-    __builtin_va_start(vap, fmt);
-    __builtin_va_copy(vap2, vap);
+    va_list vap, vap2;
+    va_start(vap, fmt);
+    va_copy(vap2, vap);
     int len = vsnprintf(NULL, 0, fmt, vap);
     char* buff = malloc(len+1);
     int ret = vsnprintf(buff, len+1, fmt, vap2);
     *out = buff;
-    __builtin_va_end(vap);
-    __builtin_va_end(vap2);
+    va_end(vap);
+    va_end(vap2);
     return ret;
 }
 #endif

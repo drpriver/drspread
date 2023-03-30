@@ -23,6 +23,7 @@ struct StringView {
 };
 
 #define SV(x) ((StringView){sizeof(x)-1, x})
+#define SVI(x) {sizeof(x)-1, x}
 
 force_inline
 _Bool

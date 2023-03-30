@@ -7,6 +7,17 @@
 #include "drspread_evaluate.h"
 #include "drspread_utils.h"
 #include "drspread_formula_funcs.h"
+#include <stdarg.h>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <math.h>
+#define __builtin_floor floor
+#define __builtin_ceil ceil
+#define __builtin_trunc trunc
+#define __builtin_round round
+#define __builtin_fabs fabs
+#define __builtin_sqrt sqrt
+#define __builtin_pow pow
+#endif
 
 #ifndef arrlen
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
@@ -1594,8 +1605,8 @@ static inline
 void
 print(PrintBuff* buff, const char* fmt, ...){
     if(buff->error) return;
-    __builtin_va_list vap;
-    __builtin_va_start(vap, fmt);
+    va_list vap;
+    va_start(vap, fmt);
     int n = vsnprintf(buff->buff, buff->len, fmt, vap);
     if(n < 0) buff->error = 1;
     if(n > buff->len) buff->error = 1;
@@ -1603,7 +1614,7 @@ print(PrintBuff* buff, const char* fmt, ...){
         buff->len -= n;
         buff->buff += n;
     }
-    __builtin_va_end(vap);
+    va_end(vap);
 }
 
 
@@ -1940,65 +1951,65 @@ FORMULAFUNC(drsp_time){
 #endif
 #endif
 
-#ifndef SV
-#define SV(x) {sizeof(x)-1, x}
+#ifndef SVI
+#define SVI(x) {sizeof(x)-1, x}
 #endif
 
 #ifdef DRSP_INTRINS
 DRSP_INTERNAL
 const FuncInfo FUNC1[] = {
-    {SV("a"),    &drsp_array},
-    {SV("f"),    &drsp_first},
-    {SV("r"),    &drsp_repr},
+    {SVI("a"),    &drsp_array},
+    {SVI("f"),    &drsp_first},
+    {SVI("r"),    &drsp_repr},
 #if defined(DRSPREAD_CLI_C)
 #ifdef __APPLE__
-    {SV("t"),    &drsp_time},
+    {SVI("t"),    &drsp_time},
 #endif
 #endif
 };
 #endif
 DRSP_INTERNAL
 const FuncInfo FUNC2[] = {
-    {SV("if"),    &drsp_if},
+    {SVI("if"),    &drsp_if},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC3[] = {
-    {SV("sum"),   &drsp_sum},
-    {SV("tlu"),   &drsp_tablelookup},
-    {SV("mod"),   &drsp_mod},
-    {SV("avg"),   &drsp_avg},
-    {SV("min"),   &drsp_min},
-    {SV("max"),   &drsp_max},
-    {SV("abs"),   &drsp_abs},
-    {SV("num"),   &drsp_num},
-    {SV("try"),   &drsp_try},
-    {SV("pow"),   &drsp_pow},
-    {SV("col"),   &drsp_col},
-    {SV("cat"),   &drsp_cat},
-    {SV("row"),   &drsp_row},
+    {SVI("sum"),   &drsp_sum},
+    {SVI("tlu"),   &drsp_tablelookup},
+    {SVI("mod"),   &drsp_mod},
+    {SVI("avg"),   &drsp_avg},
+    {SVI("min"),   &drsp_min},
+    {SVI("max"),   &drsp_max},
+    {SVI("abs"),   &drsp_abs},
+    {SVI("num"),   &drsp_num},
+    {SVI("try"),   &drsp_try},
+    {SVI("pow"),   &drsp_pow},
+    {SVI("col"),   &drsp_col},
+    {SVI("cat"),   &drsp_cat},
+    {SVI("row"),   &drsp_row},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC4[] = {
-    {SV("ceil"),  &drsp_ceil},
-    {SV("find"),  &drsp_find},
-    {SV("cell"),  &drsp_cell},
-    {SV("eval"),  &drsp_eval},
-    {SV("call"),  &drsp_call},
-    {SV("sqrt"),  &drsp_sqrt},
+    {SVI("ceil"),  &drsp_ceil},
+    {SVI("find"),  &drsp_find},
+    {SVI("cell"),  &drsp_cell},
+    {SVI("eval"),  &drsp_eval},
+    {SVI("call"),  &drsp_call},
+    {SVI("sqrt"),  &drsp_sqrt},
 #ifdef DRSPREAD_CLI_C
 #ifdef __APPLE__
-    {SV("time"), &drsp_time},
+    {SVI("time"), &drsp_time},
 #endif
 #endif
-    {SV("prod"),  &drsp_prod},
+    {SVI("prod"),  &drsp_prod},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC5[] = {
-    {SV("count"), &drsp_count},
-    {SV("floor"), &drsp_floor},
-    {SV("trunc"), &drsp_trunc},
-    {SV("round"), &drsp_round},
-    {SV("array"), &drsp_array},
+    {SVI("count"), &drsp_count},
+    {SVI("floor"), &drsp_floor},
+    {SVI("trunc"), &drsp_trunc},
+    {SVI("round"), &drsp_round},
+    {SVI("array"), &drsp_array},
 };
 
 

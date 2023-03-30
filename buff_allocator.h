@@ -47,7 +47,9 @@ buff_set(BuffAllocator* b, BuffCheckpoint c){
 
 force_inline
 // static inline
+#ifdef __GNUC__
 __attribute__((__malloc__))
+#endif
 void*_Nullable
 buff_alloc(BuffAllocator* a, size_t sz){
     if(a->cursor + sz > a->end)

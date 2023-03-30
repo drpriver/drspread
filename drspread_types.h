@@ -5,12 +5,20 @@
 #define DRSPREAD_TYPES_H
 #include <assert.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include "drspread.h"
 #include "buff_allocator.h"
 #include "stringview.h"
 
 #ifdef __wasm__
 #include "drspread_wasm.h"
+#endif
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#define __builtin_memset memset
+#define __builtin_memcpy memcpy
+#define __builtin_trap abort
+#define __builtin_unreachable abort
 #endif
 
 #ifndef force_inline
@@ -591,7 +599,7 @@ expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
 force_inline
 ComputedArray*_Nullable
 computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
-    ComputedArray* cc = buff_alloc(ctx->a, __builtin_offsetof(ComputedArray, data)+sizeof(Expression*)*nitems);
+    ComputedArray* cc = buff_alloc(ctx->a, offsetof(ComputedArray, data)+sizeof(Expression*)*nitems);
     if(!cc) return NULL;
     cc->e.kind = EXPR_COMPUTED_ARRAY;
     cc->length = nitems;

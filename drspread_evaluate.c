@@ -15,7 +15,11 @@ DRSP_INTERNAL
 Expression*_Nullable
 evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     {
+        #ifdef __GNUC__
         uintptr_t frm = (uintptr_t)__builtin_frame_address(0);
+        #else
+        uintptr_t frm = (uintptr_t)_AddressOfReturnAddress();
+        #endif
         uintptr_t limit;
         #ifdef __wasm__
             limit = 10000;

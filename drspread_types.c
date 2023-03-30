@@ -1,5 +1,6 @@
 #ifndef DRSPREAD_TYPES_C
 #define DRSPREAD_TYPES_C
+#include <stddef.h>
 #include "drspread_types.h"
 #include "hash_func.h"
 #ifdef __clang__
@@ -15,7 +16,7 @@ DrSpreadCtx* _Nullable
 drsp_create_ctx(ARGS){
 #undef ARGS
     enum {N=60000};
-    size_t sz = (N+__builtin_offsetof(DrSpreadCtx, buff));
+    size_t sz = (N+offsetof(DrSpreadCtx, buff));
     DrSpreadCtx* ctx = malloc(sz);
     // fprintf(stderr, "%zu\n", sz);
     __builtin_memset(ctx, 0, sizeof *ctx);
@@ -38,7 +39,7 @@ drsp_destroy_ctx(DrSpreadCtx*_Nullable ctx){
     free_string_arenas(ctx->temp_string_arena);
     free_sheet_datas(ctx);
     destroy_string_heap(&ctx->sheap);
-    memset(ctx, 0xfe, __builtin_offsetof(DrSpreadCtx, buff));
+    memset(ctx, 0xfe, offsetof(DrSpreadCtx, buff));
     free(ctx);
     return 0;
 }
@@ -169,7 +170,7 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
     }
     (void)ctx;
     StringHeap* heap = &ctx->sheap;
-    size_t sz = __builtin_offsetof(DrspStr, data)+length;
+    size_t sz = offsetof(DrspStr, data)+length;
     size_t cap = heap->cap;
     // XXX overflow checking
     if(unlikely(heap->n*2 >= cap)){
