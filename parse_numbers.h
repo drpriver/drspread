@@ -35,7 +35,7 @@
 #endif
 
 #ifdef _MSC_VER
-#pragma warning push
+#pragma warning(push)
 #pragma warning( disable : 4146 )
 #endif
 
@@ -795,7 +795,7 @@ parse_double(const char* str, size_t length){
 #endif
 
 #ifdef _MSC_VER
-#pragma warning pop
+#pragma warning(pop)
 #endif
 
 #endif
