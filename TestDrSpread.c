@@ -1872,6 +1872,6 @@ TestFunction(TestUserFunctions){
 #pragma clang assume_nonnull end
 #endif
 
-#ifndef DRSPREAD_TEST_DYLINK
+#ifndef DRSP_TEST_DYLINK
 #include "drspread.c"
 #endif

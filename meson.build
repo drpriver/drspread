@@ -49,7 +49,7 @@ test_drspread_dy = executable(
   'test-drspread-dy-link',
   'TestDrSpread.c',
   link_with: drspread_test_lib,
-  c_args: ignore_bogus_deprecations+arches+['-DDRSPREAD_TEST_DYLINK=1'],
+  c_args: ignore_bogus_deprecations+arches+['-DDRSP_TEST_DYLINK=1'],
   dependencies:[m_dep]
 )
 test('test-drspread-dy', test_drspread_dy)
