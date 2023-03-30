@@ -846,7 +846,7 @@ static uint64_t _testing_rng_inc;
 static uint64_t _testing_rng_state;
 
 #ifdef _MSC_VER
-#pragma warning push
+#pragma warning(push)
 #pragma warning( disable : 4146 )
 #endif
 
@@ -860,7 +860,7 @@ uint32_t testing_rng_random(void){
 }
 
 #ifdef _MSC_VER
-#pragma warning pop
+#pragma warning(pop)
 #endif
 
 static inline
