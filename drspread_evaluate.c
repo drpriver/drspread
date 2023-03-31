@@ -22,7 +22,7 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         #ifdef __wasm__
             uintptr_t limit = 10000;
             if(frm < limit) return NULL;
-        #else
+        #elif !defined(__IMPORTC__)
             uintptr_t limit = ctx->limit;
             if(frm < limit) return NULL;
         #endif
