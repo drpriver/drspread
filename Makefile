@@ -68,8 +68,9 @@ Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WWFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O3 -g -std=gnu2x
 test.html: testspread_glue.js Bin/TestDrSpread.wasm
 
+FUZZCC=clang
 Bin/drspread_fuzz$(EXE): drspread_fuzz.c | Bin Depends
-	$(CC) $< -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -fsanitize=fuzzer,address,undefined -o $@ -std=gnu2x $(LM)
+	$(FUZZCC) $< -O1 -g $(DEPFLAGS) Depends/drspread_fuzz.dep -fsanitize=fuzzer,address,undefined -o $@ -std=gnu2x $(LM)
 .PHONY: fuzz
 fuzz: Bin/drspread_fuzz$(EXE) | FuzzDir
 	$< FuzzDir -fork=6 -only_ascii=1 -max_len=8000
