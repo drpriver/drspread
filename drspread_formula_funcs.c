@@ -1805,9 +1805,9 @@ FORMULAFUNC(drsp_if){
         Expression* t = NULL;
         Expression* f = NULL;
         // col or based on type
-        intptr_t tcol_or_row = IDX_UNSET, tstart, tend;
+        intptr_t tcol_or_row = IDX_UNSET, tstart = IDX_UNSET, tend = IDX_UNSET;
         SheetData* tsd = sd;
-        intptr_t fcol_or_row = IDX_UNSET, fstart, fend;
+        intptr_t fcol_or_row = IDX_UNSET, fstart = IDX_UNSET, fend = IDX_UNSET;
         SheetData* fsd = sd;
         for(intptr_t i = 0; i < cc->length; i++){
             Expression* e = cc->data[i];

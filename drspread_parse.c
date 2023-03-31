@@ -778,7 +778,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         if(row_idx == IDX_UNSET) row_idx = 0;
     }
     {
-        StringView colname2;
+        StringView colname2 = {0};
         {
             const char* begin = sv->text;
             const char* end = begin;

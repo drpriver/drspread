@@ -41,6 +41,7 @@ static TestFunc TestFuncsRowArray;
 static TestFunc TestMod;
 static TestFunc TestBugs;
 static TestFunc TestBugs2;
+static TestFunc TestBugs3;
 static TestFunc TestDirectlyRecursiveShouldError;
 static TestFunc TestIndirectlyRecursiveShouldError;
 static TestFunc TestMultisheet;
@@ -67,6 +68,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestMod);
         RegisterTest(TestBugs);
         RegisterTest(TestBugs2);
+        RegisterTest(TestBugs3);
         RegisterTest(TestDirectlyRecursiveShouldError);
         RegisterTest(TestIndirectlyRecursiveShouldError);
         RegisterTest(TestMultisheet);
@@ -1355,6 +1357,51 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
 
 #undef __func__
     return TEST_stats;
+}
+TestFunction(TestBugs3){
+    TESTBEGIN();
+    const char* input =
+        "a\n"
+        "b\n"
+        "=n=n00:n\n"
+    ;
+    MultiSpreadSheet ms = {0};
+    {
+        int err = read_multi_csv_from_string(&ms, input);
+        TestAssertFalse(err);
+        TestAssertEquals(ms.n, 1);
+        TestAssertEquals(ms.sheets[0].rows, 1);
+        TestAssertEquals(ms.sheets[0].cells[0].n, 1);
+    }
+    SheetOps ops = multisheet_ops(&ms);
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    for(int i = 0; i < ms.n; i++){
+        SpreadSheet* sheet = &ms.sheets[i];
+        int e = drsp_set_sheet_name(ctx, (SheetHandle)sheet, sheet->name.text, sheet->name.length);
+        TestAssertFalse(e);
+        for(int i = 0; i < sheet->colnames.n; i++){
+            int e = drsp_set_col_name(ctx, (SheetHandle)sheet, i, sheet->colnames.data[i], sheet->colnames.lengths[i]);
+            TestAssertFalse(e);
+        }
+        SheetHandle sheethandle = (SheetHandle)sheet;
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++){
+                e = drsp_set_cell_str(ctx, sheethandle, r, c, row->data[c], row->lengths[c]);
+                if(!row->lengths[c]) continue;
+                if(e){ // don't bloat the stats
+                    TestAssertFalse(e);
+                }
+            }
+        }
+    }
+    int err = drsp_evaluate_formulas(ctx);
+    TestAssertFalse(err);
+    const SheetRow* disp = &ms.sheets[0].display[0];
+    TestAssertEquals(disp->n, 1);
+    StringView s = {disp->lengths[0], disp->data[0]};
+    TestExpectEquals2(sv_equals, s, SV("[[array]]"));
+    TESTEND();
 }
 TestFunction(TestColFunc){
     const char* name1 = "root";

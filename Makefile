@@ -33,13 +33,13 @@ endif
 
 ifneq (,$(findstring clang,$(CC)))
 SANITIZE=-fsanitize=address,undefined,nullability
-WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
+WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal -Wuninitialized -Wconditional-uninitialized
 endif
 WWFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
 
 
 Bin/drspread$(EXE): drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3  -std=gnu2x $(LM)
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3  -std=gnu2x $(LM) $(SANITIZE)
 Bin/drspread_bench$(EXE): drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1 -std=gnu2x $(LM)
 Bin/drspread.o: drspread.c Makefile | Bin Depends
@@ -60,8 +60,22 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 %.js: %.ts
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
-Bin/TestDrSpread$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM)
+Bin/TestDrSpread_O0$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0
+Bin/TestDrSpread_O1$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O1
+Bin/TestDrSpread_O2$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O2
+Bin/TestDrSpread_O3$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O3
+Bin/TestDrSpread_O0_san$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O0
+Bin/TestDrSpread_O1_san$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O1
+Bin/TestDrSpread_O2_san$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O2
+Bin/TestDrSpread_O3_san$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O3
 
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
@@ -75,11 +89,21 @@ Bin/drspread_fuzz$(EXE): drspread_fuzz.c | Bin Depends
 fuzz: Bin/drspread_fuzz$(EXE) | FuzzDir
 	$< FuzzDir -fork=6 -only_ascii=1 -max_len=8000
 
-TestResults/TestDrSpread: Bin/TestDrSpread$(EXE) | TestResults
+TestResults/TestDrSpread%: Bin/TestDrSpread%$(EXE) | TestResults
 	$< --tee $@
+tests: \
+    TestResults/TestDrSpread_O0 \
+    TestResults/TestDrSpread_O1 \
+    TestResults/TestDrSpread_O2 \
+    TestResults/TestDrSpread_O3 \
+    TestResults/TestDrSpread_O0_san \
+    TestResults/TestDrSpread_O1_san \
+    TestResults/TestDrSpread_O2_san \
+    TestResults/TestDrSpread_O3_san
+.PHONY: tests
 .PHONY: all
-ALL=TestResults/TestDrSpread \
-    Bin/TestDrSpread$(EXE) \
+ALL= \
+    tests \
     Bin/drspread$(EXE) \
     Bin/drspread.wasm \
     Bin/drspread_bench$(EXE) \
