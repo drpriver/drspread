@@ -284,6 +284,7 @@ int
 read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
     char* txt = strdup(srctxt);
     sheet->txt = txt;
+    sheet->name = SV("");
     char* line;
     int max_cols = 0;
     for(;(line=strsep(&txt, "\n"));){
