@@ -745,6 +745,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         const char* end = begin;
         for(;sv->length; end++, sv->length--, sv->text++){
             switch(sv->text[0]){
+                case '$':
                 case CASE_0_9:
                     continue;
                 default:
@@ -753,9 +754,14 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
             break;
         }
         if(begin != end){
-            Int32Result ir = parse_int32(begin, end-begin);
-            if(ir.errored) return Error(ctx, "");
-            row_idx = ir.result - 1;
+            if(end == begin + 1 && *begin == '$'){
+                row_idx = IDX_DOLLAR;
+            }
+            else {
+                Int32Result ir = parse_int32(begin, end-begin);
+                if(ir.errored) return Error(ctx, "");
+                row_idx = ir.result - 1;
+            }
         }
         lstrip(sv);
         if(!sv->length || sv->text[0] != ':'){
@@ -787,6 +793,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
                     case CASE_a_z:
                     case CASE_A_Z:
                         continue;
+                    case '$':
                     case CASE_0_9:
                         // if(end == begin) return Error(ctx, "");
                         colname2 = (StringView){end-begin, begin};
@@ -803,6 +810,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         const char* end = begin;
         for(;sv->length; end++, sv->length--, sv->text++){
             switch(sv->text[0]){
+                case '$':
                 case CASE_0_9:
                     continue;
                 default:
@@ -814,9 +822,14 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         // 2nd number is optional
         intptr_t row_idx2 = -1;
         if(begin != end){
-            Int32Result ir = parse_int32(begin, end-begin);
-            if(ir.errored) return Error(ctx, "");
-            row_idx2 = ir.result-1;
+            if(end == begin + 1 && *begin == '$'){
+                row_idx2 = IDX_DOLLAR;
+            }
+            else {
+                Int32Result ir = parse_int32(begin, end-begin);
+                if(ir.errored) return Error(ctx, "");
+                row_idx2 = ir.result-1;
+            }
         }
         if(!colname2.length || sv_equals(colname, colname2)){
             Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
@@ -849,6 +862,7 @@ PARSEFUNC(parse_func_call){
             case CASE_a_z:
             case CASE_A_Z:
                 continue;
+            case '$':
             case CASE_0_9:{
                 if(begin == end) return Error(ctx, "");
                 return parse_other_range_syntax(ctx, sv, begin, end-begin);

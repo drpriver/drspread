@@ -1664,48 +1664,74 @@ repr_expr(PrintBuff* buff, Expression* arg){
         case EXPR_RANGE0D:{
             print(buff, "R0(");
             Range0D* rng = (Range0D*)arg;
-            print(buff, "[%.*s, %zd]", (int)rng->col_name.length, rng->col_name.text, rng->row);
+            if(rng->row == IDX_DOLLAR)
+                print(buff, "[%.*s, $]", (int)rng->col_name.length, rng->col_name.text);
+            else
+                print(buff, "[%.*s, %zd]", (int)rng->col_name.length, rng->col_name.text, rng->row);
             print(buff, ")");
         }break;
         case EXPR_RANGE0D_FOREIGN:{
             print(buff, "R0F(");
             ForeignRange0D* rng = (ForeignRange0D*)arg;
-            print(buff, "[%.*s, %.*s, %zd]", 
-                    (int)rng->sheet_name.length, rng->sheet_name.text, 
-                    (int)rng->r.col_name.length, rng->r.col_name.text, 
+            print(buff, "[%.*s, %.*s, %zd]",
+                    (int)rng->sheet_name.length, rng->sheet_name.text,
+                    (int)rng->r.col_name.length, rng->r.col_name.text,
                     rng->r.row);
             print(buff, ")");
         }break;
         case EXPR_RANGE1D_COLUMN:{
             print(buff, "R1C(");
             Range1DColumn* rng = (Range1DColumn*)arg;
-            print(buff, "[%.*s, %zd:%zd]", 
-                    (int)rng->col_name.length, rng->col_name.text, 
-                    rng->row_start, rng->row_end);
+            if(rng->row_start == IDX_DOLLAR && rng->row_end == IDX_DOLLAR){
+                print(buff, "[%.*s, $:$]",
+                        (int)rng->col_name.length, rng->col_name.text);
+            }
+            else if(rng->row_start == IDX_DOLLAR){
+                print(buff, "[%.*s, $:%zd]",
+                        (int)rng->col_name.length, rng->col_name.text,
+                         rng->row_end);
+            }
+            else if(rng->row_end == IDX_DOLLAR){
+                print(buff, "[%.*s, %zd:$]",
+                        (int)rng->col_name.length, rng->col_name.text,
+                        rng->row_start);
+            }
+            else {
+                print(buff, "[%.*s, %zd:%zd]",
+                        (int)rng->col_name.length, rng->col_name.text,
+                        rng->row_start, rng->row_end);
+            }
             print(buff, ")");
         }break;
         case EXPR_RANGE1D_COLUMN_FOREIGN:{
             print(buff, "R1CF(");
             ForeignRange1DColumn* rng = (ForeignRange1DColumn*)arg;
-            print(buff, "[%.*s, %.*s, %zd:%zd]", 
-                    (int)rng->sheet_name.length, rng->sheet_name.text, 
-                    (int)rng->r.col_name.length, rng->r.col_name.text, 
+            print(buff, "[%.*s, %.*s, %zd:%zd]",
+                    (int)rng->sheet_name.length, rng->sheet_name.text,
+                    (int)rng->r.col_name.length, rng->r.col_name.text,
                     rng->r.row_start, rng->r.row_end);
             print(buff, ")");
         }break;
         case EXPR_RANGE1D_ROW:{
             print(buff, "R1R(");
             Range1DRow* rng = (Range1DRow*)arg;
-            print(buff, "[%.*s:%.*s, %zd]", 
-                    (int)rng->col_start.length, rng->col_start.text,
-                    (int)rng->col_end.length, rng->col_end.text,
-                    rng->row_idx);
+            if(rng->row_idx == IDX_DOLLAR){
+                print(buff, "[%.*s:%.*s, $]",
+                        (int)rng->col_start.length, rng->col_start.text,
+                        (int)rng->col_end.length, rng->col_end.text);
+            }
+            else {
+                print(buff, "[%.*s:%.*s, %zd]",
+                        (int)rng->col_start.length, rng->col_start.text,
+                        (int)rng->col_end.length, rng->col_end.text,
+                        rng->row_idx);
+            }
             print(buff, ")");
         }break;
         case EXPR_RANGE1D_ROW_FOREIGN:{
             print(buff, "R1RF(");
             ForeignRange1DRow* rng = (ForeignRange1DRow*)arg;
-            print(buff, "[%.*s, %.*s:%.*s, %zd]", 
+            print(buff, "[%.*s, %.*s:%.*s, %zd]",
                     (int)rng->sheet_name.length, rng->sheet_name.text,
                     (int)rng->r.col_start.length, rng->r.col_start.text,
                     (int)rng->r.col_end.length, rng->r.col_end.text,

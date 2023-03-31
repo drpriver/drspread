@@ -213,9 +213,13 @@ TestFunction(TestParsing){
     const char* input =
         // Supporting syntax like other spreadsheets.
         "=r(a1)\n"
+        "=r(a$)\n"
         "=r(a1:b1)\n"
         "=r(a1:a3)\n"
         "=r(a1:a1)\n"
+        "=r(a$:a1)\n"
+        "=r(a1:a$)\n"
+        "=r(a$:b$)\n"
 
         "=r(a:a5)\n"
         "=r(a:5)\n"
@@ -324,9 +328,13 @@ TestFunction(TestParsing){
     //       of the user-facing 1-based offsets.
     SheetRow expected[] = {
         ROW("R0([a, 0])"),
+        ROW("R0([a, $])"),
         ROW("R1R([a:b, 0])"),
         ROW("R1C([a, 0:2])"),
         ROW("R1C([a, 0:0])"),
+        ROW("R1C([a, $:0])"),
+        ROW("R1C([a, 0:$])"),
+        ROW("R1R([a:b, $])"),
 
         ROW("R1C([a, 0:4])"),
         ROW("R1C([a, 0:4])"),
@@ -345,7 +353,7 @@ TestFunction(TestParsing){
         ROW("R0([a, 0])"),
         ROW("R0([a, 0])"),
         ROW("R0([a, 0])"),
-        ROW("R0([a, -2147483647])"),
+        ROW("R0([a, $])"),
         ROW("R0([$, 2])"),
         ROW("R0([$, 2])"),
 
