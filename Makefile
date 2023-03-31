@@ -61,21 +61,21 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
 Bin/TestDrSpread_O0$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0
 Bin/TestDrSpread_O1$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O1
 Bin/TestDrSpread_O2$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O2
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O2.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O2
 Bin/TestDrSpread_O3$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O3
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O3
 Bin/TestDrSpread_O0_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O0
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O0
 Bin/TestDrSpread_O1_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O1
 Bin/TestDrSpread_O2_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O2
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O2_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O2
 Bin/TestDrSpread_O3_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O3
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O3
 
 # codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
@@ -100,6 +100,8 @@ tests: \
     TestResults/TestDrSpread_O1_san \
     TestResults/TestDrSpread_O2_san \
     TestResults/TestDrSpread_O3_san
+.PHONY: test
+test: TestResults/TestDrSpread_O0
 .PHONY: tests
 .PHONY: all
 ALL= \
