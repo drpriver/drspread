@@ -133,23 +133,22 @@ sv_set(Value* v, StringView sv){
 typedef DrSpreadCtx DrSpreadCtx;
 
 TYPED_ENUM(ExpressionKind, uintptr_t){
-    EXPR_ERROR = 0,
-    EXPR_STRING,
-    EXPR_NULL,
-    EXPR_NUMBER,
-    EXPR_FUNCTION_CALL,
-    EXPR_RANGE0D,
-    EXPR_RANGE0D_FOREIGN,
-    EXPR_RANGE1D_COLUMN,
-    EXPR_RANGE1D_COLUMN_FOREIGN,
-    EXPR_RANGE1D_ROW,
-    EXPR_RANGE1D_ROW_FOREIGN,
-    EXPR_GROUP,
-    EXPR_BINARY,
-    EXPR_UNARY,
-    EXPR_COMPUTED_ARRAY,
-    EXPR_USER_DEFINED_FUNC_CALL,
-    // EXPR_TYPED_COLUMN,
+    EXPR_ERROR                  =  0,
+    EXPR_STRING                 =  1,
+    EXPR_BLANK                  =  2,
+    EXPR_NUMBER                 =  3,
+    EXPR_FUNCTION_CALL          =  4,
+    EXPR_RANGE0D                =  5,
+    EXPR_RANGE0D_FOREIGN        =  6,
+    EXPR_RANGE1D_COLUMN         =  7,
+    EXPR_RANGE1D_COLUMN_FOREIGN =  8,
+    EXPR_RANGE1D_ROW            =  9,
+    EXPR_RANGE1D_ROW_FOREIGN    = 10,
+    EXPR_GROUP                  = 11,
+    EXPR_BINARY                 = 12,
+    EXPR_UNARY                  = 13,
+    EXPR_COMPUTED_ARRAY         = 14,
+    EXPR_USER_DEFINED_FUNC_CALL = 15,
 };
 
 typedef struct Expression Expression;
@@ -430,7 +429,7 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
             out->string = str;
             return 0;
         }break;
-        case EXPR_NULL:
+        case EXPR_BLANK:
             out->kind = CACHED_RESULT_NULL;
             return 0;
         case EXPR_RANGE1D_ROW:
@@ -464,7 +463,7 @@ Expression*_Nullable
 cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
     switch(cr->kind){
         case CACHED_RESULT_NULL:
-            return expr_alloc(ctx, EXPR_NULL);
+            return expr_alloc(ctx, EXPR_BLANK);
         case CACHED_RESULT_NUMBER:{
             Number* n = expr_alloc(ctx, EXPR_NUMBER);
             if(!n) return NULL;
@@ -591,7 +590,7 @@ expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
         case EXPR_BINARY:                 sz = sizeof(Binary); break;
         case EXPR_UNARY:                  sz = sizeof(Unary); break;
         case EXPR_STRING:                 sz = sizeof(String); break;
-        case EXPR_NULL:
+        case EXPR_BLANK:
             return &ctx->null;
             break;
         case EXPR_COMPUTED_ARRAY:
@@ -684,7 +683,7 @@ expr_size(ExpressionKind kind){
         case EXPR_BINARY:                 sz = sizeof(Binary); break;
         case EXPR_UNARY:                  sz = sizeof(Unary); break;
         case EXPR_STRING:                 sz = sizeof(String); break;
-        case EXPR_NULL:                   sz = sizeof(Expression); break;
+        case EXPR_BLANK:                  sz = sizeof(Expression); break;
         case EXPR_COMPUTED_ARRAY: __builtin_trap();
         case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();

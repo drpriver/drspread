@@ -123,7 +123,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                     case EXPR_STRING:
                         sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
                         continue;
-                    case EXPR_NULL:
+                    case EXPR_BLANK:
                         sp_set_display_string(ctx, sd->handle, row, col, "", 0);
                         continue;
                     default: break;
@@ -154,7 +154,7 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
         goto finish;
     }
     switch(e->kind){
-        case EXPR_NULL:
+        case EXPR_BLANK:
             outval->kind = DRSP_RESULT_NULL;
             break;
         case EXPR_NUMBER:
@@ -214,7 +214,7 @@ drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const S
         goto finish;
     }
     switch(e->kind){
-        case EXPR_NULL:
+        case EXPR_BLANK:
             outval->kind = DRSP_RESULT_NULL;
             break;
         case EXPR_NUMBER:

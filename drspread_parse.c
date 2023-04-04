@@ -289,7 +289,7 @@ PARSEFUNC(parse_string){
         result = &s->e;
     }
     else {
-        result = expr_alloc(ctx, EXPR_NULL);
+        result = expr_alloc(ctx, EXPR_BLANK);
     }
     sv->length--, sv->text++;
     return result;

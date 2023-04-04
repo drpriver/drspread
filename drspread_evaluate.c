@@ -36,9 +36,9 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     }
     size_t len = 0;
     if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
-        return expr_alloc(ctx, EXPR_NULL);
+        return expr_alloc(ctx, EXPR_BLANK);
     const char* txt = sp_cell_text(sd, row, col, &len);
-    if(!txt) return expr_alloc(ctx, EXPR_NULL);
+    if(!txt) return expr_alloc(ctx, EXPR_BLANK);
     StringView sv = stripped2(txt, len);
     // These `goto`s are a bit unorthodox, but it is basically a switch,
     // with the ability of cell_number to jump to cell_other
@@ -50,7 +50,7 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     goto cell_other;
     {
         cell_empty:;
-        Expression* e = expr_alloc(ctx, EXPR_NULL);
+        Expression* e = expr_alloc(ctx, EXPR_BLANK);
         return e;
     }
     {
@@ -158,7 +158,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     StringView r = ((String*)rhs)->sv;
                     for(intptr_t i = 0; i < l->length; i++){
                         Expression* e = l->data[i];
-                        if(e->kind == EXPR_NULL) continue;
+                        if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_STRING)
                             BAD(Error(ctx, ""));
                         _Bool cmp;
@@ -184,7 +184,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     double r = ((Number*)rhs)->value;
                     for(intptr_t i = 0; i < l->length; i++){
                         Expression* e = l->data[i];
-                        if(e->kind == EXPR_NULL) continue;
+                        if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_NUMBER)
                             BAD(Error(ctx, ""));
                         Number* n = (Number*)e;
@@ -204,7 +204,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     StringView l = ((String*)lhs)->sv;
                     for(intptr_t i = 0; i < r->length; i++){
                         Expression* e = r->data[i];
-                        if(e->kind == EXPR_NULL) continue;
+                        if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_STRING)
                             BAD(Error(ctx, ""));
                         _Bool cmp;
@@ -230,7 +230,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     double l = ((Number*)lhs)->value;
                     for(intptr_t i = 0; i < r->length; i++){
                         Expression* e = r->data[i];
-                        if(e->kind == EXPR_NULL) continue;
+                        if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_NUMBER)
                             BAD(Error(ctx, ""));
                         Number* n = (Number*)e;
@@ -302,7 +302,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                 for(intptr_t row = rstart, i = 0; row <= rend; row++, i++){
                     BuffCheckpoint bc = buff_checkpoint(ctx->a);
                     Expression* ld = l->data[i];
-                    if(ld->kind == EXPR_NULL)
+                    if(ld->kind == EXPR_BLANK)
                         continue;
                     Expression* e = evaluate(ctx, rsd, row, col);
                     if(!e || e->kind == EXPR_ERROR) BAD(e);
@@ -338,11 +338,11 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
             }
         }
         else {
-            if(lhs->kind == EXPR_NULL){
+            if(lhs->kind == EXPR_BLANK){
                 result = lhs;
                 goto cleanup;
             }
-            if(rhs->kind == EXPR_NULL){
+            if(rhs->kind == EXPR_BLANK){
                 result = rhs;
                 goto cleanup;
             }
@@ -393,7 +393,7 @@ DRSP_INTERNAL
 Expression*_Nullable
 evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller_row, intptr_t caller_col){
     switch(expr->kind){
-        case EXPR_NULL:
+        case EXPR_BLANK:
         case EXPR_ERROR:
         case EXPR_NUMBER:
         case EXPR_RANGE1D_COLUMN:

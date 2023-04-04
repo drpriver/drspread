@@ -104,7 +104,7 @@ evaled_is_not_scalar(Expression*_Nullable e){
         case EXPR_ERROR:
             return 1;
         case EXPR_STRING:
-        case EXPR_NULL:
+        case EXPR_BLANK:
         case EXPR_NUMBER:
             return 0;
         default:
@@ -116,7 +116,7 @@ _Bool
 expr_is_scalar(Expression* e){
     switch(e->kind){
         case EXPR_STRING:
-        case EXPR_NULL:
+        case EXPR_BLANK:
         case EXPR_NUMBER:
             return 1;
         default:
@@ -128,7 +128,7 @@ static inline
 _Bool
 scalar_expr_is_truthy(Expression* e){
     switch(e->kind){
-        case EXPR_NULL:
+        case EXPR_BLANK:
             return 0;
         case EXPR_NUMBER:
             return !!((Number*)e)->value;

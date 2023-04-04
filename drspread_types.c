@@ -27,7 +27,7 @@ drsp_create_ctx(ARGS){
     BuffAllocator a = {ctx->buff, ctx->buff, ctx->buff+N};
     __builtin_memcpy((void*)&ctx->_a, &a, sizeof a);
     ctx->a = &ctx->_a;
-    ctx->null.kind = EXPR_NULL;
+    ctx->null.kind = EXPR_BLANK;
     ctx->error.kind = EXPR_ERROR;
     return ctx;
 }

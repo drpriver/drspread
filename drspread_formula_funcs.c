@@ -421,7 +421,7 @@ FORMULAFUNC(drsp_mod){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -455,7 +455,7 @@ FORMULAFUNC(drsp_floor){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -487,7 +487,7 @@ FORMULAFUNC(drsp_ceil){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -519,7 +519,7 @@ FORMULAFUNC(drsp_trunc){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -551,7 +551,7 @@ FORMULAFUNC(drsp_round){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -583,7 +583,7 @@ FORMULAFUNC(drsp_abs){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -615,7 +615,7 @@ FORMULAFUNC(drsp_sqrt){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL)
+            if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
                 return Error(ctx, "");
@@ -737,8 +737,8 @@ FORMULAFUNC(drsp_col){
     {
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind != EXPR_STRING && arg->kind != EXPR_NULL) return Error(ctx, "");
-        if(arg->kind == EXPR_NULL)
+        if(arg->kind != EXPR_STRING && arg->kind != EXPR_BLANK) return Error(ctx, "");
+        if(arg->kind == EXPR_BLANK)
             colname = SV("");
         else
             colname = ((String*)arg)->sv;
@@ -829,7 +829,7 @@ FORMULAFUNC(drsp_row){
         // first arg is first colname
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind == EXPR_NULL)
+        if(arg->kind == EXPR_BLANK)
             startcol = SV("");
         else{
             if(arg->kind != EXPR_STRING) return Error(ctx, "");
@@ -842,7 +842,7 @@ FORMULAFUNC(drsp_row){
         // second arg is second colname
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind == EXPR_NULL)
+        if(arg->kind == EXPR_BLANK)
             endcol = SV("");
         else {
             if(arg->kind != EXPR_STRING) return Error(ctx, "");
@@ -892,7 +892,7 @@ FORMULAFUNC(drsp_eval){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
-            if(e->kind == EXPR_NULL) continue;
+            if(e->kind == EXPR_BLANK) continue;
             if(e->kind != EXPR_STRING) return Error(ctx, "");
             StringView sv = ((String*)e)->sv;
             Expression* ev = evaluate_string(ctx, sd, sv.text, sv.length, caller_row, caller_col);
@@ -924,7 +924,7 @@ FORMULAFUNC(drsp_pow){
             double exp = ((Number*)arg2)->value;
             for(intptr_t i = 0; i < c->length; i++){
                 Expression* e = c->data[i];
-                if(e->kind == EXPR_NULL) continue;
+                if(e->kind == EXPR_BLANK) continue;
                 if(e->kind != EXPR_NUMBER)
                     return Error(ctx, "");
                 Number* n = (Number*)e;
@@ -933,7 +933,7 @@ FORMULAFUNC(drsp_pow){
         }
         else if(expr_is_arraylike(arg2)){
             arg2 = convert_to_computed_array(ctx, sd, arg2, caller_row, caller_col);
-            if(!arg2 || arg2->kind == EXPR_NULL)
+            if(!arg2 || arg2->kind == EXPR_BLANK)
                 return arg2;
             ComputedArray* exps = (ComputedArray*)arg2;
             if(c->length != exps->length)
@@ -941,7 +941,7 @@ FORMULAFUNC(drsp_pow){
             for(intptr_t i = 0; i < c->length; i++){
                 Expression* base = c->data[i];
                 Expression* ex = exps->data[i];
-                if(base->kind == EXPR_NULL)
+                if(base->kind == EXPR_BLANK)
                     continue;
                 if(base->kind != EXPR_NUMBER)
                     return Error(ctx, "");
@@ -996,10 +996,10 @@ FORMULAFUNC(drsp_cat){
             Expression* arg2 = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_ERROR) return arg;
             ComputedArray* c = (ComputedArray*)arg;
-            if(arg2->kind == EXPR_NULL){
+            if(arg2->kind == EXPR_BLANK){
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
-                    if(e->kind == EXPR_NULL || e->kind == EXPR_STRING)
+                    if(e->kind == EXPR_BLANK || e->kind == EXPR_STRING)
                         continue;
                     return Error(ctx, "");
                 }
@@ -1008,7 +1008,7 @@ FORMULAFUNC(drsp_cat){
                 catbuff[1] = ((String*)arg2)->sv;
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
-                    if(e->kind == EXPR_NULL){
+                    if(e->kind == EXPR_BLANK){
                         c->data[i] = arg2;
                         continue;
                     }
@@ -1030,15 +1030,15 @@ FORMULAFUNC(drsp_cat){
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* l = c->data[i];
                     Expression* r = rights->data[i];
-                    if(l->kind != EXPR_NULL && l->kind != EXPR_STRING)
+                    if(l->kind != EXPR_BLANK && l->kind != EXPR_STRING)
                         return Error(ctx, "");
-                    if(r->kind != EXPR_NULL && r->kind != EXPR_STRING)
+                    if(r->kind != EXPR_BLANK && r->kind != EXPR_STRING)
                         return Error(ctx, "");
-                    if(l->kind == EXPR_NULL){
+                    if(l->kind == EXPR_BLANK){
                         c->data[i] = r;
                         continue;
                     }
-                    if(r->kind == EXPR_NULL)
+                    if(r->kind == EXPR_BLANK)
                         continue;
                     assert(l->kind == EXPR_STRING);
                     assert(r->kind == EXPR_STRING);
@@ -1056,7 +1056,7 @@ FORMULAFUNC(drsp_cat){
             return arg;
         }
         else {
-            if(arg->kind != EXPR_STRING && arg->kind != EXPR_NULL) {
+            if(arg->kind != EXPR_STRING && arg->kind != EXPR_BLANK) {
                 buff_set(ctx->a, bc);
                 return Error(ctx, "");
             }
@@ -1069,14 +1069,14 @@ FORMULAFUNC(drsp_cat){
                 arg2 = convert_to_computed_array(ctx, sd, arg2, caller_row, caller_col);
                 if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
                 ComputedArray* c = (ComputedArray*)arg2;
-                if(arg->kind != EXPR_NULL)
+                if(arg->kind != EXPR_BLANK)
                     catbuff[0] = ((String*)arg)->sv;
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
-                    if(e->kind == EXPR_NULL) continue;
+                    if(e->kind == EXPR_BLANK) continue;
                     if(e->kind != EXPR_STRING)
                         return Error(ctx, "");
-                    if(arg->kind == EXPR_NULL) continue;
+                    if(arg->kind == EXPR_BLANK) continue;
                     String* s = (String*)e;
                     catbuff[1] = s->sv;
                     int err = sv_cat(ctx, 2, catbuff, &s->sv);
@@ -1085,8 +1085,8 @@ FORMULAFUNC(drsp_cat){
                 return arg2;
             }
             else {
-                if(arg2->kind == EXPR_NULL){
-                    if(arg->kind == EXPR_NULL){
+                if(arg2->kind == EXPR_BLANK){
+                    if(arg->kind == EXPR_BLANK){
                         buff_set(ctx->a, bc);
                         return arg;
                     }
@@ -1101,7 +1101,7 @@ FORMULAFUNC(drsp_cat){
                     buff_set(ctx->a, bc);
                     return Error(ctx, "");
                 }
-                if(arg->kind == EXPR_NULL){
+                if(arg->kind == EXPR_BLANK){
                     StringView v = ((String*)arg2)->sv;
                     buff_set(ctx->a, bc);
                     String* s = expr_alloc(ctx, EXPR_STRING);
@@ -1143,7 +1143,7 @@ FORMULAFUNC(drsp_cat){
                     column_length = c->length;
                 }
             }
-            else if(argv[i]->kind != EXPR_STRING && argv[i]->kind != EXPR_NULL){
+            else if(argv[i]->kind != EXPR_STRING && argv[i]->kind != EXPR_BLANK){
                 buff_set(ctx->a, bc);
                 return Error(ctx, "");
             }
@@ -1159,7 +1159,7 @@ FORMULAFUNC(drsp_cat){
                     if(e->kind == EXPR_STRING){
                         catbuff[i] = ((String*)e)->sv;
                     }
-                    else if(e->kind == EXPR_NULL){
+                    else if(e->kind == EXPR_BLANK){
                         catbuff[i] = SV("");
                     }
                     else {
@@ -1172,7 +1172,7 @@ FORMULAFUNC(drsp_cat){
                             if(item->kind == EXPR_STRING){
                                 catbuff[i] = ((String*)item)->sv;
                             }
-                            else if(item->kind == EXPR_NULL){
+                            else if(item->kind == EXPR_BLANK){
                                 catbuff[i] = SV("");
                             }
                             else {
@@ -1196,7 +1196,7 @@ FORMULAFUNC(drsp_cat){
         else {
             for(int i = 0; i < argc; i++){
                 Expression* e = argv[i];
-                if(e->kind == EXPR_NULL){
+                if(e->kind == EXPR_BLANK){
                     catbuff[i] = SV("");
                 }
                 else {
@@ -1245,7 +1245,7 @@ arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intp
     for(intptr_t i = 0; i < cneedle->length; i++){
         Expression* n = cneedle->data[i];
         ExpressionKind nkind = n->kind;
-        if(nkind == EXPR_NULL)
+        if(nkind == EXPR_BLANK)
             continue;
         if(nkind != EXPR_NUMBER && nkind != EXPR_STRING)
             return Error(ctx, "");
@@ -1303,7 +1303,7 @@ FORMULAFUNC(drsp_tablelookup){
         if(expr_is_arraylike(needle))
             return arraylike_tablelookup(ctx, sd, caller_row, caller_col, needle, argc-1, argv+1);
         nkind = needle->kind;
-        if(nkind == EXPR_NULL){
+        if(nkind == EXPR_BLANK){
             if(argc == 4){
                 return evaluate_expr(ctx, sd, argv[3], caller_row, caller_col);
             }
@@ -1456,7 +1456,7 @@ FORMULAFUNC(drsp_find){
         Expression* needle = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!needle || needle->kind == EXPR_ERROR) return needle;
         nkind = needle->kind;
-        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING && nkind != EXPR_NULL) return Error(ctx, "");
+        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING && nkind != EXPR_BLANK) return Error(ctx, "");
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
         else if(nkind == EXPR_STRING)
@@ -1472,7 +1472,7 @@ FORMULAFUNC(drsp_find){
             for(intptr_t i = 0; i < cc->length; i++){
                 Expression* e = cc->data[i];
                 if(e->kind != nkind) continue;
-                if(nkind == EXPR_NULL){
+                if(nkind == EXPR_BLANK){
                     offset = i;
                     break;
                 }
@@ -1501,7 +1501,7 @@ FORMULAFUNC(drsp_find){
                 Expression* e = evaluate(ctx, rsd, row, col);
                 if(!e) return e;
                 if(e->kind != nkind) continue;
-                if(nkind == EXPR_NULL){
+                if(nkind == EXPR_BLANK){
                     offset = row - start;
                     break;
                 }
@@ -1530,7 +1530,7 @@ FORMULAFUNC(drsp_find){
                 Expression* e = evaluate(ctx, rsd, row, col);
                 if(!e) return e;
                 if(e->kind != nkind) continue;
-                if(nkind == EXPR_NULL){
+                if(nkind == EXPR_BLANK){
                     offset = col - start;
                     break;
                 }
@@ -1630,7 +1630,7 @@ repr_expr(PrintBuff* buff, Expression* arg){
             String* s = (String*)arg;
             print(buff, "String('%.*s')", (int)s->sv.length, s->sv.text);
         }break;
-        case EXPR_NULL:
+        case EXPR_BLANK:
             print(buff, "Null()\n");
             break;
         case EXPR_NUMBER:{
@@ -1941,7 +1941,7 @@ FORMULAFUNC(drsp_if){
         case EXPR_STRING:
             truthy = !!((String*)cond)->sv.length;
             break;
-        case EXPR_NULL:
+        case EXPR_BLANK:
             truthy = 0;
             break;
         default:
