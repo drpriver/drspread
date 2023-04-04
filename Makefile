@@ -90,6 +90,8 @@ fuzz: Bin/drspread_fuzz$(EXE) | FuzzDir
 	$< FuzzDir -fork=6 -only_ascii=1 -max_len=8000
 
 TestResults/TestDrSpread%: Bin/TestDrSpread%$(EXE) | TestResults
+	$< --tee $@ -s
+TestResults/TestDrSpread_O0: Bin/TestDrSpread_O0$(EXE) | TestResults
 	$< --tee $@
 tests: \
     TestResults/TestDrSpread_O0 \
