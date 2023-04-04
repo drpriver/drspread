@@ -225,14 +225,12 @@ TestFunction(TestParsing){
         "=r(a:5)\n"
         "=r(a5:a)\n"
         "=r(a5:)\n"
+        "=r(:a5)\n"
 
         "=r(c:c)\n"
         "=r(c:)\n"
         "=r(c)\n"
-        //  This one not supported yet
-        #if 0
         "=r(:c)\n"
-        #endif
 
         // [col, 1] -> 0d
         "=r([a,1])\n"
@@ -340,14 +338,12 @@ TestFunction(TestParsing){
         ROW("R1C([a, 0:4])"),
         ROW("R1C([a, 4:-1])"),
         ROW("R1C([a, 4:-1])"),
+        ROW("R1C([a, 0:4])"),
 
         ROW("R1C([c, 0:-1])"),
         ROW("R1C([c, 0:-1])"),
         ROW("R1C([c, 0:-1])"),
-        // Not supported yet
-        #if 0
         ROW("R1C([c, 0:-1])"),
-        #endif
 
         // [col, 1] -> 0d
         ROW("R0([a, 0])"),

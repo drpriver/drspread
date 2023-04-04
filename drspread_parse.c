@@ -65,6 +65,10 @@ DRSP_INTERNAL PARSEFUNC(parse_range);
 DRSP_INTERNAL PARSEFUNC(parse_string);
 DRSP_INTERNAL PARSEFUNC(parse_func_call);
 
+static inline
+Expression*_Nullable
+parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_t cn_len);
+
 DRSP_INTERNAL
 Expression*_Nullable
 parse(DrSpreadCtx* ctx, const char* txt, size_t length){
@@ -258,6 +262,8 @@ PARSEFUNC(parse_terminal){
         case '\'':
         case '"':
             return parse_string(ctx, sv);
+        case ':':
+            return parse_other_range_syntax(ctx, sv, "", 0);
         default:
             return Error(ctx, "");
     }
@@ -831,6 +837,8 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
                 row_idx2 = ir.result-1;
             }
         }
+        if(!colname.length)
+            colname = colname2;
         if(!colname2.length || sv_equals(colname, colname2)){
             Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
             if(!rng) return NULL;
