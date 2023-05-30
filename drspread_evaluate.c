@@ -28,11 +28,13 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         #endif
     }
     // HACK
-    for(size_t i = 0; i < arrlen(sd->hacky_func_args); i++){
-        const struct HackyFuncArg* hfa = &sd->hacky_func_args[i];
-        if(!hfa->e) break;
-        if(hfa->row == row && hfa->col == col)
-            return hfa->e;
+    if(unlikely(sd->flags & DRSP_SHEET_FLAGS_IS_FUNCTION)){
+        for(size_t i = 0; i < arrlen(sd->hacky_func_args); i++){
+            const struct HackyFuncArg* hfa = &sd->hacky_func_args[i];
+            if(!hfa->e) break;
+            if(hfa->row == row && hfa->col == col)
+                return hfa->e;
+        }
     }
     size_t len = 0;
     if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
