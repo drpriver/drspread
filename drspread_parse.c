@@ -745,6 +745,7 @@ static inline
 Expression*_Nullable
 parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_t cn_len){
     StringView colname = {cn_len, cn};
+    rstrip(&colname);
     intptr_t row_idx = IDX_UNSET;
     {
         const char* begin = sv->text;
@@ -798,6 +799,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
                 switch(sv->text[0]){
                     case CASE_a_z:
                     case CASE_A_Z:
+                    case ' ': // allow spaces in identifiers
                         continue;
                     case '$':
                     case CASE_0_9:
@@ -808,6 +810,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
                         break;
                 }
                 colname2 = (StringView){end-begin, begin};
+                rstrip(&colname2);
                 break;
             }
         }
@@ -869,6 +872,7 @@ PARSEFUNC(parse_func_call){
         switch(sv->text[0]){
             case CASE_a_z:
             case CASE_A_Z:
+            case ' ': // allow spaces in identifiers
                 continue;
             case '$':
             case CASE_0_9:{

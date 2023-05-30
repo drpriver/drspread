@@ -232,6 +232,27 @@ TestFunction(TestParsing){
         "=r(c)\n"
         "=r(:c)\n"
 
+        // allow spaces in identifiers
+        "=r(a b1)\n"
+        "=r(a b$)\n"
+        "=r(a b1:b b1)\n"
+        "=r(a b1:a b3)\n"
+        "=r(a b1:a b1)\n"
+        "=r(a b$:a b1)\n"
+        "=r(a b1:a b$)\n"
+        "=r(a b$:b b$)\n"
+
+        "=r(a b:a b5)\n"
+        "=r(a b:5)\n"
+        "=r(a b5:a b)\n"
+        "=r(a b5:)\n"
+        "=r(:a b5)\n"
+
+        "=r(c b:c b)\n"
+        "=r(c b:)\n"
+        "=r(c b)\n"
+        "=r(:c b)\n"
+
         // [col, 1] -> 0d
         "=r([a,1])\n"
         "=r(['a', 1])\n"
@@ -344,6 +365,27 @@ TestFunction(TestParsing){
         ROW("R1C([c, 0:-1])"),
         ROW("R1C([c, 0:-1])"),
         ROW("R1C([c, 0:-1])"),
+
+        // spaces in identifiers
+        ROW("R0([a b, 0])"),
+        ROW("R0([a b, $])"),
+        ROW("R1R([a b:b b, 0])"),
+        ROW("R1C([a b, 0:2])"),
+        ROW("R1C([a b, 0:0])"),
+        ROW("R1C([a b, $:0])"),
+        ROW("R1C([a b, 0:$])"),
+        ROW("R1R([a b:b b, $])"),
+
+        ROW("R1C([a b, 0:4])"),
+        ROW("R1C([a b, 0:4])"),
+        ROW("R1C([a b, 4:-1])"),
+        ROW("R1C([a b, 4:-1])"),
+        ROW("R1C([a b, 0:4])"),
+
+        ROW("R1C([c b, 0:-1])"),
+        ROW("R1C([c b, 0:-1])"),
+        ROW("R1C([c b, 0:-1])"),
+        ROW("R1C([c b, 0:-1])"),
 
         // [col, 1] -> 0d
         ROW("R0([a, 0])"),
@@ -471,6 +513,7 @@ TestFunction(TestRanges){
 
 TestFunction(TestBadRanges){
     const char* input =
+        // "=a b 1\n"
         // "=[a,]\n"
         "=[,a,]\n"
         "=[:]\n"
@@ -496,6 +539,7 @@ TestFunction(TestBadRanges){
         "=sum([f,3, 1:2])\n"
     ;
     SheetRow expected[] = {
+        // ROW("error"),
         // ROW("error"),
         ROW("error"),
         ROW("error"),
