@@ -11,5 +11,9 @@ TestResults
 *.wasm
 Documentation
 *.csv
+*.tsv
+tsvs
 .vimrc
 Bug
+package-lock.json
+package.json
