@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver
+// Copyright © 2023, David Priver <david@davidpriver.com>
 //
 #ifndef DRSPREAD_EVALUATE_H
 #define DRSPREAD_EVALUATE_H

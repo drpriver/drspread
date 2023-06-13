@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver
+// Copyright © 2023, David Priver <david@davidpriver.com>
 //
 #ifndef BUFF_ALLOCATOR_H
 #define BUFF_ALLOCATOR_H

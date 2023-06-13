@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver
+// Copyright © 2023, David Priver <david@davidpriver.com>
 //
 #define DRSPREAD_DIRECT_OPS 1
 #include "allstd.h"

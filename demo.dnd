@@ -1,5 +1,5 @@
 ::comment
-  Copyright © 2023, David Priver
+  Copyright © 2023, David Priver <david@davidpriver.com>
 ::raw
   <input type=file id=filepicker>
 ::script #import

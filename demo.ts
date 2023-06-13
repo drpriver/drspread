@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver
+// Copyright © 2023, David Priver <david@davidpriver.com>
 //
 let func_cells: Array<Array<string|number>> = [['', ''], ['', ''], ['', '']];
 declare let cells: Array<Array<string|number>>;
