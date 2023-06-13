@@ -4,6 +4,11 @@
 #ifndef DRSPREAD_H
 #define DRSPREAD_H
 
+#define DRSPREAD_VERSION "0.1.0"
+#define DRSPREAD_VERSION_MAJOR 0
+#define DRSPREAD_VERSION_MINOR 1
+#define DRSPREAD_VERSION_MICRO 0
+
 #include <stdint.h>
 #include <stddef.h>
 #ifdef __clang__
