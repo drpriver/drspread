@@ -209,9 +209,9 @@ sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, d
         printed = 3;
     }
     else if(__builtin_lround(val) == val)
-        printed = asprintf((char**)&ro->data[col], "%zd", (intptr_t)val) < 0;
+        printed = asprintf((char**)&ro->data[col], "%zd", (intptr_t)val);
     else
-        printed = asprintf((char**)&ro->data[col], "%-.1f", val) < 0;
+        printed = asprintf((char**)&ro->data[col], "%-.1f", val);
     if(printed < 0) return 1;
     ro->lengths[col] = printed;
     return 0;

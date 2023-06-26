@@ -1,0 +1,11 @@
+Changelog::kv
+  created:  2023-06-25T19:09:30Z
+  resolved: 2023-06-26T17:31:34Z
+Created Jun 25, 2023, 12:09PM::md .update
+Summary::md .summary
+  If you have an explicit 2 letter column name, then the auto column name
+  feature overrides it.
+
+Resolved Jun 26, 2023, 10:31AM::md .update
+  Change the priority. This is probably a speed regression, but I will have to
+  make that up later. Not being allowed to use `xp` or `gp` is too confusing.j

@@ -760,23 +760,23 @@ sp_row_width(const SheetData* sd, intptr_t row){
 force_inline
 intptr_t
 sp_name_to_col_idx(SheetData* sd, const char* name, size_t len){
+    intptr_t* pidx = get_cached_col_name(&sd->col_cache, name, len);
+    if(pidx) return *pidx;
     if(len < 3){
         intptr_t x = 0;
         for(size_t i = 0; i < len; i++){
             x *= 26;
             uint8_t c = name[i];
             c |= 0x20u;
-            if(c < 'a') goto lookup;
-            if(c > 'z') goto lookup;
+            if(c < 'a') goto notfound;
+            if(c > 'z') goto notfound;
             if(c >= 'a' && c <= 'z'){
                 x += c - 'a' + 1;
             }
         }
         return x - 1;
     }
-    lookup:;
-    intptr_t* pidx = get_cached_col_name(&sd->col_cache, name, len);
-    if(pidx) return *pidx;
+    notfound:;
     return -1;
 }
 

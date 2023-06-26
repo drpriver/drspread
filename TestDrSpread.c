@@ -52,6 +52,7 @@ static TestFunc TestNames;
 static TestFunc TestComplexMultisheet;
 static TestFunc TestCaching;
 static TestFunc TestUserFunctions;
+static TestFunc TestShortColNames;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -77,6 +78,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestComplexMultisheet);
         RegisterTest(TestCaching);
         RegisterTest(TestUserFunctions);
+        RegisterTest(TestShortColNames);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -204,11 +206,46 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
     return TEST_stats;
 }
 
-#define ROW(...) { \
-    arrlen(((const char*[]){__VA_ARGS__})),  \
-    ((const char*[]){__VA_ARGS__}), \
-    ((size_t[]){0}), \
+#define ROW1(a) {1, \
+    ((const char*[]){""a}), \
+    ((size_t[]){(sizeof(a))-1}) \
 }
+#define ROW2(a, b) {2, \
+    ((const char*[]){""a, ""b}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1}) \
+}
+#define ROW3(a, b, c) {3, \
+    ((const char*[]){""a, ""b, ""c}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1, sizeof(c)-1}) \
+}
+#define ROW4(a, b, c, d) {4, \
+    ((const char*[]){""a, ""b, ""c, ""d}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1, sizeof(c)-1, sizeof(d)-1}) \
+}
+#define ROW5(a, b, c, d, e) {5, \
+    ((const char*[]){""a, ""b, ""c, ""d, ""e}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1, sizeof(c)-1, sizeof(d)-1, sizeof(e)-1}) \
+}
+#define ROW8(a, b, c, d, e, f, g, h) {8, \
+    ((const char*[]){""a, ""b, ""c, ""d, ""e, ""f, ""g, ""h}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1, sizeof(c)-1, sizeof(d)-1, sizeof(e)-1, sizeof(f)-1, sizeof(g)-1, sizeof(h)-1}) \
+}
+#define ROW13(a, b, c, d, e, f, g, h, i, j, k, l, m) {13, \
+    ((const char*[]){""a, ""b, ""c, ""d, ""e, ""f, ""g, ""h, ""i, ""j, ""k, ""l, ""m}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1, sizeof(c)-1, sizeof(d)-1, sizeof(e)-1, sizeof(f)-1, sizeof(g)-1, sizeof(h)-1, sizeof(i)-1, sizeof(j)-1, sizeof(k)-1, sizeof(l)-1, sizeof(m)-1}) \
+}
+#define ROW16(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p) {16, \
+    ((const char*[]){""a, ""b, ""c, ""d, ""e, ""f, ""g, ""h, ""i, ""j, ""k, ""l, ""m, ""n, ""o, ""p}), \
+    ((size_t[]){sizeof(a)-1, sizeof(b)-1, sizeof(c)-1, sizeof(d)-1, sizeof(e)-1, sizeof(f)-1, sizeof(g)-1, sizeof(h)-1, sizeof(i)-1, sizeof(j)-1, sizeof(k)-1, sizeof(l)-1, sizeof(m)-1, sizeof(n)-1, sizeof(o)-1, sizeof(p)-1}) \
+}
+// Macro magic to overload a macro by arity
+#define GET_ARG_20(_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,_17,_18,_19,N,...) N
+#define COUNT_MACRO_ARGS(...) GET_ARG_20( __VA_ARGS__, 19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,I_CANNOT_SEE_ZERO_ARGS)
+
+#define ROW(...) SELECT_ROW(COUNT_MACRO_ARGS(__VA_ARGS__))(__VA_ARGS__)
+#define SELECT_ROW_IMPL(n) ROW##n
+#define SELECT_ROW(n) SELECT_ROW_IMPL(n)
+
 TestFunction(TestParsing){
     const char* input =
         // Supporting syntax like other spreadsheets.
@@ -1948,6 +1985,73 @@ TestFunction(TestUserFunctions){
 
     err = drsp_del_sheet(ctx, func);
     TestAssertFalse(err);
+    cleanup_multisheet(&ms);
+
+    TESTEND();
+}
+
+TestFunction(TestShortColNames){
+    TESTBEGIN();
+    // We're going to guard a lot of the assertions in this testcase
+    // as this test assumes the setup code already works.
+    const char* input = 
+        "sheet\n"
+        "xp | gp | \n"
+        " 1 | 2 | 3 \n"
+        " =sum(gp) | =xp1+gp1 | =c1+xp1\n"
+    ;
+    SheetRow expected[] = {
+        ROW("1", "2", "3"),
+        ROW("5", "3", "4"),
+    };
+    MultiSpreadSheet ms = {0};
+    {
+        int err = read_multi_csv_from_string(&ms, input);
+        if(err) TestAssertFalse(err);
+        if(ms.n != 1) TestAssertEquals(ms.n, 1);
+    }
+
+    {
+        SheetOps ops = multisheet_ops(&ms);
+        DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+        SpreadSheet* sheet = &ms.sheets[0];
+        TestAssertEquals(sheet->colnames.n, 3);
+        SheetHandle sh = (SheetHandle)sheet;
+        int e = drsp_set_sheet_name(ctx, sh, sheet->name.text, sheet->name.length);
+        if(e) TestAssertFalse(e);
+        for(int i = 0; i < sheet->colnames.n; i++){
+            e = drsp_set_col_name(ctx, sh, i, sheet->colnames.data[i], sheet->colnames.lengths[i]);
+            if(e) TestAssertFalse(e);
+        }
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++){
+                e = drsp_set_cell_str(ctx, sh, r, c, row->data[c], row->lengths[c]);
+                if(e) TestAssertFalse(e);
+            }
+        }
+        e = drsp_evaluate_formulas(ctx);
+        if(e) TestAssertFalse(e);
+        drsp_destroy_ctx(ctx);
+    }
+    if(arrlen(expected) != ms.sheets[0].rows)
+        TestAssertEquals(arrlen(expected), ms.sheets[0].rows);
+    for(size_t i = 0; i < arrlen(expected); i++){
+        SpreadSheet* sheet = &ms.sheets[0];
+        const SheetRow* disp = &sheet->display[i];
+        const SheetRow* exp = &expected[i];
+        if(disp->n != exp->n) TestAssertEquals(disp->n, exp->n);
+        for(int j = 0; j < disp->n; j++){
+            StringView d = {disp->lengths[j], disp->data[j]};
+            StringView e = {exp->lengths[j], exp->data[j]};
+            TEST_stats.executed++;
+            if(!sv_equals(d, e)){
+
+                TEST_stats.failures++;
+                TestReport("row %zu, col: %d | (actual) \"%.*s\" != \"%.*s\" (expected)", i, j, (int)d.length, d.text, (int)e.length, e.text);
+            }
+        }
+    }
     cleanup_multisheet(&ms);
 
     TESTEND();
