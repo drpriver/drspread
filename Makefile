@@ -77,7 +77,6 @@ Bin/TestDrSpread_O2_san$(EXE): TestDrSpread.c Makefile | Bin Depends
 Bin/TestDrSpread_O3_san$(EXE): TestDrSpread.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O3
 
-# codegen bugs with -O3
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WWFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O3 -g -std=gnu2x
 test.html: testspread_glue.js Bin/TestDrSpread.wasm

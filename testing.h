@@ -927,7 +927,9 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     _Bool no_colors = 0;
     _Bool force_colors = 0;
     _Bool run_all = 0;
+    #ifndef __wasm__
     StringView directory = {0};
+    #endif
     size_t tests_to_run[arrlen(test_funcs)] = {0};
     struct ArgParseEnumType targets = {
         .enum_size = sizeof(size_t),
@@ -937,14 +939,22 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     StringView outfile = {0};
     StringView extrafiles[8] = {0};
     _Bool append = 0;
+    #ifndef __wasm__
     _Bool print_pid = 0;
     _Bool should_wait = 0;
+    #endif
     int nreps = 1;
     _Bool shuffle = 0;
     _Bool silent = 0;
     uint64_t seed = 0;
+    #ifndef __wasm__
     enum {TEE_INDEX=7, TARGET_INDEX=3};
+    #else
+    enum {TEE_INDEX=6, TARGET_INDEX=2};
+    #endif
+
     ArgToParse kw_args[] = {
+        #ifndef __wasm__
         {
             .name = SV("-C"),
             .altname1 = SV("--change-directory"),
@@ -952,6 +962,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             .help = "Directory to change the working directory to before "
                     "executing tests.",
         },
+        #endif
         {
             .name = SV("--no-colors"),
             .dest = ARGDEST(&no_colors),
@@ -1002,6 +1013,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             .dest = ARGDEST(&append),
             .help = "Open the files indicated by --outfile or --tee in append mode.",
         },
+        #ifndef __wasm__
         {
             .name = SV("-p"),
             .altname1 = SV("--print-pid"),
@@ -1014,6 +1026,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             .help = "Do a getchar() before running the tests to give time to attach or whatever",
             .dest = ARGDEST(&should_wait),
         },
+        #endif
         {
             .name = SV("-r"),
             .altname1 = SV("--repeat"),
@@ -1113,6 +1126,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         }
         TestRegisterOutFile(fp);
     }
+    #ifndef __wasm__
     if(directory.length){
         int changed = chdir(directory.text);
         if(changed != 0){
@@ -1121,10 +1135,11 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             return changed;
         }
     }
+    #endif
     filename = strrchr(filename, '/')? strrchr(filename, '/')+1 : filename;
-#ifdef _WIN32
+    #ifdef _WIN32
     filename = strrchr(filename, '\\')? strrchr(filename, '\\')+1 : filename;
-#endif
+    #endif
     _Bool use_colors = force_colors || (!no_colors && isatty(fileno(stderr)));
     const char* gray  = use_colors? "\033[97m"    : "";
     const char* blue  = use_colors? "\033[94m"    : "";
@@ -1156,6 +1171,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     }
 
 
+    #ifndef __wasm__
     if(print_pid){
         #ifdef _WIN32
         fprintf(stderr, "pid: %d\n", (int)GetCurrentProcessId());
@@ -1166,6 +1182,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     if(should_wait){
         getchar();
     }
+    #endif
     if(shuffle)
         testing_seed_rng(&seed);
     struct TestResults result = {0};

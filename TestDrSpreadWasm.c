@@ -2,8 +2,10 @@
 #define TEST_DRSPREAD_WASM_C
 #include <allstd.h>
 #include "Wasm/malloc.h"
-#include "Wasm/jsinter.h"
 #include <stb_sprintf.c>
+#ifndef IMPORT
+#define IMPORT extern
+#endif
 static inline
 void* realloc(void* a, size_t sz){
     void* result = malloc(sz);
@@ -78,12 +80,6 @@ FILE* fopen(const char* fn, const char* mode){
     (void)mode;
     return NULL;
 }
-static inline
-int
-chdir(const char* path){
-    (void)path;
-    return 0;
-}
 int errno = 0;
 static inline
 const char*
@@ -94,10 +90,6 @@ strerror(int err){
 static inline
 void fclose(FILE* fp){
     (void)fp;
-}
-static inline
-int getpid(void){
-    return 0;
 }
 static inline
 int getchar(void){

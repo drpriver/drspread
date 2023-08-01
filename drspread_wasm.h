@@ -2,7 +2,10 @@
 #define DRSPREAD_WASM_H
 
 #include "drspread.h"
-#include "Wasm/jsinter.h"
+#ifndef IMPORT
+#define IMPORT extern
+#endif
+
 #pragma clang assume_nonnull begin
 #ifdef DRSPREAD_DIRECT_OPS
 IMPORT void sheet_set_display_number(SheetHandle, intptr_t, intptr_t, double);
