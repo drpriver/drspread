@@ -1,0 +1,5 @@
+Changelog::kv
+  created: 2023-06-29T17:31:00Z
+Created Jun 29, 2023, 10:31AM::md.update
+Summary::md.summary
+  They’re left in the colcache, which means you can keep using the old alias (which can manifest as formulas that work until you refresh in a web ui version for example).
