@@ -16,7 +16,7 @@ DrSpreadCtx* _Nullable
 drsp_create_ctx(ARGS){
 #undef ARGS
     enum {N=60000};
-    size_t sz = (N+offsetof(DrSpreadCtx, buff));
+    size_t sz = (N+sizeof(DrSpreadCtx));
     DrSpreadCtx* ctx = malloc(sz);
     // fprintf(stderr, "%zu\n", sz);
     __builtin_memset(ctx, 0, sizeof *ctx);
@@ -24,7 +24,7 @@ drsp_create_ctx(ARGS){
     #ifndef DRSPREAD_DIRECT_OPS
         __builtin_memcpy((void*)&ctx->_ops, ops, sizeof *ops);
     #endif
-    BuffAllocator a = {ctx->buff, ctx->buff, ctx->buff+N};
+    BuffAllocator a = {(char*)(ctx+1), (char*)(ctx+1), N+(char*)(ctx+1)};
     __builtin_memcpy((void*)&ctx->_a, &a, sizeof a);
     ctx->a = &ctx->_a;
     ctx->null.kind = EXPR_BLANK;
@@ -39,7 +39,7 @@ drsp_destroy_ctx(DrSpreadCtx*_Nullable ctx){
     free_string_arenas(ctx->temp_string_arena);
     free_sheet_datas(ctx);
     destroy_string_heap(&ctx->sheap);
-    memset(ctx, 0xfe, offsetof(DrSpreadCtx, buff));
+    memset(ctx, 0xfe, sizeof(DrSpreadCtx));
     free(ctx);
     return 0;
 }

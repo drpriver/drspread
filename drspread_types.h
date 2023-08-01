@@ -538,7 +538,7 @@ struct DrSpreadCtx {
 #ifndef __wasm__
     uintptr_t limit; // this sucks but is to avoid stack overflow;
 #endif
-    _Alignas(double) char buff[];
+    // _Alignas(double) char buff[];
 };
 
 DRSP_INTERNAL
