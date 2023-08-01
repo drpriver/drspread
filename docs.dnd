@@ -367,9 +367,10 @@
       ::pre
         num(maybe_number)
         num(maybe_number, default)
-      If maybe_number is a number, then maybe_number is returned. Otherwise, if
-      default is given, default is returned. Finally, 0 is returned if none of
-      the above conditions are met.
+      If maybe_number is a number, then maybe_number is returned.
+      If it is a string that starts with a number (like "2 people"), then the numeric portion of the string is converted to a number.
+      Otherwise, if default is given, default is returned.
+      Finally, 0 is returned if none of the above conditions are met.
 
       The first argument can also be a range/array.
 

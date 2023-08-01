@@ -7,6 +7,7 @@
 #include "drspread_evaluate.h"
 #include "drspread_utils.h"
 #include "drspread_formula_funcs.h"
+#include "parse_numbers.h"
 #include <stdarg.h>
 #if (defined(_MSC_VER) && !defined(__clang__)) || defined(__IMPORTC__)
 #include <math.h>
@@ -635,6 +636,63 @@ FORMULAFUNC(drsp_sqrt){
     }
 }
 
+#ifndef CASE_0_9
+#define CASE_0_9 '0': case '1': case '2': case '3': case '4': case '5': \
+    case '6': case '7': case '8': case '9'
+#endif
+
+static inline
+int
+parse_leading_double(const char* txt, size_t len, double* result){
+    for(;len;len--, txt++){
+        switch(*txt){
+            case ' ': case '\t':
+                continue;
+            default:
+                break;
+        }
+        break;
+    }
+    const char* first = txt;
+    const char* end = txt+len;
+    for(;txt != end; txt++){
+        switch(*txt){
+            case '+':
+            case '-':
+                continue;
+            default:
+                break;
+        }
+        break;
+    }
+    for(;txt != end; txt++){
+        switch(*txt){
+            case '.':
+                txt++;
+                break;
+            case CASE_0_9:
+                continue;
+            default:
+                break;
+        }
+        break;
+    }
+    for(;txt != end; txt++){
+        switch(*txt){
+            case CASE_0_9:
+                continue;
+            default:
+                break;
+        }
+        break;
+    }
+    if(txt == first) return 1;
+    DoubleResult dr = parse_double(first, txt-first);
+    if(dr.errored) return 1;
+    *result = dr.result;
+    return 0;
+}
+
 DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
     if(argc != 1 && argc != 2) return Error(ctx, "");
@@ -662,6 +720,14 @@ FORMULAFUNC(drsp_num){
                 continue;
             Number* n = expr_alloc(ctx, EXPR_NUMBER);
             if(!n) return NULL;
+            if(e->kind == EXPR_STRING){
+                String* s = (String*)e;
+                int err = parse_leading_double(s->sv.text, s->sv.length, &n->value);
+                if(!err){
+                    cc->data[i] = &n->e;
+                    continue;
+                }
+            }
             n->value = default_;
             cc->data[i] = &n->e;
         }
@@ -671,8 +737,14 @@ FORMULAFUNC(drsp_num){
         double value;
         if(arg->kind == EXPR_NUMBER)
             value = ((Number*)arg)->value;
-        else
+        else if(arg->kind == EXPR_STRING){
+            String* s = (String*)arg;
+            int err = parse_leading_double(s->sv.text, s->sv.length, &value);
+            if(err) value = default_;
+        }
+        else {
             value = default_;
+        }
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;

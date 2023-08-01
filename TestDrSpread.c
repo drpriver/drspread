@@ -803,6 +803,14 @@ TestFunction(TestFuncs){
         "=num(1, 2)\n"
         "=num('', 2)\n"
         "=num('')\n"
+        "=num('3 people')\n"
+        "=num('4 hippos', -1)\n"
+        "=num('lmao', 7)\n"
+        "=num('3.1lbs', 7)\n"
+        "=num('.2 carrots', 7)\n"
+        "=num('+1', 7)\n"
+        "=num('-.2', 7)\n"
+
         "=try(ceil('a'), 'b')\n"
         "=try(ceil(1), 'b')\n"
         "=pow(2, 3)\n"
@@ -877,6 +885,14 @@ TestFunction(TestFuncs){
         ROW("1"),
         ROW("2"),
         ROW("0"),
+        ROW("3"),
+        ROW("4"),
+        ROW("7"),
+        ROW("3.1"),
+        ROW("0.2"),
+        ROW("1"),
+        ROW("-0.2"),
+
         ROW("b"),
         ROW("1"),
         ROW("8"),
