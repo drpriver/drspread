@@ -6,39 +6,6 @@
 #ifndef IMPORT
 #define IMPORT extern
 #endif
-static inline
-void* realloc(void* a, size_t sz){
-    void* result = malloc(sz);
-    if(a && result){
-        memcpy(result, a, sz); // whatever, no mmu in wasm and it's just a read
-        free(a);
-    }
-    return result;
-}
-
-static inline
-char* strdup(const char* p){
-    size_t len = strlen(p);
-    if(!len) return malloc(0);
-    char* result = malloc(len+1);
-    memcpy(result, p, len+1);
-    return result;
-}
-
-static inline
-int
-asprintf(char** out, const char* fmt, ...){
-    __builtin_va_list vap, vap2;
-    __builtin_va_start(vap, fmt);
-    __builtin_va_copy(vap2, vap);
-    int len = stbsp_vsnprintf(NULL, 0, fmt, vap);
-    char* buff = malloc(len+1);
-    int ret = stbsp_vsnprintf(buff, len+1, fmt, vap2);
-    *out = buff;
-    __builtin_va_end(vap);
-    __builtin_va_end(vap2);
-    return ret;
-}
 
 IMPORT
 long
@@ -59,7 +26,6 @@ int vprintf(const char*_Nonnull fmt, va_list vargs){
 static inline
 int vsnprintf(char* buff, size_t bufflen, const char*_Nonnull fmt, va_list vargs){
     return stbsp_vsnprintf(buff, bufflen, fmt, vargs);
-    return 0;
 }
 static inline
 long fwrite(const void* restrict buff, size_t sz, size_t n, FILE* restrict fp){
@@ -124,4 +90,5 @@ static inline void logit(const char* fmt, ...){
     vprintf(fmt, vap);
     __builtin_va_end(vap);
 }
+
 #endif

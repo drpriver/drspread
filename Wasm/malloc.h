@@ -1,5 +1,12 @@
 #ifndef MALLOC_H
 #define MALLOC_H
+
+#ifdef TEST_DRSPREAD_WASM_C
+static inline void logit(const char* fmt, ...);
+#else
+#define logit(...)
+#endif
+
 extern
 void __attribute__((noreturn))
 abort(void);
@@ -79,20 +86,23 @@ malloc_bucket(size_t size){
     return 32 - 5 - __builtin_clz(size);
 }
 
+void malloc_report(void);
 static inline
 void*_Nonnull
 raw_alloc(size_t size){
     // logit("heap_base %p\n", __heap_base);
     // logit("heap_end %p\n", _heap_end);
     // logit("base_ptr %p\n", _base_ptr);
-    // if(_heap_end < __heap_base || _base_ptr < __heap_base)
-        // abort();
+    if(_heap_end < __heap_base || _base_ptr < __heap_base)
+        abort();
     if(_base_ptr + size >= _heap_end){
-        // logit("raw_alloc: _base_ptr: %#p\n", _base_ptr);
-        // logit("raw_alloc: size: %zu\n", size);
-        // logit("raw_alloc: _heap_end: %#p\n", _heap_end);
-        // logit("raw_alloc: remaining: %#zx\n", _heap_end - _base_ptr);
-        // logit("raw_alloc: total space: %#zx\n", _heap_end - __heap_base);
+        logit("raw_alloc: _base_ptr: %#p\n", _base_ptr);
+        logit("raw_alloc: size: %zu\n", size);
+        logit("raw_alloc: _heap_end: %#p\n", _heap_end);
+        logit("raw_alloc: remaining: %#zx\n", _heap_end - _base_ptr);
+        logit("raw_alloc: total space: %#zx\n", _heap_end - __heap_base);
+        malloc_report();
+        abort();
         return 0;
     }
     void* result = _base_ptr;
@@ -130,6 +140,7 @@ malloc(size_t size){
         // logit("malloc: reusing allocation\n");
     }
     else {
+        // TODO: we could try to split bigger allocations at this point.
         // logit("malloc: raw alloc\n");
         a = raw_alloc(size);
         if(!a) {
@@ -209,12 +220,10 @@ bytes_used(void){
 
 
 
-#ifdef TEST_DRSPREAD_WASM_C
-static inline void logit(const char* fmt, ...);
-
 extern
 void
 malloc_report(void){
+#ifdef TEST_DRSPREAD_WASM_C
     // This uses stb formatting.
     logit("bytes used: %_$$zuB\n", bytes_used());
     return;
@@ -227,15 +236,15 @@ malloc_report(void){
             while(fa){
                 bsz = fa->sz;
                 sz += fa->sz;
-                // logit("\t[%zu] %zu\n", j, fa->sz);
+                logit("\t[%zu] %zu\n", j, fa->sz);
                 fa = fa->next;
                 j++;
             }
             logit("bucket %2zu (%#7zx): %3zu allocs (%6zu bytes)\n", i, bsz, j, sz);
         }
     }
+#endif
 }
 
-#endif
 
 #endif

@@ -11,20 +11,20 @@
 #else
 #define ARGS const SheetOps* ops
 #endif
+enum {CTX_EXTRA=60000};
 DRSP_EXPORT
 DrSpreadCtx* _Nullable
 drsp_create_ctx(ARGS){
 #undef ARGS
-    enum {N=60000};
-    size_t sz = (N+sizeof(DrSpreadCtx));
-    DrSpreadCtx* ctx = malloc(sz);
+    size_t sz = (CTX_EXTRA+sizeof(DrSpreadCtx));
+    DrSpreadCtx* ctx = drsp_alloc(0, NULL, sz, _Alignof *ctx);
     // fprintf(stderr, "%zu\n", sz);
     __builtin_memset(ctx, 0, sizeof *ctx);
     if(!ctx) return NULL;
     #ifndef DRSPREAD_DIRECT_OPS
         __builtin_memcpy((void*)&ctx->_ops, ops, sizeof *ops);
     #endif
-    BuffAllocator a = {(char*)(ctx+1), (char*)(ctx+1), N+(char*)(ctx+1)};
+    BuffAllocator a = {(char*)(ctx+1), (char*)(ctx+1), CTX_EXTRA+(char*)(ctx+1)};
     __builtin_memcpy((void*)&ctx->_a, &a, sizeof a);
     ctx->a = &ctx->_a;
     ctx->null.kind = EXPR_BLANK;
@@ -40,7 +40,7 @@ drsp_destroy_ctx(DrSpreadCtx*_Nullable ctx){
     free_sheet_datas(ctx);
     destroy_string_heap(&ctx->sheap);
     memset(ctx, 0xfe, sizeof(DrSpreadCtx));
-    free(ctx);
+    drsp_alloc(sizeof*ctx+CTX_EXTRA, ctx, 0, _Alignof *ctx);
     return 0;
 }
 
@@ -112,9 +112,9 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
 DRSP_INTERNAL
 void
 cleanup_sheet_data(SheetData* d){
-    free(d->cell_cache.data);
-    free(d->col_cache.data);
-    free(d->result_cache.data);
+    drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
+    drsp_alloc(d->col_cache.cap*(sizeof(ColName)+sizeof(uint32_t)), d->col_cache.data, 0, _Alignof(ColName));
+    drsp_alloc(d->result_cache.cap*(sizeof(CachedResult)+sizeof(uint32_t)), d->result_cache.data, 0, _Alignof(CachedResult));
 }
 
 // preload empty string and length 1 strings
@@ -177,12 +177,8 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
         size_t old_cap = cap;
         size_t new_cap = old_cap?old_cap*2:1024;
         size_t new_size = new_cap * (sizeof(DrspStr*)+sizeof(uint32_t));
-        #ifdef __wasm__
-            size_t old_size = old_cap * (sizeof(DrspStr*)+sizeof(uint32_t));
-            unsigned char* new_data = sane_realloc(heap->data, old_size, new_size);
-        #else
-            unsigned char* new_data = realloc(heap->data, new_size);
-        #endif
+        size_t old_size = old_cap * (sizeof(DrspStr*)+sizeof(uint32_t));
+        unsigned char* new_data = drsp_alloc(old_size, heap->data, new_size, _Alignof(DrspStr));
         if(!new_data) return NULL;
         heap->data = new_data;
         heap->cap = new_cap;
@@ -230,7 +226,7 @@ DRSP_INTERNAL
 void
 destroy_string_heap(StringHeap* heap){
     free_string_arenas(heap->arena);
-    free(heap->data);
+    drsp_alloc(heap->cap*(sizeof(DrspStr*)+sizeof(uint32_t)), heap->data, 0, _Alignof(DrspStr));
     __builtin_memset(heap, 0, sizeof *heap);
 }
 
@@ -240,7 +236,7 @@ free_string_arenas(StringArena*_Nullable arena){
     while(arena){
         StringArena* to_free = arena;
         arena = arena->next;
-        free(to_free);
+        drsp_alloc(sizeof *to_free, to_free, 0, _Alignof *to_free);
     }
 }
 
@@ -249,11 +245,9 @@ void
 free_sheet_datas(DrSpreadCtx* ctx){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* d = &ctx->map.data[i];
-        free(d->cell_cache.data);
-        free(d->col_cache.data);
-        free(d->result_cache.data);
+        cleanup_sheet_data(d);
     }
-    free(ctx->map.data);
+    drsp_alloc(ctx->map.cap*sizeof *ctx->map.data, ctx->map.data, 0, _Alignof *ctx->map.data);
 }
 
 static inline
@@ -287,13 +281,8 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restric
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
         size_t new_size = new_cap*(sizeof(RowColSv)+sizeof(uint32_t));
-        #ifdef __wasm__
-            size_t old_size = old_cap*(sizeof(RowColSv)+sizeof(uint32_t));
-            unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
-        #else
-            // fprintf(stderr, "%zu\n", new_size);
-            unsigned char* new_data = realloc(cache->data, new_size);
-        #endif
+        size_t old_size = old_cap*(sizeof(RowColSv)+sizeof(uint32_t));
+        unsigned char* new_data = drsp_alloc(old_size, cache->data, new_size, _Alignof(RowColSv));
         if(!new_data) return 1;
         cache->data = new_data;
         cache->cap = new_cap;
@@ -341,13 +330,8 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:16;
         size_t new_size = new_cap*(sizeof(ColName)+sizeof(uint32_t));
-        #ifdef __wasm__
-            size_t old_size = old_cap*(sizeof(ColName)+sizeof(uint32_t));
-            unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
-        #else
-            // fprintf(stderr, "%zu\n", new_size);
-            unsigned char* new_data = realloc(cache->data, new_size);
-        #endif
+        size_t old_size = old_cap*(sizeof(ColName)+sizeof(uint32_t));
+        unsigned char* new_data = drsp_alloc(old_size, cache->data, new_size, _Alignof(ColName));
         if(!new_data)
             return 1;
         cache->data = new_data;
@@ -419,13 +403,8 @@ get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
         size_t new_size = new_cap*(sizeof(CachedResult)+sizeof(uint32_t));
-        #ifdef __wasm__
-            size_t old_size = old_cap*(sizeof(CachedResult)+sizeof(uint32_t));
-            unsigned char* new_data = sane_realloc(cache->data, old_size, new_size);
-        #else
-            // fprintf(stderr, "%zu\n", new_size);
-            unsigned char* new_data = realloc(cache->data, new_size);
-        #endif
+        size_t old_size = old_cap*(sizeof(CachedResult)+sizeof(uint32_t));
+        unsigned char* new_data = drsp_alloc(old_size, cache->data, new_size, _Alignof(CachedResult));
         if(!new_data) return NULL;
         cache->data = new_data;
         cache->cap = new_cap;
@@ -488,13 +467,8 @@ sheet_get_or_create_by_handle(DrSpreadCtx* ctx, SheetHandle handle){
         size_t newcap = 2*cap;
         if(!newcap) newcap = 8;
         size_t new_size = newcap * sizeof(SheetData);
-        #ifdef __wasm__
-            size_t old_size = cap*sizeof(SheetData);
-            SheetData* p = sane_realloc(ctx->map.data, old_size, new_size);
-        #else
-            SheetData* p = realloc(ctx->map.data, new_size);
-            // fprintf(stderr, "%zu\n", new_size);
-        #endif
+        size_t old_size = cap*sizeof(SheetData);
+        SheetData* p = drsp_alloc(old_size, ctx->map.data, new_size, _Alignof(SheetData));
         if(!p) return NULL;
         ctx->map.data = p;
         ctx->map.cap = newcap;

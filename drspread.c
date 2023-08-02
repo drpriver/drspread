@@ -290,4 +290,5 @@ sp_set_display_string(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, i
 #include "drspread_formula_funcs.c"
 #include "drspread_evaluate.c"
 #include "drspread_types.c"
+#include "drspread_allocators.c"
 #endif

@@ -32,10 +32,24 @@
 #endif
 #endif
 
+typedef struct BacktraceArray BacktraceArray;
 #ifdef __wasm__
 extern
 void
 bt(void);
+
+extern
+BacktraceArray*
+get_bt(void);
+
+extern
+void
+dump_bt(BacktraceArray* a);
+
+extern
+void
+free_bt(BacktraceArray* a);
+
 #else
 
 typedef struct BacktraceArray BacktraceArray;
@@ -58,6 +72,12 @@ static
 dbg_noinline
 void
 bt(void);
+
+static inline
+void
+free_bt(BacktraceArray* a){
+    if(a) free(a);
+}
 
 #if defined(__APPLE__) || defined(__linux__)
 #ifdef __clang__
@@ -88,7 +108,7 @@ static
 dbg_noinline
 void
 dump_bt(BacktraceArray*_Nonnull a){
-    backtrace_symbols_fd(a->symbols, a->count, 2);
+    backtrace_symbols_fd(a->symbols, a->count-2, 2);
 }
 
 static
@@ -98,7 +118,7 @@ bt(void){
     enum {bufflen=256};
     void* array[bufflen];
     int n = backtrace(array, bufflen);
-    backtrace_symbols_fd(array, n, 2);
+    backtrace_symbols_fd(array, n-2, 2);
 }
 #elif defined(_WIN32)
 

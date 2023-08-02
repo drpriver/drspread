@@ -16,6 +16,7 @@
 #include "drspread.h"
 #include "stringview.h"
 #include "parse_numbers.h"
+#include "drspread_allocators.h"
 
 #if (defined(_MSC_VER) && !defined(__clang__)) || defined(__IMPORTC__)
 #include <math.h>
@@ -74,22 +75,30 @@ strsep(char*_Nullable*_Nonnull stringp, const char* delim){
 }
 #endif
 
-#if defined(_WIN32)
+static inline
+char*_Nullable
+drsp_strdup(const char* txt){
+    size_t len = strlen(txt)+1;
+    char* t = drsp_alloc(0, NULL, len, _Alignof *t);
+    if(!t) return t;
+    memcpy(t, txt, len);
+    return t;
+}
+
 static inline
 int
-asprintf(char*_Nullable*_Nonnull out, const char* fmt, ...){
+drsp_asprintf(char*_Nullable*_Nonnull out, const char* fmt, ...){
     va_list vap, vap2;
     va_start(vap, fmt);
     va_copy(vap2, vap);
     int len = vsnprintf(NULL, 0, fmt, vap);
-    char* buff = malloc(len+1);
+    char* buff = drsp_alloc(0, NULL, len+1, _Alignof *buff);
     int ret = vsnprintf(buff, len+1, fmt, vap2);
     *out = buff;
     va_end(vap);
     va_end(vap2);
     return ret;
 }
-#endif
 
 
 // This code is only intended for testing and the demo cli app.
@@ -104,11 +113,13 @@ struct SheetRow {
 static
 void
 sheet_row_push(SheetRow* ro, const char* txt){
-    void* d = realloc(ro->data, ++ro->n*sizeof(txt));
+    size_t oldsz = ro->n*sizeof txt;
+    size_t newsz = ++ro->n*sizeof txt;
+    void* d = drsp_alloc(oldsz, ro->data, newsz, _Alignof txt);
     if(!d) abort();
     ro->data = d;
     ro->data[ro->n-1] = txt;
-    d = realloc(ro->lengths, ro->n*sizeof txt);
+    d = drsp_alloc((ro->n-1)*sizeof txt, ro->lengths, ro->n * sizeof txt, _Alignof txt);
     if(!d) abort();
     ro->lengths = d;
     ro->lengths[ro->n-1] = strlen(txt);
@@ -123,31 +134,32 @@ struct SpreadSheet {
     intptr_t rows;
     intptr_t maxcols;
     char* txt;
+    size_t txt_len;
     int paramc, outx, outy;
 };
 
 static void
 cleanup_row_pair(SheetRow* ro, SheetRow* disp){
-    free(ro->data);
-    free(ro->lengths);
+    drsp_alloc(ro->n*sizeof *ro->data, ro->data, 0, _Alignof *ro->data);
+    drsp_alloc(ro->n*sizeof *ro->lengths, ro->lengths, 0, _Alignof *ro->lengths);
     for(int i = 0; i < disp->n; i++){
-        free((void*)disp->data[i]);
+        drsp_alloc(disp->lengths[i]+1, disp->data[i], 0, 1);
     }
-    free(disp->data);
-    free(disp->lengths);
+    drsp_alloc(disp->n*sizeof *disp->data, disp->data, 0, _Alignof *disp->data);
+    drsp_alloc(disp->n*sizeof *disp->lengths, disp->lengths, 0, _Alignof *disp->lengths);
 }
 
 static
 void
 cleanup_sheet(SpreadSheet* sheet){
-    if(sheet->txt) free(sheet->txt);
+    if(sheet->txt) drsp_alloc(sheet->txt_len+1, sheet->txt, 0, 1);
     for(intptr_t i = 0; i < sheet->rows; i++){
         cleanup_row_pair(&sheet->cells[i], &sheet->display[i]);
     }
-    free(sheet->cells);
-    free(sheet->display);
-    free(sheet->colnames.data);
-    free(sheet->colnames.lengths);
+    drsp_alloc(sheet->rows * sizeof *sheet->cells, sheet->cells, 0, _Alignof *sheet->cells);
+    drsp_alloc(sheet->rows * sizeof *sheet->display, sheet->display, 0, _Alignof *sheet->display);
+    drsp_alloc(sheet->colnames.n * sizeof *sheet->colnames.data, sheet->colnames.data, 0, _Alignof * sheet->colnames.data);
+    drsp_alloc(sheet->colnames.n * sizeof *sheet->colnames.lengths, sheet->colnames.lengths, 0, _Alignof *sheet->colnames.lengths);
 }
 
 static
@@ -155,18 +167,29 @@ void
 sheet_push_row(SpreadSheet* sheet, SheetRow ro, SheetRow disp){
     ++sheet->rows;
 
-    sheet->cells = realloc(sheet->cells, sizeof(*sheet->cells)*sheet->rows);
+    sheet->cells = drsp_alloc((sheet->rows-1)*sizeof *sheet->cells, sheet->cells, sheet->rows*sizeof *sheet->cells, _Alignof *sheet->cells);
     assert(sheet->cells);
     sheet->cells[sheet->rows-1] = ro;
 
-    sheet->display = realloc(sheet->display, sizeof(*sheet->display)*sheet->rows);
+    sheet->display = drsp_alloc((sheet->rows-1)*sizeof *sheet->display, sheet->display, sizeof(*sheet->display)*sheet->rows, _Alignof *sheet->display);
     assert(sheet->display);
     sheet->display[sheet->rows-1] = disp;
+}
+
+static
+void
+sheet_pop_row(SpreadSheet* sheet){
+    int end = --sheet->rows;
+    cleanup_row_pair(&sheet->cells[end], &sheet->display[end]);
+    sheet->cells = drsp_alloc((end+1)*sizeof *sheet->cells, sheet->cells, end*sizeof *sheet->cells, _Alignof *sheet->cells);
+    sheet->display = drsp_alloc((end+1)*sizeof *sheet->display, sheet->display, end*sizeof *sheet->display, _Alignof *sheet->display);
+
 }
 
 typedef struct MultiSpreadSheet MultiSpreadSheet;
 struct MultiSpreadSheet {
     char* txt;
+    size_t txt_len;
     int n;
     SpreadSheet* sheets;
 };
@@ -176,14 +199,15 @@ void
 cleanup_multisheet(MultiSpreadSheet* ms){
     for(int i = 0; i < ms->n; i++)
         cleanup_sheet(&ms->sheets[i]);
-    free(ms->sheets);
-    free(ms->txt);
+    drsp_alloc(ms->n * sizeof *ms->sheets, ms->sheets, 0, _Alignof *ms->sheets);
+    if(ms->txt)
+        drsp_alloc(ms->txt_len+1, ms->txt, 0, 1);
 }
 
 static
 SpreadSheet*_Nullable
 multisheet_alloc(MultiSpreadSheet* ms){
-    SpreadSheet* newsheets = realloc(ms->sheets, (ms->n+1)*sizeof *newsheets);
+    SpreadSheet* newsheets = drsp_alloc(ms->n * sizeof *newsheets, ms->sheets, (ms->n+1)*sizeof *newsheets, _Alignof *newsheets);
     if(!newsheets) return NULL;
     assert(newsheets);
     ms->sheets = newsheets;
@@ -203,15 +227,16 @@ sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, d
     SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     int printed;
-    free((void*)ro->data[col]);
+    // free((void*)ro->data[col]);
+    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, _Alignof *ro->data[col]);
     if(val != val){ // nan
-        ro->data[col] = strdup("nan");
+        ro->data[col] = drsp_strdup("nan");
         printed = 3;
     }
     else if(__builtin_lround(val) == val)
-        printed = asprintf((char**)&ro->data[col], "%zd", (intptr_t)val);
+        printed = drsp_asprintf((char**)&ro->data[col], "%zd", (intptr_t)val);
     else
-        printed = asprintf((char**)&ro->data[col], "%-.1f", val);
+        printed = drsp_asprintf((char**)&ro->data[col], "%-.1f", val);
     if(printed < 0) return 1;
     ro->lengths[col] = printed;
     return 0;
@@ -227,8 +252,9 @@ sheet_set_display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, con
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     (void)mess;
     (void)len;
-    free((void*)ro->data[col]);
-    ro->data[col] = strdup("error");
+    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, _Alignof *ro->data[col]);
+    // free((void*)ro->data[col]);
+    ro->data[col] = drsp_strdup("error");
     ro->lengths[col] = 5;
     return 0;
 }
@@ -240,8 +266,8 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
-    free((void*)ro->data[col]);
-    int printed = asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
+    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, _Alignof *ro->data[col]);
+    int printed = drsp_asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
     if(printed < 0) return 1;
     ro->lengths[col] = printed;
     return 0;
@@ -263,7 +289,7 @@ read_file(const char* filename){
     if(len < 0) goto fail;
     err = fseek(fp, 0, SEEK_SET);
     if(err) goto fail;
-    txt = malloc(len+1);
+    txt = drsp_alloc(0, NULL, len+1, _Alignof *txt);
     if(!txt) goto fail;
     n = fread(txt, 1, len, fp);
     if(n != (size_t)len) goto fail;
@@ -273,7 +299,7 @@ read_file(const char* filename){
     return txt;
 
     fail:
-    free(txt);
+    if(txt) drsp_alloc(len+1, txt, 0, _Alignof *txt);
     fclose(fp);
     return NULL;
 }
@@ -282,8 +308,9 @@ read_file(const char* filename){
 static
 int
 read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
-    char* txt = strdup(srctxt);
+    char* txt = drsp_strdup(srctxt);
     sheet->txt = txt;
+    sheet->txt_len = strlen(txt);
     sheet->name = SV("");
     char* line;
     int max_cols = 0;
@@ -293,15 +320,14 @@ read_csv_from_string(SpreadSheet* sheet, const char* srctxt){
         char* token;
         while((token = strsep(&line, "\t|"))){
             sheet_row_push(&ro, token);
-            sheet_row_push(&disp, strdup(""));
+            sheet_row_push(&disp, drsp_strdup(""));
         }
         if(ro.n > max_cols) max_cols = ro.n;
         sheet_push_row(sheet, ro, disp);
         sheet->maxcols = max_cols;
     }
     if(sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0){
-        cleanup_row_pair(&sheet->cells[sheet->rows-1], &sheet->display[sheet->rows-1]);
-        sheet->rows--;
+        sheet_pop_row(sheet);
     }
     return 0;
 }
@@ -314,7 +340,7 @@ read_csv(SpreadSheet* sheet, const char* filename){
     char* txt = read_file(filename);
     if(!txt) return 1;
     int result = read_csv_from_string(sheet, txt);
-    free(txt);
+    drsp_alloc(strlen(txt)+1, txt, 0, 1);
     return result;
 }
 #endif
@@ -322,8 +348,9 @@ read_csv(SpreadSheet* sheet, const char* filename){
 static
 int
 read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
-    char* txt = strdup(srctxt);
+    char* txt = drsp_strdup(srctxt);
     ms->txt = txt;
+    ms->txt_len = strlen(txt);
     char* line;
     int max_cols = 0;
     _Bool need_colnames = 0;
@@ -332,7 +359,7 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
         size_t len = strlen(line);
         if(len == 3 && memcmp(line, "---", 3) == 0){
             while(sheet && sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0)
-                sheet->rows--;
+                sheet_pop_row(sheet);
             sheet = NULL;
             continue;
         }
@@ -382,15 +409,14 @@ read_multi_csv_from_string(MultiSpreadSheet* ms, const char* srctxt){
         SheetRow disp = {0};
         while((token = strsep(&line, "\t|"))){
             sheet_row_push(&ro, token);
-            sheet_row_push(&disp, strdup(""));
+            sheet_row_push(&disp, drsp_strdup(""));
         }
         if(ro.n > max_cols) max_cols = ro.n;
         sheet_push_row(sheet, ro, disp);
         sheet->maxcols = max_cols;
     }
     while(sheet && sheet->rows && sheet->cells[sheet->rows-1].n == 1 && strlen(sheet->cells[sheet->rows-1].data[0])==0){
-        cleanup_row_pair(&sheet->cells[sheet->rows-1], &sheet->display[sheet->rows-1]);
-        sheet->rows--;
+        sheet_pop_row(sheet);
     }
     return 0;
 }
@@ -403,7 +429,7 @@ read_multi_csv(MultiSpreadSheet* ms, const char* filename){
     char* txt = read_file(filename);
     if(!txt) return 1;
     int result = read_multi_csv_from_string(ms, txt);
-    free(txt);
+    drsp_alloc(strlen(txt)+1, txt, 0, 1);
     return result;
 }
 #endif

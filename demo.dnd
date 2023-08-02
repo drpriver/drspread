@@ -67,7 +67,7 @@
   /*endcss*/
 ::script #id(data)
 ::js
-  const csv = FileSystem.load_file('vault.csv');
+  const csv = FileSystem.load_file('tsvs/vault.csv');
   const lines = csv.split('\n');
   const result = [];
   for(const line of lines){

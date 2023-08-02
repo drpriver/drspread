@@ -15,6 +15,7 @@
 #include "spreadsheet.h"
 #include "drspread.h"
 #include "testing.h"
+#include "drspread_allocators.h"
 #ifdef __wasm__
 #pragma push_macro("__FILE__")
 #pragma clang diagnostic ignored "-Wbuiltin-macro-redefined"
@@ -28,6 +29,11 @@
 DRSP_EXPORT
 int
 drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const StringView*_Null_unspecified args, DrSpreadResult* outval);
+
+#define EXPECT_NO_LEAKS() do { \
+    int leaks = drsp_report_leaks(); \
+    TestExpectFalse(leaks); \
+}while(0)
 
 
 static TestFunc TestParsing;
@@ -202,6 +208,7 @@ test_spreadsheet(const char* caller, const char* input, const SheetRow* expected
     drsp_destroy_ctx(ctx);
     TestExpectEquals(nerr, expected_nerr);
     cleanup_sheet(&sheet);
+    EXPECT_NO_LEAKS();
 #undef __func__
     return TEST_stats;
 }
@@ -1455,6 +1462,7 @@ test_multi_spreadsheet(const char* caller, const char* name1, const char* input1
     drsp_destroy_ctx(ctx);
     TestExpectEquals(nerr, expected_nerr);
     cleanup_multisheet(&collection);
+    EXPECT_NO_LEAKS();
 
 #undef __func__
     return TEST_stats;
@@ -1502,6 +1510,9 @@ TestFunction(TestBugs3){
     TestAssertEquals(disp->n, 1);
     StringView s = {disp->lengths[0], disp->data[0]};
     TestExpectEquals2(sv_equals, s, SV("[[array]]"));
+    drsp_destroy_ctx(ctx);
+    cleanup_multisheet(&ms);
+    EXPECT_NO_LEAKS();
     TESTEND();
 }
 TestFunction(TestColFunc){
@@ -1778,6 +1789,7 @@ TestFunction(TestComplexMultisheet){
     }
     drsp_destroy_ctx(ctx);
     cleanup_multisheet(&ms);
+    EXPECT_NO_LEAKS();
     TESTEND();
 }
 
@@ -1877,6 +1889,7 @@ TestFunction(TestCaching){
     }
     drsp_destroy_ctx(ctx);
     cleanup_sheet(&sheet);
+    EXPECT_NO_LEAKS();
     return TEST_stats;
 }
 
@@ -1932,7 +1945,7 @@ TestFunction(TestUserFunctions){
         SheetRow d = {0};
         const SheetRow* e = &expected[i];
         for(int j = 0; j < e->n; j++){
-            sheet_row_push(&d, strdup(""));
+            sheet_row_push(&d, drsp_strdup(""));
         }
         sheet_push_row(f, (SheetRow){0}, d);
     }
@@ -1984,9 +1997,9 @@ TestFunction(TestUserFunctions){
     TestExpectEquals(r.d, 6.);
     {
         SheetRow r = {0};
-        sheet_row_push(&r, strdup(""));
-        sheet_row_push(&r, strdup(""));
-        sheet_row_push(&r, strdup(""));
+        sheet_row_push(&r, drsp_strdup(""));
+        sheet_row_push(&r, drsp_strdup(""));
+        sheet_row_push(&r, drsp_strdup(""));
         sheet_push_row(s, (SheetRow){0}, r);
     }
     err = drsp_evaluate_formulas(ctx);
@@ -2003,6 +2016,9 @@ TestFunction(TestUserFunctions){
     TestAssertFalse(err);
     cleanup_multisheet(&ms);
 
+    drsp_destroy_ctx(ctx);
+
+    EXPECT_NO_LEAKS();
     TESTEND();
 }
 
@@ -2070,6 +2086,7 @@ TestFunction(TestShortColNames){
     }
     cleanup_multisheet(&ms);
 
+    EXPECT_NO_LEAKS();
     TESTEND();
 }
 

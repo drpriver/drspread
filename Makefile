@@ -62,6 +62,8 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 
 Bin/TestDrSpread_O0$(EXE): TestDrSpread.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0
+Bin/TestDrSpread_O0_leaks$(EXE): TestDrSpread.c Makefile | Bin Depends
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_leaks.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0 -DRECORD_ALLOCATIONS=1
 Bin/TestDrSpread_O1$(EXE): TestDrSpread.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O1
 Bin/TestDrSpread_O2$(EXE): TestDrSpread.c Makefile | Bin Depends
@@ -94,6 +96,7 @@ TestResults/TestDrSpread_O0: Bin/TestDrSpread_O0$(EXE) | TestResults
 	$< --tee $@
 tests: \
     TestResults/TestDrSpread_O0 \
+    TestResults/TestDrSpread_O0_leaks \
     TestResults/TestDrSpread_O1 \
     TestResults/TestDrSpread_O2 \
     TestResults/TestDrSpread_O3 \

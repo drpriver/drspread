@@ -9,6 +9,7 @@
 #include "drspread.h"
 #include "buff_allocator.h"
 #include "stringview.h"
+#include "drspread_allocators.h"
 
 #if defined(__IMPORTC__)
 #elif defined(__GNUC__) || defined(__clang__)
@@ -628,7 +629,7 @@ str_arena_alloc(StringArena*_Nullable*_Nonnull parena, size_t len){
             }
             arena = arena->next;
         }
-        arena = malloc(sizeof *arena);
+        arena = drsp_alloc(0, NULL, sizeof *arena, _Alignof *arena);
         if(!arena) return NULL;
         arena->next = *parena;
         arena->used = 0;

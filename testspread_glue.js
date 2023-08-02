@@ -7,6 +7,8 @@ let malloc;
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 let active;
+const backtraces = new Map();
+let bt_i = 0;
 function fwrite_(p, sz, fp) {
     let s = wasm_string_to_js(p, sz);
     s = s.replace(/\x1B\[1m/g, '<span class=bold>');
@@ -63,10 +65,37 @@ const imports = {
             throw new Error();
         },
         bt: () => {
-            console.trace();
+            let s = (new Error).stack;
+            const lines = s.split(/\n/g);
+            for (let l of lines) {
+                l = l.trim();
+                if (l == 'Error')
+                    continue;
+                if (l.startsWith('bt@'))
+                    continue;
+                if (l.startsWith('at bt'))
+                    continue;
+                if (l.startsWith('wasm-stub'))
+                    continue;
+                if (l.startsWith('<?>.wasm-function'))
+                    l = l.slice('<?>.wasm-function'.length);
+                active.innerHTML += '    ' + l + '\n';
+            }
         },
         pow: Math.pow,
         fwrite_: fwrite_,
+        dump_bt: (p) => {
+            let bt = backtraces.get(p);
+            active.innerHTML += bt + '\n';
+        },
+        get_bt: () => {
+            bt_i++;
+            backtraces.set(bt_i, (new Error).stack);
+            return bt_i;
+        },
+        free_bt: (p) => {
+            backtraces.delete(p);
+        },
     },
 };
 fetch('Bin/TestDrSpread.wasm')

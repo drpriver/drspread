@@ -6,6 +6,8 @@ let malloc: (sz:number)=>number;
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 let active: HTMLPreElement;
+const backtraces: Map<number, string> = new Map();
+let bt_i = 0;
 function fwrite_(p:number, sz:number, fp:number):number{
     let s = wasm_string_to_js(p, sz);
     s = s.replace(/\x1B\[1m/g,       '<span class=bold>');
@@ -21,6 +23,7 @@ function fwrite_(p:number, sz:number, fp:number):number{
     active.innerHTML += s;
     return sz;
 }
+
 function wasm_string_to_js(p:number, len:number):string{
     const sub = mem.subarray(p, p+len);
     const text = decoder.decode(sub);
@@ -64,10 +67,33 @@ const imports = {
             throw new Error();
         },
         bt:():void=>{
-            console.trace();
+            let s = ((new Error) as any).stack;
+            const lines = s.split(/\n/g);
+            for(let l of lines){
+                l = l.trim();
+                if(l == 'Error') continue;
+                if(l.startsWith('bt@')) continue;
+                if(l.startsWith('at bt')) continue;
+                if(l.startsWith('wasm-stub')) continue;
+                if(l.startsWith('<?>.wasm-function'))
+                    l = l.slice('<?>.wasm-function'.length);
+                active.innerHTML += '    '+l + '\n';
+            }
         },
         pow: Math.pow,
         fwrite_: fwrite_,
+        dump_bt:(p:number):void=>{
+            let bt = backtraces.get(p)!;
+            active.innerHTML += bt+'\n';
+        },
+        get_bt:():number=>{
+            bt_i++;
+            backtraces.set(bt_i, ((new Error) as any).stack);
+            return bt_i;
+        },
+        free_bt:(p:number):void=>{
+            backtraces.delete(p);
+        },
     },
 };
 
