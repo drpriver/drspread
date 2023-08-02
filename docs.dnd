@@ -2,7 +2,16 @@
 ::script
   document.addEventListener('DOMContentLoaded', ()=>{
     for(const node of document.querySelectorAll('dt.func')){
-      console.log(node);
+      node.onclick = ()=>{
+        window.location.hash = node.id;
+      };
+    }
+    for(const node of document.querySelectorAll('.example h3')){
+      node.onclick = ()=>{
+        window.location.hash = node.id;
+      };
+    }
+    for(const node of document.querySelectorAll('h2')){
       node.onclick = ()=>{
         window.location.hash = node.id;
       };
@@ -47,12 +56,16 @@
     padding: 4px;
     align-items: start;
   }
-  dt.func {
+  h2, .example h3, dt.func {
     font-weight: bold;
     font-size: 32px;
     font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
     border-bottom: 1px dotted gray;
     cursor: pointer;
+  }
+  h2 {
+    font-size: 44px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
   }
   dt.arg {
     font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
@@ -73,7 +86,33 @@
     padding-bottom: 4px;
     margin: 0;
   }
+  table td, table th {
+    width: 5ch;
+    font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+    padding: 4px;
+  }
+  table {
+    border-collapse: collapse;
+  }
+  table td {
+    text-align: right;
+  }
+  table td:last-child, table th:last-child {
+    border-right: none;
+  }
+  table td, table th {
+    border-right: 1px solid black;
+  }
+  table td {
+    border-top: 1px solid black;
+  }
   @media (prefers-color-scheme: dark) {
+    table td, table th {
+      border-right: 1px solid white;
+    }
+    table td {
+      border-top: 1px solid white;
+    }
     div.formula pre {
       background-color: rgba(255, 255, 255, 0.1);
     }
@@ -104,6 +143,127 @@
   }
   //endjs
 ::div
+  Formulas::dl
+    Formulas are cells that begin with an <tt>=</tt>.
+    You can write simple math expressions or call functions to compute a
+    value, that will then be the resulting displayed value.
+    ::js
+      for(const child of node.parent.children){
+        child.classes.add('func');
+      }
+      //endjs
+    Numbers::def
+      Just write a number yo.
+      ::pre
+        3
+      If you want the cell to just have a number, you don't have to make it a formula.
+    Strings::def
+      Enclose it in either single or double quotes.
+      ::pre
+        'hello'
+      ::pre
+        "goodbye"
+      If you want the cell to just have a string, you don't have to make it a formula and use quotes. But this is how you would pass one to a function call.
+      ::pre
+        cat('hello ', a1)
+    Cell References::def
+      Shorthand::md
+        You can refer to cells excel-style:
+        ::pre
+          a1
+        The <tt>$</tt> means "this row".
+        ::pre
+          a$
+        Spaces are allowed.
+        ::pre
+          a column
+        Cell references are case-insensitive.
+        ::pre
+          A ColUmN
+      Longhand::md
+        This will probably change. It is kind of pointless for in-sheet references.
+
+        ::pre
+          [a, 1]
+        The row is optional
+        ::pre
+          [a]
+      Foreign Cells::md
+        You can refer to cells in other sheets.
+        Use the longhand, but with an extra first value.
+
+        This is the only use of the "longhand" notation and we're looking for a replacement.
+        ::pre
+          [OtherSheet, a, 1]
+        The row is optional.
+        ::pre
+          [OtherSheet, a]
+    Range References::def
+      Column Reference::md
+        The bare name of a column is treated as a reference to that column, with a length determined by the last non-empty row in the sheet.
+        ::pre
+          a
+        You can also specify the start or end of the column range.
+        ::pre
+          a1:a4
+        You don't have to repeat the column name.
+        ::pre
+          a1:4
+        If you leave out the start, it's assumed to be row 1.
+        ::pre
+          :a4
+        If you leave off the end, it's assumed to be the last non-empty row in the sheet.
+        ::pre
+          a4:
+        If the reference starts in row 1, you can leave that off.
+        ::pre
+          a:4
+        The <tt>$</tt> means "this row".
+        ::pre
+          a$:a4
+      Row Reference::md
+        To specify a row reference, specify two different columns.
+        ::pre
+          a1:c1
+        You don't have to repeat the row number.
+        ::pre
+          a1:c
+        You can leave out the row number to refer to the first row.
+        ::pre
+          a:c
+      2d Reference::md
+        Two-dimensional range references are not supported.
+
+    Operators::def
+      Binary Operators::md
+        ::pre
+          a1 - b2
+          a1 + b2
+          a1 * b2
+          a1 / b2
+          a1 = b2
+          a1 != b2
+          a1 < b2
+          a1 > b2
+          a1 <= b2
+          a1 >= b2
+      Unary Operators::md
+        ::pre
+          -a1
+          +a1
+          !a1
+    Function Call::def
+      See [Functions] for a list of the functions. You can also define your own. See [User-Defined Functions].
+
+      To call a function, just write it's name and put the arguments to the function in parens.
+      ::pre
+        abs(a2)
+      Arguments can be numbers, strings, cells, rows, columns.
+      See the function's description for what it expects.
+
+      Function calls are case-insensitive.
+      ::pre
+        ABS(a2)
   Functions::dl
     ::js
       for(const child of node.parent.children){
@@ -302,19 +462,23 @@
           if(1, 2, 3)
         The above yields 2.
 
-        For the following, assume that column <tt>a</tt> is 0, 1, 0, column
-        <tt>b</tt> is 3, 4, 5 and column <tt>c</tt> is 31, 41, 51.
+        ::table
+            | A | B | C
+          1 | 0 | 3 | 31
+          2 | 1 | 4 | 41
+          3 | 0 | 5 | 51
+        For the following, assume the above table.
         ::pre
-          sum(if([a], [b], [c]))
+          sum(if(a, b, c))
         Yields 86 (31+4+51).
         ::pre
-          sum(if([a], 1, [c]))
+          sum(if(a, 1, c))
         Yields 83 (31+1+51)
         ::pre
-          sum(if([a], [b], 1))
+          sum(if(a, b, 1))
         Yields 6 (1+4+1).
         ::pre
-          sum(if([a], 2, 3))
+          sum(if(a, 2, 3))
         Yields 8 (3+2+3).
 
     max::def
@@ -449,7 +613,7 @@
           If needle is not found, this value is returned.
       Examples::md
         ::pre
-          tlu('Plate', [Items], [Weights])
+          tlu('Plate', Items, Weights)
     trunc::def
       ::pre
         trunc(number)
@@ -474,5 +638,32 @@
       Example::md
         ::pre
           try(call('doesnotexist', 1), 3)
-
         The above yields 3.
+  User-Defined Functions::md.example
+    You can define your own functions.
+
+    You do this by creating a special sheet that is marked as a function.
+    You also give the function a name.
+    Note that you can't use the name of a builtin function for one of your
+    functions.
+
+    Some of the cells of that sheet are the inputs to the function and one
+    of the cells is the output.
+
+    You can then call it like one of the builtin functions.
+
+  Formula Examples::md.example
+    Sum a column::md
+      Start at row 2 so you can put this formula in row 1.
+      Or you can leave the 2 off to sum the whole column.
+      ::pre
+        sum(a2:)
+    Sum multiplied by another column::md
+      The <tt>num(b, 1)</tt> will either return the value in b or 1, so blanks will be counted as 1.
+
+      ::pre
+        sum(a * num(b, 1))
+    Sum looked up values::md
+
+      ::pre
+        sum(tlu(a, [othersheet, a], [othersheet, b]))

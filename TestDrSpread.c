@@ -259,6 +259,8 @@ TestFunction(TestParsing){
         "=r(a1)\n"
         "=r(a$)\n"
         "=r(a1:b1)\n"
+        "=r(a1:b)\n"
+        "=r(a:b)\n"
         "=r(a1:a3)\n"
         "=r(a1:a1)\n"
         "=r(a$:a1)\n"
@@ -392,6 +394,8 @@ TestFunction(TestParsing){
     SheetRow expected[] = {
         ROW("R0([a, 0])"),
         ROW("R0([a, $])"),
+        ROW("R1R([a:b, 0])"),
+        ROW("R1R([a:b, 0])"),
         ROW("R1R([a:b, 0])"),
         ROW("R1C([a, 0:2])"),
         ROW("R1C([a, 0:0])"),

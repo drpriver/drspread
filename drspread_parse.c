@@ -850,7 +850,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
             rng->row_end = row_idx2;
             return &rng->e;
         }
-        else if(row_idx == row_idx2){
+        else if(row_idx == row_idx2 || (row_idx != -1 && row_idx2 == -1)){
             Range1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW);
             if(!rng) return NULL;
             rng->col_start = colname;
