@@ -96,6 +96,7 @@
   }
   table td {
     text-align: right;
+    white-space: nowrap;
   }
   table td:last-child, table th:last-child {
     border-right: none;
@@ -105,6 +106,19 @@
   }
   table td {
     border-top: 1px solid black;
+  }
+  table {
+    margin-bottom: 3ex;
+  }
+  #udf table tbody tr:first-child td:nth-child(2),
+  #udf table tbody tr:first-child td:nth-child(3) {
+    background-color: green;
+  }
+  #udf table tbody tr:last-child td:nth-child(2) {
+    background-color: blue;
+  }
+  #udf td:nth-child(2), #udf td:nth-child(3) {
+    text-align: left;
   }
   @media (prefers-color-scheme: dark) {
     table td, table th {
@@ -651,6 +665,23 @@
     of the cells is the output.
 
     You can then call it like one of the builtin functions.
+
+    UDF Example::md
+      ::div #id(udf)
+        MyFunc::table
+              | A      | B
+            1 |        |
+            2 | =a1*2  | =b1+2
+            3 | =a2/b2 |
+      ::md
+        In this example, the input cells are green and the output cell is blue.
+
+        Given the above is named MyFunc, you can then call it like so:
+        ::pre
+          MyFunc(1, 2)
+        which would yield 0.5.
+
+
 
   Formula Examples::md.example
     Sum a column::md
