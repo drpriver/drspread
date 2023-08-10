@@ -936,10 +936,10 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         .enum_count = test_funcs_count,
         .enum_names = test_names,
     };
+    #ifndef __wasm__
     StringView outfile = {0};
     StringView extrafiles[8] = {0};
     _Bool append = 0;
-    #ifndef __wasm__
     _Bool print_pid = 0;
     _Bool should_wait = 0;
     #endif
@@ -950,7 +950,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     #ifndef __wasm__
     enum {TEE_INDEX=7, TARGET_INDEX=3};
     #else
-    enum {TEE_INDEX=6, TARGET_INDEX=2};
+    enum {TARGET_INDEX=2};
     #endif
 
     ArgToParse kw_args[] = {
@@ -993,6 +993,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             .dest = ARGDEST(&silent),
             .help = "Don't print to stderr.",
         },
+        #ifndef __wasm__
         {
             .name = SV("-o"),
             .altname1 = SV("--outfile"),
@@ -1013,7 +1014,6 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             .dest = ARGDEST(&append),
             .help = "Open the files indicated by --outfile or --tee in append mode.",
         },
-        #ifndef __wasm__
         {
             .name = SV("-p"),
             .altname1 = SV("--print-pid"),
@@ -1104,6 +1104,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         fprintf(stderr, "Reps must be >= 0\n");
         return 1;
     }
+    #ifndef __wasm__
     // Register primary output file
     if(outfile.length){
         no_colors = true;
@@ -1114,9 +1115,11 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         }
         TestRegisterOutFile(fp);
     }
+    #endif
     if(!TestOutFileCount && !silent){
         TestRegisterOutFile(stderr);
     }
+    #ifndef __wasm__
     // Register extras
     for(int i = 0; i < kw_args[TEE_INDEX].num_parsed; i++){
         FILE* fp = fopen(extrafiles[i].text, append?"ab":"wb");
@@ -1126,7 +1129,6 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         }
         TestRegisterOutFile(fp);
     }
-    #ifndef __wasm__
     if(directory.length){
         int changed = chdir(directory.text);
         if(changed != 0){
