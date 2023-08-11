@@ -423,6 +423,7 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             else
                 c = sp_name_to_col_idx(fsd, col.text, col.length);
             if(c == IDX_DOLLAR) c = caller_col;
+            if(c == -1) return Error(ctx, "column not found");
             return evaluate(ctx, fsd, r, c);
         }
         case EXPR_RANGE0D:{
@@ -436,6 +437,7 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             else
                 c = sp_name_to_col_idx(sd, col.text, col.length);
             if(c == IDX_DOLLAR) c = caller_col;
+            if(c == -1) return Error(ctx, "column not found");
             return evaluate(ctx, sd, r, c);
         }
         case EXPR_BINARY:{

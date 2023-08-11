@@ -1,0 +1,13 @@
+Changelog::kv
+  created:  2023-06-29T17:31:00Z
+  resolved: 2023-08-11T00:51:55Z
+Created Jun 29, 2023, 10:31AM::md .update
+Summary::md .summary
+  They’re left in the colcache, which means you can keep using the old alias
+  (which can manifest as formulas that work until you refresh in a web ui
+  version for example).
+
+Resolved Aug 10, 2023, 05:51PM::md .update
+  I fixed this by making it kind of dumb and just having an array of key-value
+  pairs we scan. In practice the actual number of columns will stay small so
+  it’s possible this isn’t even slower.

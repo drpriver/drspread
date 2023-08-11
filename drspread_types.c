@@ -113,7 +113,7 @@ DRSP_INTERNAL
 void
 cleanup_sheet_data(SheetData* d){
     drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
-    drsp_alloc(d->col_cache.cap*(sizeof(ColName)+sizeof(uint32_t)), d->col_cache.data, 0, _Alignof(ColName));
+    cleanup_col_cache(&d->col_cache);
     drsp_alloc(d->result_cache.cap*(sizeof(CachedResult)+sizeof(uint32_t)), d->result_cache.data, 0, _Alignof(CachedResult));
 }
 
@@ -317,79 +317,6 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restric
         if(items[i].rc.row == row && items[i].rc.col == col){
             items[i].sv = (StringView){len, txt};
             return 0;
-        }
-        idx++;
-        if(unlikely(idx >= cap)) idx = 0;
-    }
-}
-
-static inline
-int
-set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t value){
-    if(cache->n*2 >= cache->cap){
-        size_t old_cap = cache->cap;
-        size_t new_cap = old_cap?old_cap*2:16;
-        size_t new_size = new_cap*(sizeof(ColName)+sizeof(uint32_t));
-        size_t old_size = old_cap*(sizeof(ColName)+sizeof(uint32_t));
-        unsigned char* new_data = drsp_alloc(old_size, cache->data, new_size, _Alignof(ColName));
-        if(!new_data)
-            return 1;
-        cache->data = new_data;
-        cache->cap = new_cap;
-        uint32_t* indexes = (uint32_t*)(new_data + sizeof(ColName)*new_cap);
-        __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
-        ColName *items = (ColName*)new_data;
-        for(size_t i = 0; i < cache->n; i++){
-            StringView k = items[i].name;
-            uint32_t hash = ascii_insensitive_hash_align1(k.text, k.length);
-            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
-            while(indexes[idx] != UINT32_MAX){
-                idx++;
-                if(unlikely(idx >= new_cap)) idx = 0;
-            }
-            indexes[idx] = i;
-        }
-    }
-    size_t cap = cache->cap;
-    StringView key = {len, name};
-    uint32_t hash = ascii_insensitive_hash_align1(key.text, key.length);
-    ColName *items = (ColName*)cache->data;
-    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(ColName)*cap);
-    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
-    for(;;){
-        uint32_t i = indexes[idx];
-        if(i == UINT32_MAX){ // empty slot
-            indexes[idx] = cache->n;
-            items[cache->n] = (ColName){key, value};
-            cache->n++;
-            return 0;
-        }
-        if(sv_iequals(items[i].name, key)){
-            items[i].idx = value;
-            return 0;
-        }
-        idx++;
-        if(unlikely(idx >= cap)) idx = 0;
-    }
-}
-
-static inline
-intptr_t*_Nullable
-get_cached_col_name(ColCache* cache, const char* name, size_t len){
-    size_t cap = cache->cap;
-    if(!cap) return NULL;
-    StringView key = {len, name};
-    uint32_t hash = ascii_insensitive_hash_align1(key.text, key.length);
-    ColName *items = (ColName*)cache->data;
-    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(ColName)*cap);
-    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
-    for(;;){
-        uint32_t i = indexes[idx];
-        if(i == UINT32_MAX){ // empty slot
-            return NULL;
-        }
-        if(sv_iequals(items[i].name, key)){
-            return &items[i].idx;
         }
         idx++;
         if(unlikely(idx >= cap)) idx = 0;

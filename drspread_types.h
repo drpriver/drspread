@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "drspread.h"
+#include "drspread_colcache.h"
 #include "buff_allocator.h"
 #include "stringview.h"
 #include "drspread_allocators.h"
@@ -296,14 +297,6 @@ struct CellCache {
     unsigned char* data;
 };
 
-// This is a hash table
-typedef struct ColCache ColCache;
-struct ColCache {
-    SheetHandle handle;
-    size_t n;
-    size_t cap;
-    unsigned char* data;
-};
 
 typedef struct RowCol RowCol;
 struct RowCol {
@@ -324,20 +317,6 @@ int
 set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
 
 
-
-typedef struct ColName ColName;
-struct ColName {
-    StringView name;
-    intptr_t idx;
-};
-
-static inline
-intptr_t*_Nullable
-get_cached_col_name(ColCache* cache, const char* name, size_t len);
-
-static inline
-int
-set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t value);
 
 enum {STRING_ARENA_SIZE=16*1024 - sizeof(void*) - sizeof(size_t)};
 typedef struct StringArena StringArena;

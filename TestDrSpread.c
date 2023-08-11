@@ -2,7 +2,7 @@
 // Copyright © 2023, David Priver <david@davidpriver.com>
 //
 #ifdef _WIN32
-#define _CRT_NONSTDC_NO_WARNINGS 1 
+#define _CRT_NONSTDC_NO_WARNINGS 1
 #define _CRT_SECURE_NO_WARNINGS 1
 #endif
 
@@ -59,6 +59,7 @@ static TestFunc TestComplexMultisheet;
 static TestFunc TestCaching;
 static TestFunc TestUserFunctions;
 static TestFunc TestShortColNames;
+static TestFunc TestDeleteColNames;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -85,6 +86,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestCaching);
         RegisterTest(TestUserFunctions);
         RegisterTest(TestShortColNames);
+        RegisterTest(TestDeleteColNames);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -2030,7 +2032,7 @@ TestFunction(TestShortColNames){
     TESTBEGIN();
     // We're going to guard a lot of the assertions in this testcase
     // as this test assumes the setup code already works.
-    const char* input = 
+    const char* input =
         "sheet\n"
         "xp | gp | \n"
         " 1 | 2 | 3 \n"
@@ -2090,6 +2092,71 @@ TestFunction(TestShortColNames){
     }
     cleanup_multisheet(&ms);
 
+    EXPECT_NO_LEAKS();
+    TESTEND();
+}
+
+TestFunction(TestDeleteColNames){
+    TESTBEGIN();
+    int err;
+    const char* input =
+        "sheet\n"
+        "frobnicate | barawax\n"
+        "=barawax1 | 2\n"
+        "=sum(barawax) | 3\n"
+    ;
+    MultiSpreadSheet ms = {0};
+    err = read_multi_csv_from_string(&ms, input);
+    if(err) TestAssertFalse(err);
+    TestAssertEquals(ms.n, 1);
+    SpreadSheet* sheet = &ms.sheets[0];
+    TestAssertEquals(sheet->rows, 2);
+    SheetHandle sh = (SheetHandle)sheet;
+    SheetOps ops = multisheet_ops(&ms);
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    TestAssert(ctx);
+    err = drsp_set_sheet_name(ctx, sh, sheet->name.text, sheet->name.length);
+    if(err) TestAssertFalse(err);
+
+    for(intptr_t r = 0; r < sheet->rows; r++){
+        const SheetRow* row = &sheet->cells[r];
+        for(int c = 0; c < row->n; c++){
+            if(!row->lengths[c]) continue;
+            err = drsp_set_cell_str(ctx, sh, r, c, row->data[c], row->lengths[c]);
+            // don't bloat the stats
+            if(err) TestAssertFalse(err);
+        }
+    }
+    for(int c = 0; c < sheet->colnames.n; c++){
+        err = drsp_set_col_name(ctx, sh, c, sheet->colnames.data[c], sheet->colnames.lengths[c]);
+        if(err) TestAssertFalse(err);
+    }
+    err = drsp_evaluate_formulas(ctx);
+    TestAssertFalse(err);
+
+    // rename to hello
+    err = drsp_set_col_name(ctx, sh, 1, "hello", 5);
+    TestAssertFalse(err);
+
+    err = drsp_evaluate_formulas(ctx);
+    TestExpectEquals(err, 2);
+
+    // rename back to barawax, but upper case
+    err = drsp_set_col_name(ctx, sh, 1, "BARAWAX", 7);
+    TestAssertFalse(err);
+
+    err = drsp_evaluate_formulas(ctx);
+    TestExpectEquals(err, 0);
+
+    // remove column name
+    err = drsp_set_col_name(ctx, sh, 1, "", 0);
+    TestAssertFalse(err);
+
+    err = drsp_evaluate_formulas(ctx);
+    TestExpectEquals(err, 2);
+
+    cleanup_multisheet(&ms);
+    drsp_destroy_ctx(ctx);
     EXPECT_NO_LEAKS();
     TESTEND();
 }

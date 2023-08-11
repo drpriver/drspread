@@ -31,6 +31,7 @@ get_range1dcol(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* col, i
     }
     else {
         colnum = sp_name_to_col_idx(sd, rng->col_name.text, rng->col_name.length);
+        if(colnum == -1) return 1;
     }
     if(start < 0) start += sp_col_height(sd, colnum);
     intptr_t end = rng->row_end;
@@ -73,6 +74,7 @@ get_range1drow(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* row, i
     }
     else
         start = sp_name_to_col_idx(sd, sv_start.text, sv_start.length);
+    if(start == -1) return 1;
     intptr_t row_idx = rng->row_idx;
     if(row_idx == IDX_DOLLAR) row_idx = caller_row;
     StringView sv_end = rng->col_end;
@@ -84,6 +86,7 @@ get_range1drow(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* row, i
     }
     else
         end = sp_name_to_col_idx(sd, sv_end.text, sv_end.length);
+    if(end == -1) return 1;
     if(end < start){
         intptr_t tmp = end;
         end = start;

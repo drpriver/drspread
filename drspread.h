@@ -134,6 +134,7 @@ DRSP_EXPORT
 int
 drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* restrict text, size_t length);
 
+// Set to a zero-length string to delete the column name.
 DRSP_EXPORT
 int
 drsp_set_col_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t idx, const char* restrict text, size_t length);
