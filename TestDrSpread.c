@@ -857,6 +857,7 @@ TestFunction(TestFuncs){
         "=CaT('', '')\n"
 
         "=MiN(mAX(-1, -2), 1)\n"
+        "=mean([b])\n"
 
     ;
     SheetRow expected[] = {
@@ -939,6 +940,7 @@ TestFunction(TestFuncs){
         ROW(""),
 
         ROW("-1"),
+        ROW("15"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

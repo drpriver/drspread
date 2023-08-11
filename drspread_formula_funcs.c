@@ -2094,6 +2094,7 @@ const FuncInfo FUNC4[] = {
     {SVI("eval"),  &drsp_eval},
     {SVI("call"),  &drsp_call},
     {SVI("sqrt"),  &drsp_sqrt},
+    {SVI("mean"),  &drsp_avg},
 #ifdef DRSPREAD_CLI_C
 #ifdef __APPLE__
     {SVI("time"), &drsp_time},
