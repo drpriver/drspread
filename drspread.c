@@ -4,11 +4,11 @@
 #ifndef DRSPREAD_C
 #define DRSPREAD_C
 
+#include "drspread.h"
 #include "drspread_evaluate.h"
 #include "drspread_parse.h"
 #include "stringview.h"
 #include "drspread_types.h"
-#include "drspread.h"
 
 
 #ifdef __clang__

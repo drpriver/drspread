@@ -2177,6 +2177,8 @@ TestFunction(TestDeleteColNames){
 #pragma clang assume_nonnull end
 #endif
 
-#ifndef DRSP_TEST_DYLINK
+#ifdef DRSP_TEST_DYLINK
+#include "drspread_allocators.c"
+#else
 #include "drspread.c"
 #endif

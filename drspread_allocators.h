@@ -6,6 +6,10 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wgnu-alignof-expression"
+#endif
+
 static inline
 void*_Nullable
 drsp_alloc(size_t old_sz, const void*_Nullable old, size_t new_sz, size_t alignment);
