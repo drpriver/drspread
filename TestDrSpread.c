@@ -60,6 +60,7 @@ static TestFunc TestCaching;
 static TestFunc TestUserFunctions;
 static TestFunc TestShortColNames;
 static TestFunc TestDeleteColNames;
+static TestFunc TestExtraDimensional;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -87,6 +88,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestUserFunctions);
         RegisterTest(TestShortColNames);
         RegisterTest(TestDeleteColNames);
+        RegisterTest(TestExtraDimensional);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -2163,6 +2165,104 @@ TestFunction(TestDeleteColNames){
     TESTEND();
 }
 
+
+static
+int
+test_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, double val){
+    (void)hnd;
+    if(row != DRSP_IDX_EXTRA_DIMENSIONAL) return 0;
+    double* v = m;
+    v[col] = val;
+    return 0;
+}
+
+static
+int
+test_set_display_error(void* m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
+    (void)m, (void)hnd, (void)row, (void)col, (void)mess, (void)len;
+    if(row != DRSP_IDX_EXTRA_DIMENSIONAL) return 0;
+    return 1;
+}
+
+static
+int
+test_set_display_string(void* m, SheetHandle hnd, intptr_t row, intptr_t col, const char* mess, size_t len){
+    (void)m, (void)hnd, (void)row, (void)col, (void)mess, (void)len;
+    if(row != DRSP_IDX_EXTRA_DIMENSIONAL) return 0;
+    return 1;
+}
+
+
+TestFunction(TestExtraDimensional){
+    TESTBEGIN();
+    int err;
+    const char* input =
+        "sheet\n"
+        "foo | bar\n"
+        "2 | 5\n"
+        "3 | 6\n"
+    ;
+    MultiSpreadSheet ms = {0};
+    err = read_multi_csv_from_string(&ms, input);
+    if(err) TestAssertFalse(err);
+    TestAssertEquals(ms.n, 1);
+    SpreadSheet* sheet = &ms.sheets[0];
+    TestAssertEquals(sheet->rows, 2);
+    SheetHandle sh = (SheetHandle)sheet;
+    double nums[12] = {0.};
+    SheetOps ops = {
+        .ctx = nums,
+        .set_display_error=test_set_display_error,
+        .set_display_string=test_set_display_string,
+        .set_display_number=test_set_display_number,
+    };
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    TestAssert(ctx);
+    err = drsp_set_sheet_name(ctx, sh, sheet->name.text, sheet->name.length);
+    if(err) TestAssertFalse(err);
+
+    for(intptr_t r = 0; r < sheet->rows; r++){
+        const SheetRow* row = &sheet->cells[r];
+        for(int c = 0; c < row->n; c++){
+            if(!row->lengths[c]) continue;
+            err = drsp_set_cell_str(ctx, sh, r, c, row->data[c], row->lengths[c]);
+            // don't bloat the stats
+            if(err) TestAssertFalse(err);
+        }
+    }
+    TestAssertEquals(sheet->colnames.n, 2);
+    TestAssertEquals2(sv_equals, SV("foo"), ((StringView){.text=sheet->colnames.data[0], .length=sheet->colnames.lengths[0]}));
+    TestAssertEquals2(sv_equals, SV("bar"), ((StringView){.text=sheet->colnames.data[1], .length=sheet->colnames.lengths[1]}));
+    for(int c = 0; c < sheet->colnames.n; c++){
+        err = drsp_set_col_name(ctx, sh, c, sheet->colnames.data[c], sheet->colnames.lengths[c]);
+        if(err) TestAssertFalse(err);
+    }
+    struct {
+        StringView txt;
+        double expected;
+    }cases[] = {
+        {SV("=sum(a)"),    5.},
+        {SV("=sum(b)"),   11.},
+        {SV("=sum(foo)"),  5.},
+        {SV("=sum(bar)"), 11.},
+        {SV("=1+1"),       2.},
+    };
+    _Static_assert(arrlen(nums) >= arrlen(cases), "");
+    for(size_t i = 0; i < arrlen(cases); i++){
+        int err = drsp_set_extra_dimensional_str(ctx, sh, i, cases[i].txt.text, cases[i].txt.length);
+        if(err) TestAssertFalse(err);
+    }
+
+    err = drsp_evaluate_formulas(ctx);
+    TestAssertFalse(err);
+    for(size_t i = 0; i < arrlen(cases); i++)
+        TestExpectEquals(nums[i], cases[i].expected);
+
+    cleanup_multisheet(&ms);
+    drsp_destroy_ctx(ctx);
+    EXPECT_NO_LEAKS();
+    TESTEND();
+}
 
 
 

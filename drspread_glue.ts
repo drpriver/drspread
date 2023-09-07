@@ -10,11 +10,13 @@ const enum DrspSheetFlags {
     NONE = 0x0,
     IS_FUNCTION = 0x1,
 }
+const enum DRSP {IDX_EXTRA_DIMENSIONAL = -2147483645  } // INT32_MIN+3
 type DrSpreadCtx = {
     id: number;
     evaluate_formulas: () => number;
     evaluate_string: (sheet:number, s:string) => number | string;
     set_str:(sheet:number, row:number, col:number, s:string) => number;
+    set_extra_str:(sheet:number, id:number, s:string) => number;
     make_sheet:(sheet:number, name:string) => number;
     set_sheet_alias:(sheet:number, name:string) => number;
     set_col_name:(sheet:number, idx: number, name:string) => number;
@@ -33,6 +35,7 @@ type DrSpreadExports = {
     drsp_evaluate_formulas: (ctx:number) => number;
     drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
     drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
+    drsp_set_extra_dimensional_str:(ctx:number, sheet:number, id:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_alias:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_col_name:(ctx:number, sheet:number, idx:number, ptxt:number, txtlen:number) => number;
@@ -155,6 +158,13 @@ return fetch(wasm_path)
                     const encoded = encoder.encode(s);
                     mem.set(encoded, exports.wasm_str_buff.value);
                     const e = exports.drsp_set_cell_str(ctx, sheet, row, col, exports.wasm_str_buff.value, encoded.length);
+                    return e;
+                },
+                set_extra_str: (sheet:number, id:number, s:string):number => {
+                    const ctx = result.id;
+                    const encoded = encoder.encode(s);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    const e = exports.drsp_set_extra_dimensional_str(ctx, sheet, id, exports.wasm_str_buff.value, encoded.length);
                     return e;
                 },
                 make_sheet: (sheet:number, name:string):number => {

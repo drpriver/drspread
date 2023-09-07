@@ -2,10 +2,12 @@
 // Copyright © 2023, David Priver <david@davidpriver.com>
 //
 let func_cells: Array<Array<string|number>> = [['', ''], ['', ''], ['', '']];
+let extra_cells: Array<string|number> = ['=1+1', '', ''];
 declare let cells: Array<Array<string|number>>;
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let func_display: Array<Array<string>> = [
 ];
+let extra_display: Array<string> = [];
 let display:Array<Array<string>> = [
 ];
 function prep():void{
@@ -39,12 +41,22 @@ function prep():void{
             }
         }
     }
+    extra_display = [];
+    for(let c = 0; c < extra_cells.length; c++){
+        const val = extra_cells[c];
+        if(typeof val === 'string' && val[0] == '=')
+            extra_display.push('');
+        else
+            extra_display.push(''+val);
+    }
 }
 prep();
 
 function display_number(i:number, row:number, col:number, val:number):void{
     if(i == 0){
-        if((val | 0) == val)
+        if(row == DRSP.IDX_EXTRA_DIMENSIONAL)
+            extra_display[col] = '' + val;
+        else if((val | 0) == val)
             display[row][col] = ""+val;
         else
             display[row][col] = val.toFixed(2);
@@ -58,7 +70,10 @@ function display_number(i:number, row:number, col:number, val:number):void{
 }
 function display_string(i:number, row:number, col:number, val:string):void{
     if(i == 0){
-        display[row][col] = val;
+        if(row == DRSP.IDX_EXTRA_DIMENSIONAL)
+            extra_display[col] = val;
+        else
+            display[row][col] = val;
     }
     else {
         func_display[row][col] = val;
@@ -66,7 +81,12 @@ function display_string(i:number, row:number, col:number, val:string):void{
 }
 function display_error(i:number, row:number, col:number):void{
     if(i == 0){
-        display[row][col] = 'err';
+        if(row == DRSP.IDX_EXTRA_DIMENSIONAL){
+            console.log({i, row, col});
+            extra_display[col] = 'err';
+        }
+        else
+            display[row][col] = 'err';
     }
     else {
         func_display[row][col] = 'err';
@@ -75,6 +95,7 @@ function display_error(i:number, row:number, col:number):void{
 
 let table:HTMLTableElement;
 let functable:HTMLTableElement;
+let extratable: HTMLTableElement;
 let raw:HTMLTableElement;
 let pre:HTMLPreElement;
 let ex:DrSpreadExports;
@@ -90,6 +111,10 @@ function get_ctx(): DrSpreadCtx{
             const s = cells[i][j];
             ctx.set_str(0, i, j, ""+s);
         }
+    }
+    for(let i = 0; i < extra_cells.length; i++){
+        const s = extra_cells[i];
+        ctx.set_extra_str(0, i, ''+s);
     }
     ctx.make_sheet(1, 'func');
     ctx.set_flag(1, DrspSheetFlags.IS_FUNCTION, true);
@@ -141,6 +166,11 @@ function make_elems():void{
 
     functable = document.createElement('table');
     document.body.appendChild(functable);
+    const h = document.createElement('h4');
+    h.textContent = 'Summary Cells';
+    document.body.appendChild(h);
+    extratable = document.createElement('table');
+    document.body.appendChild(extratable);
     table = document.createElement('table');
     document.body.appendChild(table);
 
@@ -181,6 +211,18 @@ function show():void{
         html += '</tr>\n';
     }
     functable.innerHTML = html;
+    }
+    {
+    let html = '<tr>';
+    for(let i = 0; i < extra_display.length; i++){
+        const val = extra_display[i];
+        if(val == 'err')
+            html += `  <td class=error data-row=-1 data-col=${i}>`+val + '\n';
+        else
+            html += `  <td data-row=-1 data-col=${i}>`+val + '\n';
+    }
+    html += '</tr>';
+    extratable.innerHTML = html;
     }
     {
     let html = '<thead>';
@@ -236,7 +278,13 @@ function show():void{
             const r = +td.dataset.row!;
             const c = +td.dataset.col!;
             const is_func = !!td.dataset.func;
-            const txt = (is_func?func_cells:cells)[r][c];
+            let txt;
+            if(is_func)
+                txt = func_cells[r][c];
+            else if(r == -1)
+                txt = extra_cells[c];
+            else
+                txt = cells[r][c];
             inp.value = ""+txt;
             td.textContent = '';
             td.appendChild(inp);
@@ -253,11 +301,26 @@ function show():void{
             inp.onblur = function(){
                 const t = inp.value.trim();
                 inp.remove();
-                if(!t) (is_func?func_cells:cells)[r][c] = t;
-                // @ts-ignore
-                else   (is_func?func_cells:cells)[r][c] = !isNaN(t)?+t:t;
-
-                get_ctx().set_str(is_func?1:0, r, c, t);
+                if(!t){
+                    if(is_func)
+                        func_cells[r][c] = t;
+                    else if(r == -1)
+                        extra_cells[c] = t;
+                    else cells[r][c] = t;
+                }
+                else {
+                    // @ts-ignore
+                    const T = !isNaN(t)?+t:t;
+                    if(is_func)
+                        func_cells[r][c] = T;
+                    else if(r == -1)
+                        extra_cells[c] = T;
+                    else cells[r][c] = T;
+                }
+                if(r == -1)
+                    get_ctx().set_extra_str(0, c, t);
+                else
+                    get_ctx().set_str(is_func?1:0, r, c, t);
 
                 // prep();
                 const N = 1;
@@ -287,11 +350,13 @@ const enum DrspSheetFlags {
     NONE = 0x0,
     IS_FUNCTION = 0x1,
 }
+const enum DRSP {IDX_EXTRA_DIMENSIONAL = -2147483645  } // INT32_MIN+3
 type DrSpreadCtx = {
     id: number;
     evaluate_formulas: () => number;
     evaluate_string: (sheet:number, s:string) => number | string;
     set_str:(sheet:number, row:number, col:number, s:string) => number;
+    set_extra_str:(sheet:number, id:number, s:string) => number;
     make_sheet:(sheet:number, name:string) => number;
     set_sheet_alias:(sheet:number, name:string) => number;
     set_col_name:(sheet:number, idx: number, name:string) => number;
@@ -341,7 +406,7 @@ declare function drspread(
 }>;
 
 drspread(
-    '/Bin/drspread.wasm', 
+    '/Bin/drspread.wasm',
     display_number,
     display_string,
     display_error,

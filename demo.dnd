@@ -88,7 +88,7 @@
   }
   const js = JSON.stringify(result);
   // console.log(js);
-  const s = ctx.select_nodes({id:'data'})[0]
+  const s = ctx.by_id('data');
   s.add_child('let cells = ' + js +';');
 ::script #import
   demo.js

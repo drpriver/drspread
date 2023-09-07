@@ -83,6 +83,25 @@ drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, int
 
 DRSP_EXPORT
 int
+drsp_set_extra_dimensional_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t id, const char*restrict text, size_t length){
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    for(unsigned i = 0; i < sd->extra_dimensional.count; i++){
+        if(sd->extra_dimensional.cells[i].id == id){
+            goto foundit;
+        }
+    }
+    if(sd->extra_dimensional.count >= arrlen(sd->extra_dimensional.cells))
+        return 1;
+    sd->extra_dimensional.cells[sd->extra_dimensional.count++].id = id;
+    foundit:;
+    DrspStr* str = drsp_create_str(ctx, text, length);
+    if(!str) return 1;
+    return set_cached_cell(&sd->cell_cache, IDX_EXTRA_DIMENSIONAL, id, str->data, str->length);
+}
+
+DRSP_EXPORT
+int
 drsp_set_col_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t idx, const char*restrict text, size_t length){
     SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
     if(!sd) return 1;
@@ -423,10 +442,11 @@ sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
 DRSP_INTERNAL
 const char*_Nullable
 sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len){
-    if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
-        *len = 0;
-        return "";
-    }
+    if(row != IDX_EXTRA_DIMENSIONAL)
+        if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
+            *len = 0;
+            return "";
+        }
     CellCache* cache = &sd->cell_cache;
     StringView* cached = get_cached_cell(cache, row, col);
     if(!cached) {

@@ -133,6 +133,67 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 // GCOV_EXCL_STOP
             }
         }
+        for(unsigned i = 0; i < sd->extra_dimensional.count; i++){
+            ExtraDimensionalCell* edc = &sd->extra_dimensional.cells[i];
+            buff_set(ctx->a, bc);
+            // I don't remember if the row/column matter
+            const intptr_t row = IDX_EXTRA_DIMENSIONAL;
+            const intptr_t col = edc->id; // "col"
+            // TEMP: just eval the string
+            Expression* e = evaluate(ctx, sd, row, col);
+            if(!e){ // OOM
+                nerrs++;
+                sp_set_display_error(ctx, sd->handle, row, col, "oom", 5);
+                continue;
+            }
+            CachedResult* cr = get_cached_result(&sd->result_cache, IDX_EXTRA_DIMENSIONAL, edc->id);
+            if(cr){
+                CachedResult tmp_cr;
+                tmp_cr.loc = (RowCol){IDX_EXTRA_DIMENSIONAL, edc->id};
+                int err = expr_to_cached_result(ctx, e, &tmp_cr);
+                if(!err){
+                    if(cached_result_eq_ignoring_loc(cr, &tmp_cr)){
+                        if(tmp_cr.kind == CACHED_RESULT_ERROR)
+                            nerrs++;
+                        continue;
+                    }
+                    *cr = tmp_cr;
+                    switch(tmp_cr.kind){
+                        case CACHED_RESULT_NULL:
+                            sp_set_display_string(ctx, sd->handle, row, col, "", 0);
+                            continue;
+                        case CACHED_RESULT_NUMBER:
+                            sp_set_display_number(ctx, sd->handle, row, col, tmp_cr.number);
+                            continue;
+                        case CACHED_RESULT_STRING:
+                            sp_set_display_string(ctx, sd->handle, row, col, tmp_cr.string->data, tmp_cr.string->length);
+                            continue;
+                        default: break;
+                    }
+                    nerrs++;
+                    sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+                    continue;
+                }
+            }
+            // Fallback, don't cache the result.
+            // GCOV_EXCL_START
+            switch(e->kind){
+                case EXPR_NUMBER:
+                    sp_set_display_number(ctx, sd->handle, row, col, ((Number*)e)->value);
+                    continue;
+                case EXPR_STRING:
+                    sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                    continue;
+                case EXPR_BLANK:
+                    sp_set_display_string(ctx, sd->handle, row, col, "", 0);
+                    continue;
+                default: break;
+            }
+            nerrs++;
+            sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+            // GCOV_EXCL_STOP
+
+        }
     }
     buff_set(ctx->a, bc);
     return nerrs;

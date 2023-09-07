@@ -363,6 +363,7 @@ maybe_parse_number_pair(StringView* sv, intptr_t* a, intptr_t* b){
             }
             Int32Result ir = parse_int32(begin, p-begin);
             if(ir.errored) return -1;
+            if(ir.result == INT32_MIN) return -1;
             *a = ir.result - 1;
             sv->text += p-begin, sv->length -= p-begin;
             break;

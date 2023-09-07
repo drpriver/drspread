@@ -37,8 +37,9 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         }
     }
     size_t len = 0;
-    if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
-        return expr_alloc(ctx, EXPR_BLANK);
+    if(row != IDX_EXTRA_DIMENSIONAL)
+        if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
+            return expr_alloc(ctx, EXPR_BLANK);
     const char* txt = sp_cell_text(sd, row, col, &len);
     if(!txt) return expr_alloc(ctx, EXPR_BLANK);
     StringView sv = stripped2(txt, len);

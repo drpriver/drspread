@@ -6,7 +6,7 @@
 
 #define DRSPREAD_VERSION "0.1.0"
 #define DRSPREAD_VERSION_MAJOR 0
-#define DRSPREAD_VERSION_MINOR 1
+#define DRSPREAD_VERSION_MINOR 2
 #define DRSPREAD_VERSION_MICRO 0
 
 #include <stdint.h>
@@ -75,17 +75,22 @@ struct  DrSpreadResult {
         }s;  // DRSP_RESULT_STRING
     };
 };
+enum {DRSP_IDX_EXTRA_DIMENSIONAL = -2147483645  }; // INT32_MIN+3
 
 typedef struct DrSpreadCtx DrSpreadCtx;
 #ifndef DRSPREAD_DIRECT_OPS
 typedef struct SheetOps SheetOps;
+// NOTE: row will be DRSP_IDX_EXTRA_DIMENSIONAL for the extra-dimensional cells.
+typedef int (DrspSetDisplayNumber)(void* ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
+typedef int (DrspSetDisplayError)(void* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*, size_t);
+typedef int (DrspSetDisplayString)(void* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*, size_t);
 
 // Callbacks
 struct SheetOps {
     void* ctx;
-    int (*set_display_number)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, double value);
-    int (*set_display_error)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len);
-    int (*set_display_string)(void*ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char*, size_t);
+    DrspSetDisplayNumber* set_display_number;
+    DrspSetDisplayError* set_display_error;
+    DrspSetDisplayString* set_display_string;
 };
 #endif
 
@@ -133,6 +138,12 @@ drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* na
 DRSP_EXPORT
 int
 drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* restrict text, size_t length);
+
+// Sets the text of a cell that is not actually in the 2d cell grid.
+// Useful for things like summaries.
+DRSP_EXPORT
+int
+drsp_set_extra_dimensional_str(DrSpreadCtx* restrict ctx, SheetHandle sheet, intptr_t id, const char* restrict text, size_t length);
 
 // Set to a zero-length string to delete the column name.
 DRSP_EXPORT

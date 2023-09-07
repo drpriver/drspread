@@ -1,7 +1,9 @@
 "use strict";
 let func_cells = [['', ''], ['', ''], ['', '']];
+let extra_cells = ['=1+1', '', ''];
 const column_names = 'abcdefghijklmnopqrstuvwxyz';
 let func_display = [];
+let extra_display = [];
 let display = [];
 function prep() {
     func_display = [];
@@ -34,11 +36,21 @@ function prep() {
             }
         }
     }
+    extra_display = [];
+    for (let c = 0; c < extra_cells.length; c++) {
+        const val = extra_cells[c];
+        if (typeof val === 'string' && val[0] == '=')
+            extra_display.push('');
+        else
+            extra_display.push('' + val);
+    }
 }
 prep();
 function display_number(i, row, col, val) {
     if (i == 0) {
-        if ((val | 0) == val)
+        if (row == -2147483645)
+            extra_display[col] = '' + val;
+        else if ((val | 0) == val)
             display[row][col] = "" + val;
         else
             display[row][col] = val.toFixed(2);
@@ -52,7 +64,10 @@ function display_number(i, row, col, val) {
 }
 function display_string(i, row, col, val) {
     if (i == 0) {
-        display[row][col] = val;
+        if (row == -2147483645)
+            extra_display[col] = val;
+        else
+            display[row][col] = val;
     }
     else {
         func_display[row][col] = val;
@@ -60,7 +75,12 @@ function display_string(i, row, col, val) {
 }
 function display_error(i, row, col) {
     if (i == 0) {
-        display[row][col] = 'err';
+        if (row == -2147483645) {
+            console.log({ i, row, col });
+            extra_display[col] = 'err';
+        }
+        else
+            display[row][col] = 'err';
     }
     else {
         func_display[row][col] = 'err';
@@ -68,6 +88,7 @@ function display_error(i, row, col) {
 }
 let table;
 let functable;
+let extratable;
 let raw;
 let pre;
 let ex;
@@ -83,6 +104,10 @@ function get_ctx() {
             const s = cells[i][j];
             ctx.set_str(0, i, j, "" + s);
         }
+    }
+    for (let i = 0; i < extra_cells.length; i++) {
+        const s = extra_cells[i];
+        ctx.set_extra_str(0, i, '' + s);
     }
     ctx.make_sheet(1, 'func');
     ctx.set_flag(1, 1, true);
@@ -128,6 +153,11 @@ function make_elems() {
     raw.style.display = 'none';
     functable = document.createElement('table');
     document.body.appendChild(functable);
+    const h = document.createElement('h4');
+    h.textContent = 'Summary Cells';
+    document.body.appendChild(h);
+    extratable = document.createElement('table');
+    document.body.appendChild(extratable);
     table = document.createElement('table');
     document.body.appendChild(table);
     input.onkeydown = function (e) {
@@ -166,6 +196,18 @@ function show() {
             html += '</tr>\n';
         }
         functable.innerHTML = html;
+    }
+    {
+        let html = '<tr>';
+        for (let i = 0; i < extra_display.length; i++) {
+            const val = extra_display[i];
+            if (val == 'err')
+                html += `  <td class=error data-row=-1 data-col=${i}>` + val + '\n';
+            else
+                html += `  <td data-row=-1 data-col=${i}>` + val + '\n';
+        }
+        html += '</tr>';
+        extratable.innerHTML = html;
     }
     {
         let html = '<thead>';
@@ -221,7 +263,13 @@ function show() {
             const r = +td.dataset.row;
             const c = +td.dataset.col;
             const is_func = !!td.dataset.func;
-            const txt = (is_func ? func_cells : cells)[r][c];
+            let txt;
+            if (is_func)
+                txt = func_cells[r][c];
+            else if (r == -1)
+                txt = extra_cells[c];
+            else
+                txt = cells[r][c];
             inp.value = "" + txt;
             td.textContent = '';
             td.appendChild(inp);
@@ -238,11 +286,27 @@ function show() {
             inp.onblur = function () {
                 const t = inp.value.trim();
                 inp.remove();
-                if (!t)
-                    (is_func ? func_cells : cells)[r][c] = t;
+                if (!t) {
+                    if (is_func)
+                        func_cells[r][c] = t;
+                    else if (r == -1)
+                        extra_cells[c] = t;
+                    else
+                        cells[r][c] = t;
+                }
+                else {
+                    const T = !isNaN(t) ? +t : t;
+                    if (is_func)
+                        func_cells[r][c] = T;
+                    else if (r == -1)
+                        extra_cells[c] = T;
+                    else
+                        cells[r][c] = T;
+                }
+                if (r == -1)
+                    get_ctx().set_extra_str(0, c, t);
                 else
-                    (is_func ? func_cells : cells)[r][c] = !isNaN(t) ? +t : t;
-                get_ctx().set_str(is_func ? 1 : 0, r, c, t);
+                    get_ctx().set_str(is_func ? 1 : 0, r, c, t);
                 const N = 1;
                 const before = window.performance.now();
                 for (let i = 0; i < N; i++) {

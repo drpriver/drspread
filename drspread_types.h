@@ -203,10 +203,10 @@ struct UserFunctionCall {
     Expression*_Nonnull*_Nonnull argv;
 };
 
-enum {IDX_DOLLAR = -2147483647}; // INT32_MIN+1
-enum {IDX_UNSET  = -2147483647-1}; // INT32_MIN
-enum {IDX_BLANK  = -2147483646}; // INT32_MIN+2
-
+enum {IDX_UNSET             = -2147483647-1}; // INT32_MIN
+enum {IDX_DOLLAR            = -2147483647  }; // INT32_MIN+1
+enum {IDX_BLANK             = -2147483646  }; // INT32_MIN+2
+enum {IDX_EXTRA_DIMENSIONAL = DRSP_IDX_EXTRA_DIMENSIONAL}; // INT32_MIN+3
 
 typedef struct Range0D Range0D;
 struct Range0D {
@@ -470,6 +470,18 @@ typedef struct UserDefinedFunctionParameter UserDefinedFunctionParameter;
 struct UserDefinedFunctionParameter {
     intptr_t row, col;
 };
+
+
+typedef struct ExtraDimensionalCell ExtraDimensionalCell;
+struct ExtraDimensionalCell {
+    intptr_t id;
+};
+
+typedef struct ExtraDimensionalCellCache ExtraDimensionalCellCache;
+struct ExtraDimensionalCellCache {
+    unsigned count;
+    ExtraDimensionalCell cells[8];
+};
 typedef struct SheetData SheetData;
 struct SheetData {
     DrspStr* name;
@@ -477,6 +489,7 @@ struct SheetData {
     SheetHandle handle;
     CellCache cell_cache;
     ColCache col_cache;
+    ExtraDimensionalCellCache extra_dimensional;
     intptr_t width, height;
     ResultCache result_cache;
     unsigned flags;
