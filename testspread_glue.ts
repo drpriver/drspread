@@ -80,6 +80,7 @@ const imports = {
                 active.innerHTML += '    '+l + '\n';
             }
         },
+        log: Math.log,
         pow: Math.pow,
         fwrite_: fwrite_,
         dump_bt:(p:number):void=>{

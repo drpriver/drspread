@@ -29,6 +29,7 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
             abort: () => {
                 throw new Error();
             },
+            log: Math.log,
             pow: Math.pow,
             sheet_set_display_number,
             sheet_set_display_string: function (id, row, col, p, len) {

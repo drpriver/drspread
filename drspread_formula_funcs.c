@@ -636,6 +636,105 @@ FORMULAFUNC(drsp_sqrt){
     }
 }
 
+DRSP_INTERNAL
+FORMULAFUNC(drsp_log){
+    if(argc != 1) return Error(ctx, "");
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedArray* c = (ComputedArray*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_BLANK)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_log(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_log(((Number*)arg)->value);
+        return &n->e;
+    }
+}
+
+// log10, log2 don't parse atm
+#if 0
+DRSP_INTERNAL
+FORMULAFUNC(drsp_log2){
+    if(argc != 1) return Error(ctx, "");
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedArray* c = (ComputedArray*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_BLANK)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_log2(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_log2(((Number*)arg)->value);
+        return &n->e;
+    }
+}
+
+DRSP_INTERNAL
+FORMULAFUNC(drsp_log10){
+    if(argc != 1) return Error(ctx, "");
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
+    if(!arg || arg->kind == EXPR_ERROR) return arg;
+    if(expr_is_arraylike(arg)){
+        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
+        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        ComputedArray* c = (ComputedArray*)arg;
+        for(intptr_t i = 0; i < c->length; i++){
+            Expression* e = c->data[i];
+            if(e->kind == EXPR_BLANK)
+                continue;
+            if(e->kind != EXPR_NUMBER)
+                return Error(ctx, "");
+            Number* n = (Number*)e;
+            n->value = __builtin_log10(n->value);
+        }
+        return arg;
+    }
+    else {
+        if(arg->kind != EXPR_NUMBER)
+            return Error(ctx, "");
+        buff_set(ctx->a, bc);
+        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+        if(!n) return NULL;
+        n->value = __builtin_log10(((Number*)arg)->value);
+        return &n->e;
+    }
+}
+#endif
+
 #ifndef CASE_0_9
 #define CASE_0_9 '0': case '1': case '2': case '3': case '4': case '5': \
     case '6': case '7': case '8': case '9'
@@ -2085,6 +2184,7 @@ const FuncInfo FUNC3[] = {
     {SVI("col"),   &drsp_col},
     {SVI("cat"),   &drsp_cat},
     {SVI("row"),   &drsp_row},
+    {SVI("log"),   &drsp_log},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC4[] = {
@@ -2101,6 +2201,8 @@ const FuncInfo FUNC4[] = {
 #endif
 #endif
     {SVI("prod"),  &drsp_prod},
+    // log10, log2 don't parse atm
+    // {SVI("log2"),  &drsp_log2},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC5[] = {
@@ -2109,6 +2211,8 @@ const FuncInfo FUNC5[] = {
     {SVI("trunc"), &drsp_trunc},
     {SVI("round"), &drsp_round},
     {SVI("array"), &drsp_array},
+    // log10, log2 don't parse atm
+    // {SVI("log10"), &drsp_log10},
 };
 
 

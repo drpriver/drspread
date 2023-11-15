@@ -109,6 +109,7 @@ const imports = {
         abort:():void =>{
             throw new Error();
         },
+        log: Math.log,
         pow: Math.pow,
         sheet_set_display_number,
         sheet_set_display_string:function(id:number, row:number, col:number, p:number, len:number):void{

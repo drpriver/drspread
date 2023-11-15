@@ -832,6 +832,10 @@ TestFunction(TestFuncs){
         "=eval('pow(2,4)')\n"
         "=call('pow', 3, 5)\n"
         "=sqrt(9)\n"
+        "=log(100)/log(10)\n"
+        // log10, log2 don't parse atm
+        // "=log10(100)\n"
+        // "=log2(8)\n"
         "=prod([b])\n"
 
         "=if(1, 2, 3)\n"
@@ -915,6 +919,10 @@ TestFunction(TestFuncs){
         ROW("16"),
         ROW("243"),
         ROW("3"),
+        ROW("2"),
+        // log10, log2 don't parse atm
+        // ROW("2"),
+        // ROW("3"),
         ROW("-3234"),
 
         ROW("2"),
@@ -960,6 +968,7 @@ TestFunction(TestFuncsV){
 
         "=f(abs(a(-13)))\n"
         "=f(sqrt(a(9)))\n"
+        "=f(log(a(100)))/log(10)\n"
 
         "=f(trunc(a(13.1)))\n"
         "=f(floor(a(13.1)))\n"
@@ -1048,6 +1057,7 @@ TestFunction(TestFuncsV){
 
         ROW("13"),
         ROW("3"),
+        ROW("2"),
 
         ROW("13"),
         ROW("13"),
