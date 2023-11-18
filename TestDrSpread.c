@@ -781,19 +781,19 @@ TestFunction(TestUnOps){
 
 TestFunction(TestFuncs){
     const char* input =
-        "=sum([b])          | -1.5\n"
-        "=avg([b])          | 3.5\n"
-        "=min([b])          | 44      | hello\n"
-        "=max([b])          | 14\n"
-        "=mod([b,4])        | \n"
-        "=abs([b,1])        | \n"
-        "=floor([b,1])      | \n"
-        "=ceil([b,1])       | \n"
-        "=trunc([b,1])      | \n"
-        "=round([b,1])      | \n"
-        "=tlu(44, [b], [c]) | \n"
-        "=find(44, [b]) | \n"
-        "=count([b])\n"
+        "=sum(b)          | -1.5\n"
+        "=avg(b)          | 3.5\n"
+        "=min(b)          | 44      | hello\n"
+        "=max(b)          | 14\n"
+        "=mod(b4)        | \n"
+        "=abs(b1)        | \n"
+        "=floor(b1)      | \n"
+        "=ceil(b1)       | \n"
+        "=trunc(b1)      | \n"
+        "=round(b1)      | \n"
+        "=tlu(44, b, c) | \n"
+        "=find(44, b) | \n"
+        "=count(b)\n"
         "\n"
         "=ceil(-12.1)\n"
         "=floor(-12.1)\n"
@@ -836,7 +836,7 @@ TestFunction(TestFuncs){
         // log10, log2 don't parse atm
         // "=log10(100)\n"
         // "=log2(8)\n"
-        "=prod([b])\n"
+        "=prod(b)\n"
 
         "=if(1, 2, 3)\n"
         "=if('', 2, 3)\n"
@@ -863,7 +863,7 @@ TestFunction(TestFuncs){
         "=CaT('', '')\n"
 
         "=MiN(mAX(-1, -2), 1)\n"
-        "=mean([b])\n"
+        "=mean(b)\n"
 
     ;
     SheetRow expected[] = {
