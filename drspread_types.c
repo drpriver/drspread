@@ -50,7 +50,7 @@ int
 drsp_set_sheet_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char*restrict name, size_t length){
     SheetData* sd = sheet_get_or_create_by_handle(ctx, sheet);
     if(!sd) return 1;
-    DrspStr* str = drsp_create_str(ctx, name, length);
+    DrspAtom str = drsp_intern_str_lower(ctx, name, length);
     if(!str) return 1;
     sd->name = str;
     return 0;
@@ -61,7 +61,7 @@ int
 drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char*restrict name, size_t length){
     SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
     if(!sd) return 1;
-    DrspStr* str = drsp_create_str(ctx, name, length);
+    DrspAtom str = drsp_intern_str_lower(ctx, name, length);
     if(!str) return 1;
     sd->alias = str;
     return 0;
@@ -76,9 +76,9 @@ drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, int
         sd->height = row+1;
     if(col+1 > sd->width)
         sd->width = col+1;
-    DrspStr* str = drsp_create_str(ctx, text, length);
+    DrspAtom str = drsp_intern_str(ctx, text, length);
     if(!str) return 1;
-    return set_cached_cell(&sd->cell_cache, row, col, str->data, str->length);
+    return set_cached_cell(&sd->cell_cache, row, col, str);
 }
 
 DRSP_EXPORT
@@ -95,9 +95,9 @@ drsp_set_extra_dimensional_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intp
         return 1;
     sd->extra_dimensional.cells[sd->extra_dimensional.count++].id = id;
     foundit:;
-    DrspStr* str = drsp_create_str(ctx, text, length);
+    DrspAtom str = drsp_intern_str(ctx, text, length);
     if(!str) return 1;
-    return set_cached_cell(&sd->cell_cache, IDX_EXTRA_DIMENSIONAL, id, str->data, str->length);
+    return set_cached_cell(&sd->cell_cache, IDX_EXTRA_DIMENSIONAL, id, str);
 }
 
 DRSP_EXPORT
@@ -105,9 +105,9 @@ int
 drsp_set_col_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t idx, const char*restrict text, size_t length){
     SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
     if(!sd) return 1;
-    DrspStr* str = drsp_create_str(ctx, text, length);
+    DrspAtom str = drsp_intern_str_lower(ctx, text, length);
     if(!str) return 1;
-    return set_cached_col_name(&sd->col_cache, str->data, length, idx);
+    return set_cached_col_name(&sd->col_cache, str, idx);
 }
 
 // Delete all data associated with a sheet.
@@ -175,19 +175,71 @@ const uint16_t short_strings[] = {
     1, 124, 1, 125, 1, 126, 1, 127,
 };
 
+static
+DrspAtom _Nullable
+drsp_create_str_(DrSpreadCtx*, const char* txt, size_t len);
 
 DRSP_INTERNAL
-DrspStr*_Nullable
-drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
+DrspAtom _Nullable
+drsp_intern_sv_lower(DrSpreadCtx* ctx, StringView sv){
+    return drsp_intern_str_lower(ctx, sv.text, sv.length);
+}
+
+force_inline
+DrspAtom
+drsp_dollar_atom(void){
+    return (DrspAtom)&short_strings[('$'+1)*2];
+}
+
+force_inline
+DrspAtom
+drsp_nil_atom(void){
+    return (DrspAtom)&short_strings[0];
+}
+
+static DrspAtom _Nullable
+drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
     if(length > UINT16_MAX) return NULL;
-    if(!length) return (DrspStr*)&short_strings[0];
+    if(!length) return (DrspAtom)&short_strings[0];
     if(length == 1 && (uint8_t)*txt <= 127){
         uint8_t c = (uint8_t)*txt;
         c++;
         c*= 2;
-        return (DrspStr*)&short_strings[c];
+        return (DrspAtom)&short_strings[c];
     }
-    (void)ctx;
+
+    DrspAtom result = drsp_create_str_(ctx, txt, length);
+
+    return result;
+}
+
+static DrspAtom _Nullable
+drsp_intern_str_lower(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
+    if(length > UINT16_MAX) return NULL;
+    if(!length) return (DrspAtom)&short_strings[0];
+    BuffCheckpoint bc = buff_checkpoint(ctx->a);
+    char* tmp = buff_alloc(ctx->a, length);
+    if(!tmp) return NULL;
+    for(size_t i = 0; i < length; i++){
+        tmp[i] = txt[i] |0x20;
+    }
+    txt = tmp;
+    DrspAtom result;
+    if(length == 1 && (uint8_t)*txt <= 127){
+        uint8_t c = (uint8_t)*txt;
+        c++;
+        c*= 2;
+        result = (DrspAtom)&short_strings[c];
+    }
+    else
+        result = drsp_create_str_(ctx, txt, length);
+    buff_set(ctx->a, bc);
+    return result;
+}
+
+static
+DrspAtom _Nullable
+drsp_create_str_(DrSpreadCtx* ctx, const char* txt, size_t length){
     StringHeap* heap = &ctx->sheap;
     size_t sz = offsetof(DrspStr, data)+length;
     size_t cap = heap->cap;
@@ -195,18 +247,18 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
     if(unlikely(heap->n*2 >= cap)){
         size_t old_cap = cap;
         size_t new_cap = old_cap?old_cap*2:1024;
-        size_t new_size = new_cap * (sizeof(DrspStr*)+sizeof(uint32_t));
-        size_t old_size = old_cap * (sizeof(DrspStr*)+sizeof(uint32_t));
+        size_t new_size = new_cap * (sizeof(DrspAtom)+sizeof(uint32_t));
+        size_t old_size = old_cap * (sizeof(DrspAtom)+sizeof(uint32_t));
         unsigned char* new_data = drsp_alloc(old_size, heap->data, new_size, _Alignof(DrspStr));
         if(!new_data) return NULL;
         heap->data = new_data;
         heap->cap = new_cap;
         cap = new_cap;
-        uint32_t* indexes = (uint32_t*)(new_data + sizeof(DrspStr*)*new_cap);
+        uint32_t* indexes = (uint32_t*)(new_data + sizeof(DrspAtom)*new_cap);
         __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
-        DrspStr** items = (DrspStr**)new_data;
+        DrspAtom* items = (DrspAtom*)new_data;
         for(size_t i = 0; i < heap->n; i++){
-            DrspStr* item = items[i];
+            DrspAtom item = items[i];
             uint32_t hash = hash_align1(item->data, item->length);
             uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
             while(indexes[idx] != UINT32_MAX){
@@ -217,14 +269,14 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
         }
     }
     uint32_t hash = hash_align1(txt, length);
-    uint32_t* indexes = (uint32_t*)(heap->data + sizeof(DrspStr*)*cap);
-    DrspStr** items = (DrspStr**)heap->data;
+    uint32_t* indexes = (uint32_t*)(heap->data + sizeof(DrspAtom)*cap);
+    DrspAtom* items = (DrspAtom*)heap->data;
     uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
     for(;;){
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
             DrspStr* str = str_arena_alloc(&heap->arena, sz);
-            // DrspStr* str = malloc(sz);
+            // DrspAtom str = malloc(sz);
             if(!str) return NULL;
             str->length = length;
             __builtin_memcpy(str->data, txt, length);
@@ -232,8 +284,8 @@ drsp_create_str(DrSpreadCtx* ctx, const char* txt, size_t length){
             items[heap->n++] = str;
             return str;
         }
-        DrspStr* item = items[i];
-        if(sv_equals2(drsp_to_sv(item), txt, length)){
+        DrspAtom item = items[i];
+        if(sv_equals2((StringView){item->length, item->data}, txt, length)){
             return item;
         }
         idx++;
@@ -245,7 +297,7 @@ DRSP_INTERNAL
 void
 destroy_string_heap(StringHeap* heap){
     free_string_arenas(heap->arena);
-    drsp_alloc(heap->cap*(sizeof(DrspStr*)+sizeof(uint32_t)), heap->data, 0, _Alignof(DrspStr));
+    drsp_alloc(heap->cap*(sizeof(DrspAtom)+sizeof(uint32_t)), heap->data, 0, _Alignof(DrspStr));
     __builtin_memset(heap, 0, sizeof *heap);
 }
 
@@ -270,7 +322,7 @@ free_sheet_datas(DrSpreadCtx* ctx){
 }
 
 static inline
-StringView*_Nullable
+DrspAtom _Nullable
 get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
     size_t cap = cache->cap;
     if(!cap) return NULL;
@@ -285,7 +337,7 @@ get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
             return NULL;
         }
         if(items[i].rc.row == row && items[i].rc.col == col){
-            return &items[i].sv;
+            return items[i].sv;
         }
         idx++;
         if(unlikely(idx >= cap)) idx = 0;
@@ -295,7 +347,7 @@ get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
 
 static inline
 int
-set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len){
+set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom str){
     if(unlikely(cache->n*2 >= cache->cap)){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
@@ -329,12 +381,12 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restric
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
             indexes[idx] = cache->n;
-            items[cache->n] = (RowColSv){key, {len, txt}};
+            items[cache->n] = (RowColSv){key, str};
             cache->n++;
             return 0;
         }
         if(items[i].rc.row == row && items[i].rc.col == col){
-            items[i].sv = (StringView){len, txt};
+            items[i].sv = str;
             return 0;
         }
         idx++;
@@ -427,13 +479,13 @@ sheet_get_or_create_by_handle(DrSpreadCtx* ctx, SheetHandle handle){
 
 DRSP_INTERNAL
 SheetData*_Nullable
-sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
+sheet_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* data = &ctx->map.data[i];
-        if(sv_iequals2(drsp_to_sv(data->name), name, len))
+        if(data->name == name)
             return data;
         if(!data->alias) continue;
-        if(sv_iequals2(drsp_to_sv(data->alias), name, len))
+        if(data->alias == name)
             return data;
     }
     return NULL;
@@ -448,13 +500,13 @@ sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len){
             return "";
         }
     CellCache* cache = &sd->cell_cache;
-    StringView* cached = get_cached_cell(cache, row, col);
+    DrspAtom cached = get_cached_cell(cache, row, col);
     if(!cached) {
         *len = 0;
         return "";
     }
     *len = cached->length;
-    return cached->text?cached->text:"";
+    return cached->data;
 }
 
 DRSP_INTERNAL
@@ -468,8 +520,8 @@ udf_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle){
 
 DRSP_INTERNAL
 SheetData*_Nullable
-udf_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len){
-    SheetData* udf = sheet_lookup_by_name(ctx, name, len);
+udf_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name){
+    SheetData* udf = sheet_lookup_by_name(ctx, name);
     if(udf && !(udf->flags & DRSP_SHEET_FLAGS_IS_FUNCTION))
         return NULL;
     return udf;

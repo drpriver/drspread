@@ -284,8 +284,9 @@ PARSEFUNC(parse_string){
     if(end != begin){
         String* s = expr_alloc(ctx, EXPR_STRING);
         if(!s) return NULL;
-        s->sv.text = begin;
-        s->sv.length = end - begin;
+        DrspAtom str = drsp_intern_str(ctx, begin, end-begin);
+        if(!str) return NULL;
+        s->str = str;
         result = &s->e;
     }
     else {
@@ -555,15 +556,15 @@ PARSEFUNC(parse_range){
     //
     assert(sv->length && sv->text[0] == '[');
     sv->length--, sv->text++;
-    StringView strings_0[2];
-    StringView strings_1[2];
+    StringView strings_0_[2];
+    StringView strings_1_[2];
     intptr_t numbers[2] = {0};
     int nstrings[2] = {0};
     int nnumbers = 0;
     lstrip(sv);
     if(!sv->length) return Error(ctx, "");
     {
-        int n = maybe_parse_string_pair(sv, strings_0, strings_0+1);
+        int n = maybe_parse_string_pair(sv, strings_0_, strings_0_+1);
         if(n < 0) return Error(ctx, "");
         nstrings[0] = n;
         if(!n) return Error(ctx, "");
@@ -577,10 +578,10 @@ PARSEFUNC(parse_range){
         if(!sv->length) return Error(ctx, "");
     }
     {
-        int n = maybe_parse_string_pair(sv, strings_1, strings_1+1);
+        int n = maybe_parse_string_pair(sv, strings_1_, strings_1_+1);
         if(n < 0) return Error(ctx, "");
         lstrip(sv);
-        if(n == 2 && sv->length && sv->text[0] == ']' && !strings_1[0].length && !strings_1[1].length){
+        if(n == 2 && sv->length && sv->text[0] == ']' && !strings_1_[0].length && !strings_1_[1].length){
             // disambiguate as a number range instead.
             nnumbers = 2;
             numbers[0] = 0;
@@ -611,19 +612,26 @@ PARSEFUNC(parse_range){
     if(sv->text[0] != ']') return Error(ctx, "");
     sv->text++, sv->length--;
     if(nstrings[1] && nstrings[0] > 1) return Error(ctx, "sheet ranges unsupported");
-    StringView sheetname = {0};
+    DrspAtom sheetname = NULL;
     int ncolnames;
-    StringView* colnames;
+    DrspAtom colnames[2];
     _Bool has_foreign;
     assert(nstrings[0]);
     if(nstrings[1]){
-        colnames = strings_1;
+        for(int i = 0; i < nstrings[1]; i++){
+            colnames[i] = drsp_intern_sv_lower(ctx, strings_1_[i]);
+            if(!colnames[i]) return NULL;
+        }
+        sheetname = drsp_intern_sv_lower(ctx, strings_0_[0]);
+        if(!sheetname) return NULL;
         ncolnames = nstrings[1];
         has_foreign = 1;
-        sheetname = strings_0[0];
     }
     else {
-        colnames = strings_0;
+        for(int i = 0; i < nstrings[0]; i++){
+            colnames[i] = drsp_intern_sv_lower(ctx, strings_0_[i]);
+            if(!colnames[i]) return NULL;
+        }
         ncolnames = nstrings[0];
         has_foreign = 0;
     }
@@ -635,14 +643,17 @@ PARSEFUNC(parse_range){
             ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
             if(!rng) return NULL;
             rng->r.col_name = colnames[0];
+            if(!rng->r.col_name) return NULL;
             rng->r.row_start = 0;
             rng->r.row_end = -1;
             rng->sheet_name = sheetname;
+            if(!rng->sheet_name) return NULL;
             return &rng->e;
         }
         Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
         if(!rng) return NULL;
         rng->col_name = colnames[0];
+        if(!rng->col_name) return NULL;
         rng->row_start = 0;
         rng->row_end = -1;
         return &rng->e;
@@ -745,8 +756,10 @@ PARSEFUNC(parse_group){
 static inline
 Expression*_Nullable
 parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_t cn_len){
-    StringView colname = {cn_len, cn};
-    rstrip(&colname);
+    StringView _colname = {cn_len, cn};
+    rstrip(&_colname);
+    DrspAtom colname = drsp_intern_str_lower(ctx, _colname.text, _colname.length);
+    if(!colname) return NULL;
     intptr_t row_idx = IDX_UNSET;
     {
         const char* begin = sv->text;
@@ -792,7 +805,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         if(row_idx == IDX_UNSET) row_idx = 0;
     }
     {
-        StringView colname2 = {0};
+        DrspAtom colname2 = drsp_nil_atom();
         {
             const char* begin = sv->text;
             const char* end = begin;
@@ -805,13 +818,16 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
                     case '$':
                     case CASE_0_9:
                         // if(end == begin) return Error(ctx, "");
-                        colname2 = (StringView){end-begin, begin};
+                        colname2 = drsp_intern_str_lower(ctx, begin, end-begin);
+                        if(!colname2) return NULL;
                         goto parsenum;
                     default:
                         break;
                 }
-                colname2 = (StringView){end-begin, begin};
-                rstrip(&colname2);
+                StringView _colname2 = {end-begin, begin};
+                rstrip(&_colname2);
+                colname2 = drsp_intern_str_lower(ctx, _colname2.text, _colname2.length);
+                if(!colname2) return NULL;
                 break;
             }
         }
@@ -841,9 +857,9 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
                 row_idx2 = ir.result-1;
             }
         }
-        if(!colname.length)
+        if(colname == drsp_nil_atom())
             colname = colname2;
-        if(!colname2.length || sv_equals(colname, colname2)){
+        if(colname2 == drsp_nil_atom() || colname == colname2){
             Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
             if(!rng) return NULL;
             rng->col_name = colname;
@@ -868,6 +884,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
 DRSP_INTERNAL
 PARSEFUNC(parse_func_call){
     const char* begin = sv->text;
+
     const char* end = begin;
     for(;sv->length; end++, sv->length--, sv->text++){
         switch(sv->text[0]){
@@ -890,18 +907,13 @@ PARSEFUNC(parse_func_call){
     if(!sv->length || sv->text[0] != '('){
         // This is a range literal actually.
         return parse_other_range_syntax(ctx, sv, begin, end-begin);
-        Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
-        if(!rng) return NULL;
-        rng->col_name = (StringView){end-begin, begin};
-        rng->row_start = 0;
-        rng->row_end = -1;
-        return &rng->e;
     }
     sv->length--, sv->text++;
     StringView name = {end-begin, begin};
     rstrip(&name);
-    FormulaFunc* func = lookup_func(name);
-    // if(!func) return Error(ctx, "");
+    DrspAtom a = drsp_intern_sv_lower(ctx, name);
+    if(!a) return NULL;
+    FormulaFunc* func = lookup_func(a);
     // This is pretty sloppy - always allocates space
     // for exactly 4 args - can't do less or more.
     enum {argmax=4};
@@ -930,7 +942,7 @@ PARSEFUNC(parse_func_call){
     else {
         UserFunctionCall* fc = expr_alloc(ctx, EXPR_USER_DEFINED_FUNC_CALL);
         if(!fc) return NULL;
-        fc->name = name;
+        fc->name = a;
         fc->argc = argc;
         fc->argv = argv;
         return &fc->e;

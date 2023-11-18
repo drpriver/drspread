@@ -821,7 +821,7 @@ FORMULAFUNC(drsp_num){
             if(!n) return NULL;
             if(e->kind == EXPR_STRING){
                 String* s = (String*)e;
-                int err = parse_leading_double(s->sv.text, s->sv.length, &n->value);
+                int err = parse_leading_double(s->str->data, s->str->length, &n->value);
                 if(!err){
                     cc->data[i] = &n->e;
                     continue;
@@ -838,7 +838,7 @@ FORMULAFUNC(drsp_num){
             value = ((Number*)arg)->value;
         else if(arg->kind == EXPR_STRING){
             String* s = (String*)arg;
-            int err = parse_leading_double(s->sv.text, s->sv.length, &value);
+            int err = parse_leading_double(s->str->data, s->str->length, &value);
             if(err) value = default_;
         }
         else {
@@ -870,16 +870,16 @@ FORMULAFUNC(drsp_cell){
         Expression* sheet = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!sheet || sheet->kind == EXPR_ERROR) return sheet;
         if(sheet->kind != EXPR_STRING) return Error(ctx, "");
-        StringView sv = ((String*)sheet)->sv;
-        fsd = sheet_lookup_by_name(ctx, sv.text, sv.length);
+        DrspAtom a = ((String*)sheet)->str;
+        fsd = sheet_lookup_by_name(ctx, a);
         if(!fsd) return Error(ctx, "");
         argv++, argc--;
     }
     Expression* col = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!col || col->kind == EXPR_ERROR) return col;
     if(col->kind != EXPR_STRING) return Error(ctx, "");
-    StringView csv = ((String*)col)->sv;
-    intptr_t col_idx = sp_name_to_col_idx(fsd, csv.text, csv.length);
+    DrspAtom csv = ((String*)col)->str;
+    intptr_t col_idx = sp_name_to_col_idx(fsd, csv);
     if(col_idx < 0) return Error(ctx, "");
     Expression* row = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
     if(!row || row->kind == EXPR_ERROR) return row;
@@ -902,7 +902,7 @@ FORMULAFUNC(drsp_col){
     //
     // It's basically the dynamic form of range literals.
     if(!argc || argc > 4) return Error(ctx, "");
-    StringView colname = {0}, sheetname = {0};
+    DrspAtom colname = NULL, sheetname = NULL;
     intptr_t rowstart = IDX_UNSET, rowend = IDX_UNSET;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     {
@@ -910,9 +910,10 @@ FORMULAFUNC(drsp_col){
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind != EXPR_STRING && arg->kind != EXPR_BLANK) return Error(ctx, "");
         if(arg->kind == EXPR_BLANK)
-            colname = SV("");
+            colname = drsp_nil_atom();
         else
-            colname = ((String*)arg)->sv;
+            colname = drsp_intern_str_lower(ctx, ((String*)arg)->str->data, ((String*)arg)->str->length);
+        if(!colname) return NULL;
         argc--, argv++;
     }
     if(argc){
@@ -920,7 +921,8 @@ FORMULAFUNC(drsp_col){
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind == EXPR_STRING){
             sheetname = colname;
-            colname = ((String*)arg)->sv;
+            colname = drsp_intern_str_lower(ctx, ((String*)arg)->str->data, ((String*)arg)->str->length);
+            if(!colname) return NULL;
         }
         else if(arg->kind == EXPR_NUMBER){
             rowstart = (intptr_t)((Number*)arg)->value;
@@ -952,7 +954,7 @@ FORMULAFUNC(drsp_col){
         argc--, argv++;
     }
     // idk
-    // if(!colname.length) return Error(ctx, "");
+    // if(!colname->length) return Error(ctx, "");
     if(rowstart == IDX_UNSET)
         rowstart = 0;
     if(rowstart) rowstart--;
@@ -961,7 +963,7 @@ FORMULAFUNC(drsp_col){
     else if(rowend) rowend--;
     if(argc) return Error(ctx, "");
     buff_set(ctx->a, bc);
-    if(sheetname.length){
+    if(sheetname && sheetname->length){
         ForeignRange1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
         if(!result) return NULL;
         result->r.col_name = colname;
@@ -984,7 +986,7 @@ DRSP_INTERNAL
 FORMULAFUNC(drsp_row){
     // This expresses a row range literal, which we don't have.
     if(argc != 3 && argc != 4) return Error(ctx, "");
-    StringView startcol = {0}, endcol = {0}, sheetname = {0};
+    DrspAtom startcol = NULL, endcol = NULL, sheetname = NULL;
     intptr_t row_idx;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     if(argc == 4){
@@ -992,7 +994,8 @@ FORMULAFUNC(drsp_row){
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind != EXPR_STRING) return Error(ctx, "");
-        sheetname = ((String*)arg)->sv;
+        sheetname = drsp_intern_str_lower(ctx, ((String*)arg)->str->data, ((String*)arg)->str->length);
+        if(!sheetname) return NULL;
         buff_set(ctx->a, bc);
         argc--, argv++;
     }
@@ -1001,10 +1004,11 @@ FORMULAFUNC(drsp_row){
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind == EXPR_BLANK)
-            startcol = SV("");
+            startcol = drsp_nil_atom();
         else{
             if(arg->kind != EXPR_STRING) return Error(ctx, "");
-            startcol = ((String*)arg)->sv;
+            startcol = drsp_intern_str_lower(ctx, ((String*)arg)->str->data, ((String*)arg)->str->length);
+            if(!startcol) return NULL;
         }
         buff_set(ctx->a, bc);
         argc--, argv++;
@@ -1014,10 +1018,11 @@ FORMULAFUNC(drsp_row){
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind == EXPR_BLANK)
-            endcol = SV("");
+            endcol = drsp_nil_atom();
         else {
             if(arg->kind != EXPR_STRING) return Error(ctx, "");
-            endcol = ((String*)arg)->sv;
+            endcol = drsp_intern_str_lower(ctx, ((String*)arg)->str->data, ((String*)arg)->str->length);
+            if(!endcol) return NULL;
         }
         buff_set(ctx->a, bc);
         argc--, argv++;
@@ -1033,7 +1038,7 @@ FORMULAFUNC(drsp_row){
         buff_set(ctx->a, bc);
         argc--, argv++;
     }
-    if(sheetname.length){
+    if(sheetname){
         ForeignRange1DRow* result = expr_alloc(ctx, EXPR_RANGE1D_ROW_FOREIGN);
         if(!result) return NULL;
         result->r.col_start = startcol;
@@ -1065,16 +1070,16 @@ FORMULAFUNC(drsp_eval){
             Expression* e = c->data[i];
             if(e->kind == EXPR_BLANK) continue;
             if(e->kind != EXPR_STRING) return Error(ctx, "");
-            StringView sv = ((String*)e)->sv;
-            Expression* ev = evaluate_string(ctx, sd, sv.text, sv.length, caller_row, caller_col);
+            DrspAtom a = ((String*)e)->str;
+            Expression* ev = evaluate_string(ctx, sd, a->data, a->length, caller_row, caller_col);
             if(!ev || ev->kind == EXPR_ERROR) return ev;
             c->data[i] = ev;
         }
         return &c->e;
     }
     if(arg->kind != EXPR_STRING) return Error(ctx, "");
-    StringView sv = ((String*)arg)->sv;
-    Expression* result = evaluate_string(ctx, sd, sv.text, sv.length, caller_row, caller_col);
+    DrspAtom a = ((String*)arg)->str;
+    Expression* result = evaluate_string(ctx, sd, a->data, a->length, caller_row, caller_col);
     return result;
 }
 
@@ -1155,7 +1160,7 @@ FORMULAFUNC(drsp_pow){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_cat){
     if(argc < 2) return Error(ctx, "");
-    StringView catbuff[4];
+    DrspAtom catbuff[4];
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     if(argc == 2){
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
@@ -1176,7 +1181,7 @@ FORMULAFUNC(drsp_cat){
                 }
             }
             else if(arg2->kind == EXPR_STRING){
-                catbuff[1] = ((String*)arg2)->sv;
+                catbuff[1] = ((String*)arg2)->str;
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
                     if(e->kind == EXPR_BLANK){
@@ -1186,8 +1191,8 @@ FORMULAFUNC(drsp_cat){
                     if(e->kind != EXPR_STRING)
                         return Error(ctx, "");
                     String* s = (String*)e;
-                    catbuff[0] = s->sv;
-                    int err = sv_cat(ctx, 2, catbuff, &s->sv);
+                    catbuff[0] = s->str;
+                    int err = sv_cat(ctx, 2, catbuff, &s->str);
                     if(err) return Error(ctx, "");
                 }
             }
@@ -1214,9 +1219,9 @@ FORMULAFUNC(drsp_cat){
                     assert(l->kind == EXPR_STRING);
                     assert(r->kind == EXPR_STRING);
                     String* s = (String*)l;
-                    catbuff[0] = s->sv;
-                    catbuff[1] = ((String*)r)->sv;
-                    int err = sv_cat(ctx, 2, catbuff, &s->sv);
+                    catbuff[0] = s->str;
+                    catbuff[1] = ((String*)r)->str;
+                    int err = sv_cat(ctx, 2, catbuff, &s->str);
                     if(err) return Error(ctx, "");
                 }
             }
@@ -1241,7 +1246,7 @@ FORMULAFUNC(drsp_cat){
                 if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
                 ComputedArray* c = (ComputedArray*)arg2;
                 if(arg->kind != EXPR_BLANK)
-                    catbuff[0] = ((String*)arg)->sv;
+                    catbuff[0] = ((String*)arg)->str;
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
                     if(e->kind == EXPR_BLANK) continue;
@@ -1249,8 +1254,8 @@ FORMULAFUNC(drsp_cat){
                         return Error(ctx, "");
                     if(arg->kind == EXPR_BLANK) continue;
                     String* s = (String*)e;
-                    catbuff[1] = s->sv;
-                    int err = sv_cat(ctx, 2, catbuff, &s->sv);
+                    catbuff[1] = s->str;
+                    int err = sv_cat(ctx, 2, catbuff, &s->str);
                     if(err) return Error(ctx, "");
                 }
                 return arg2;
@@ -1261,11 +1266,11 @@ FORMULAFUNC(drsp_cat){
                         buff_set(ctx->a, bc);
                         return arg;
                     }
-                    StringView v = ((String*)arg)->sv;
+                    DrspAtom v = ((String*)arg)->str;
                     buff_set(ctx->a, bc);
                     String* s = expr_alloc(ctx, EXPR_STRING);
                     if(!s) return NULL;
-                    s->sv = v;
+                    s->str = v;
                     return &s->e;
                 }
                 if(arg2->kind != EXPR_STRING){
@@ -1273,22 +1278,22 @@ FORMULAFUNC(drsp_cat){
                     return Error(ctx, "");
                 }
                 if(arg->kind == EXPR_BLANK){
-                    StringView v = ((String*)arg2)->sv;
+                    DrspAtom v = ((String*)arg2)->str;
                     buff_set(ctx->a, bc);
                     String* s = expr_alloc(ctx, EXPR_STRING);
                     if(!s) return NULL;
-                    s->sv = v;
+                    s->str = v;
                     return &s->e;
                 }
-                StringView v;
-                catbuff[0] = ((String*)arg)->sv;
-                catbuff[1] = ((String*)arg2)->sv;
+                DrspAtom v;
+                catbuff[0] = ((String*)arg)->str;
+                catbuff[1] = ((String*)arg2)->str;
                 int err = sv_cat(ctx, 2, catbuff, &v);
                 buff_set(ctx->a, bc);
                 if(err) return Error(ctx, "");
                 String* s = expr_alloc(ctx, EXPR_STRING);
                 if(!s) return NULL;
-                s->sv = v;
+                s->str = v;
                 return &s->e;
             }
         }
@@ -1328,23 +1333,23 @@ FORMULAFUNC(drsp_cat){
                 for(int i = 0; i < argc; i++){
                     Expression* e = argv[i];
                     if(e->kind == EXPR_STRING){
-                        catbuff[i] = ((String*)e)->sv;
+                        catbuff[i] = ((String*)e)->str;
                     }
                     else if(e->kind == EXPR_BLANK){
-                        catbuff[i] = SV("");
+                        catbuff[i] = drsp_nil_atom();
                     }
                     else {
                         ComputedArray* c = (ComputedArray*)argv[i];
                         if(r >= c->length){
-                            catbuff[i] = SV("");
+                            catbuff[i] = drsp_nil_atom();
                         }
                         else {
                             Expression* item = c->data[r];
                             if(item->kind == EXPR_STRING){
-                                catbuff[i] = ((String*)item)->sv;
+                                catbuff[i] = ((String*)item)->str;
                             }
                             else if(item->kind == EXPR_BLANK){
-                                catbuff[i] = SV("");
+                                catbuff[i] = drsp_nil_atom();
                             }
                             else {
                                 buff_set(ctx->a, bc);
@@ -1355,7 +1360,7 @@ FORMULAFUNC(drsp_cat){
                 }
                 String* s = expr_alloc(ctx, EXPR_STRING);
                 if(!s) return NULL;
-                int err = sv_cat(ctx, argc, catbuff, &s->sv);
+                int err = sv_cat(ctx, argc, catbuff, &s->str);
                 if(err){
                     buff_set(ctx->a, bc);
                     return Error(ctx, "oom");
@@ -1368,19 +1373,19 @@ FORMULAFUNC(drsp_cat){
             for(int i = 0; i < argc; i++){
                 Expression* e = argv[i];
                 if(e->kind == EXPR_BLANK){
-                    catbuff[i] = SV("");
+                    catbuff[i] = drsp_nil_atom();
                 }
                 else {
-                    catbuff[i] = ((String*)e)->sv;
+                    catbuff[i] = ((String*)e)->str;
                 }
             }
-            StringView sv;
+            DrspAtom sv;
             int err = sv_cat(ctx, argc, catbuff, &sv);
             buff_set(ctx->a, bc);
             if(err) return Error(ctx, "oom");
             String* result = expr_alloc(ctx, EXPR_STRING);
             if(!result) return NULL;
-            result->sv = sv;
+            result->str = sv;
             return &result->e;
         }
     }
@@ -1433,11 +1438,11 @@ arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intp
             }
         }
         else {
-            StringView sv = ((String*)n)->sv;
+            DrspAtom s = ((String*)n)->str;
             for(idx = 0; idx < haylength; idx++){
                 const Expression* h = data[idx];
                 if(h->kind != EXPR_STRING) continue;
-                if(sv_equals(sv, ((String*)h)->sv))
+                if(s == ((String*)h)->str)
                     break;
             }
         }
@@ -1465,7 +1470,7 @@ FORMULAFUNC(drsp_tablelookup){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     ExpressionKind nkind;
     union {
-        StringView s;
+        DrspAtom s;
         double d;
     } nval = {0};
     {
@@ -1483,7 +1488,7 @@ FORMULAFUNC(drsp_tablelookup){
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
         else
-            nval.s = ((String*)needle)->sv;
+            nval.s = ((String*)needle)->str;
         buff_set(ctx->a, bc);
     }
     intptr_t offset = -1;
@@ -1496,7 +1501,7 @@ FORMULAFUNC(drsp_tablelookup){
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* e = c->data[i];
                     if(e->kind != EXPR_STRING) continue;
-                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                    if(nval.s == ((String*)e)->str){
                         offset = i;
                         break;
                     }
@@ -1525,7 +1530,7 @@ FORMULAFUNC(drsp_tablelookup){
                     Expression* e = evaluate(ctx, rsd, row, col);
                     if(!e) return e;
                     if(e->kind != EXPR_STRING) continue;
-                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                    if(nval.s == ((String*)e)->str){
                         offset = row - start;
                         break;
                     }
@@ -1555,7 +1560,7 @@ FORMULAFUNC(drsp_tablelookup){
                     Expression* e = evaluate(ctx, rsd, row, col);
                     if(!e) return e;
                     if(e->kind != EXPR_STRING) continue;
-                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                    if(nval.s == ((String*)e)->str){
                         offset = col - start;
                         break;
                     }
@@ -1620,7 +1625,7 @@ FORMULAFUNC(drsp_find){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     ExpressionKind nkind;
     union {
-        StringView s;
+        DrspAtom s;
         double d;
     } nval = {0};
     {
@@ -1631,7 +1636,7 @@ FORMULAFUNC(drsp_find){
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
         else if(nkind == EXPR_STRING)
-            nval.s = ((String*)needle)->sv;
+            nval.s = ((String*)needle)->str;
         buff_set(ctx->a, bc);
     }
     intptr_t offset = -1;
@@ -1648,7 +1653,7 @@ FORMULAFUNC(drsp_find){
                     break;
                 }
                 if(nkind == EXPR_STRING){
-                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                    if(nval.s == ((String*)e)->str){
                         offset = i;
                         break;
                     }
@@ -1677,7 +1682,7 @@ FORMULAFUNC(drsp_find){
                     break;
                 }
                 if(nkind == EXPR_STRING){
-                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                    if(nval.s == ((String*)e)->str){
                         offset = row - start;
                         break;
                     }
@@ -1706,7 +1711,7 @@ FORMULAFUNC(drsp_find){
                     break;
                 }
                 if(nkind == EXPR_STRING){
-                    if(sv_equals(nval.s, ((String*)e)->sv)){
+                    if(nval.s == ((String*)e)->str){
                         offset = col - start;
                         break;
                     }
@@ -1739,9 +1744,7 @@ FORMULAFUNC(drsp_call){
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_STRING)
         return Error(ctx, "");
-    StringView name = ((String*)arg)->sv;
-
-    FormulaFunc* func = lookup_func(name);
+    FormulaFunc* func = lookup_func(((String*)arg)->str);
     if(!func) return Error(ctx, "");
     argc--, argv++;
     return func(ctx, sd, caller_row, caller_col, argc, argv);
@@ -1799,7 +1802,7 @@ repr_expr(PrintBuff* buff, Expression* arg){
             break;
         case EXPR_STRING:{
             String* s = (String*)arg;
-            print(buff, "String('%.*s')", (int)s->sv.length, s->sv.text);
+            print(buff, "String('%.*s')", (int)s->str->length, s->str->data);
         }break;
         case EXPR_BLANK:
             print(buff, "Null()\n");
@@ -1823,7 +1826,7 @@ repr_expr(PrintBuff* buff, Expression* arg){
         case EXPR_USER_DEFINED_FUNC_CALL:{
             UserFunctionCall* f = (UserFunctionCall*)arg;
             // TODO: print function name
-            print(buff, "UserFuncCall-%.*s(", (int)f->name.length, f->name.text);
+            print(buff, "UserFuncCall-%.*s(", (int)f->name->length, f->name->data);
             for(int i = 0; i < f->argc; i++){
                 if(i != 0){
                     print(buff, ", ");
@@ -1836,17 +1839,17 @@ repr_expr(PrintBuff* buff, Expression* arg){
             print(buff, "R0(");
             Range0D* rng = (Range0D*)arg;
             if(rng->row == IDX_DOLLAR)
-                print(buff, "[%.*s, $]", (int)rng->col_name.length, rng->col_name.text);
+                print(buff, "[%.*s, $]", (int)rng->col_name->length, rng->col_name->data);
             else
-                print(buff, "[%.*s, %zd]", (int)rng->col_name.length, rng->col_name.text, rng->row);
+                print(buff, "[%.*s, %zd]", (int)rng->col_name->length, rng->col_name->data, rng->row);
             print(buff, ")");
         }break;
         case EXPR_RANGE0D_FOREIGN:{
             print(buff, "R0F(");
             ForeignRange0D* rng = (ForeignRange0D*)arg;
             print(buff, "[%.*s, %.*s, %zd]",
-                    (int)rng->sheet_name.length, rng->sheet_name.text,
-                    (int)rng->r.col_name.length, rng->r.col_name.text,
+                    (int)rng->sheet_name->length, rng->sheet_name->data,
+                    (int)rng->r.col_name->length, rng->r.col_name->data,
                     rng->r.row);
             print(buff, ")");
         }break;
@@ -1855,21 +1858,21 @@ repr_expr(PrintBuff* buff, Expression* arg){
             Range1DColumn* rng = (Range1DColumn*)arg;
             if(rng->row_start == IDX_DOLLAR && rng->row_end == IDX_DOLLAR){
                 print(buff, "[%.*s, $:$]",
-                        (int)rng->col_name.length, rng->col_name.text);
+                        (int)rng->col_name->length, rng->col_name->data);
             }
             else if(rng->row_start == IDX_DOLLAR){
                 print(buff, "[%.*s, $:%zd]",
-                        (int)rng->col_name.length, rng->col_name.text,
+                        (int)rng->col_name->length, rng->col_name->data,
                          rng->row_end);
             }
             else if(rng->row_end == IDX_DOLLAR){
                 print(buff, "[%.*s, %zd:$]",
-                        (int)rng->col_name.length, rng->col_name.text,
+                        (int)rng->col_name->length, rng->col_name->data,
                         rng->row_start);
             }
             else {
                 print(buff, "[%.*s, %zd:%zd]",
-                        (int)rng->col_name.length, rng->col_name.text,
+                        (int)rng->col_name->length, rng->col_name->data,
                         rng->row_start, rng->row_end);
             }
             print(buff, ")");
@@ -1878,8 +1881,8 @@ repr_expr(PrintBuff* buff, Expression* arg){
             print(buff, "R1CF(");
             ForeignRange1DColumn* rng = (ForeignRange1DColumn*)arg;
             print(buff, "[%.*s, %.*s, %zd:%zd]",
-                    (int)rng->sheet_name.length, rng->sheet_name.text,
-                    (int)rng->r.col_name.length, rng->r.col_name.text,
+                    (int)rng->sheet_name->length, rng->sheet_name->data,
+                    (int)rng->r.col_name->length, rng->r.col_name->data,
                     rng->r.row_start, rng->r.row_end);
             print(buff, ")");
         }break;
@@ -1888,13 +1891,13 @@ repr_expr(PrintBuff* buff, Expression* arg){
             Range1DRow* rng = (Range1DRow*)arg;
             if(rng->row_idx == IDX_DOLLAR){
                 print(buff, "[%.*s:%.*s, $]",
-                        (int)rng->col_start.length, rng->col_start.text,
-                        (int)rng->col_end.length, rng->col_end.text);
+                        (int)rng->col_start->length, rng->col_start->data,
+                        (int)rng->col_end->length, rng->col_end->data);
             }
             else {
                 print(buff, "[%.*s:%.*s, %zd]",
-                        (int)rng->col_start.length, rng->col_start.text,
-                        (int)rng->col_end.length, rng->col_end.text,
+                        (int)rng->col_start->length, rng->col_start->data,
+                        (int)rng->col_end->length, rng->col_end->data,
                         rng->row_idx);
             }
             print(buff, ")");
@@ -1903,9 +1906,9 @@ repr_expr(PrintBuff* buff, Expression* arg){
             print(buff, "R1RF(");
             ForeignRange1DRow* rng = (ForeignRange1DRow*)arg;
             print(buff, "[%.*s, %.*s:%.*s, %zd]",
-                    (int)rng->sheet_name.length, rng->sheet_name.text,
-                    (int)rng->r.col_start.length, rng->r.col_start.text,
-                    (int)rng->r.col_end.length, rng->r.col_end.text,
+                    (int)rng->sheet_name->length, rng->sheet_name->data,
+                    (int)rng->r.col_start->length, rng->r.col_start->data,
+                    (int)rng->r.col_end->length, rng->r.col_end->data,
                     rng->r.row_idx);
             print(buff, ")");
         }break;
@@ -1963,12 +1966,11 @@ FORMULAFUNC(drsp_repr){
         repr_expr(&buff, arg);
     }
     if(buff.error) return Error(ctx, "");
-    DrspStr* str = drsp_create_str(ctx, buffer, sizeof(buffer) - buff.len);
+    DrspAtom str = drsp_intern_str(ctx, buffer, sizeof(buffer) - buff.len);
     if(!str) return NULL;
     String* s = expr_alloc(ctx, EXPR_STRING);
     if(!s) return NULL;
-    s->sv.text = str->data;
-    s->sv.length = str->length;
+    s->str = str;
     return &s->e;
 }
 #endif
@@ -2110,7 +2112,7 @@ FORMULAFUNC(drsp_if){
             truthy = !!((Number*)cond)->value;
             break;
         case EXPR_STRING:
-            truthy = !!((String*)cond)->sv.length;
+            truthy = !!((String*)cond)->str->length;
             break;
         case EXPR_BLANK:
             truthy = 0;
@@ -2218,12 +2220,13 @@ const FuncInfo FUNC5[] = {
 
 DRSP_INTERNAL
 FormulaFunc*_Nullable
-lookup_func(StringView name){
+lookup_func(DrspAtom a){
+    StringView name = {a->length, a->data};
     switch(name.length){
         #ifdef DRSP_INTRINS
         case 1:
             for(size_t i = 0; i < arrlen(FUNC1); i++){
-                if(sv_iequals(FUNC1[i].name, name)){
+                if(sv_equals(FUNC1[i].name, name)){
                     return FUNC1[i].func;
                 }
             }
@@ -2231,28 +2234,28 @@ lookup_func(StringView name){
         #endif
         case 2:
             for(size_t i = 0; i < arrlen(FUNC2); i++){
-                if(sv_iequals(FUNC2[i].name, name)){
+                if(sv_equals(FUNC2[i].name, name)){
                     return FUNC2[i].func;
                 }
             }
             return NULL;
         case 3:
             for(size_t i = 0; i < arrlen(FUNC3); i++){
-                if(sv_iequals(FUNC3[i].name, name)){
+                if(sv_equals(FUNC3[i].name, name)){
                     return FUNC3[i].func;
                 }
             }
             return NULL;
         case 4:
             for(size_t i = 0; i < arrlen(FUNC4); i++){
-                if(sv_iequals(FUNC4[i].name, name)){
+                if(sv_equals(FUNC4[i].name, name)){
                     return FUNC4[i].func;
                 }
             }
             return NULL;
         case 5:
             for(size_t i = 0; i < arrlen(FUNC5); i++){
-                if(sv_iequals(FUNC5[i].name, name)){
+                if(sv_equals(FUNC5[i].name, name)){
                     return FUNC5[i].func;
                 }
             }

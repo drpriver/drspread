@@ -121,7 +121,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                         sp_set_display_number(ctx, sd->handle, row, col, ((Number*)e)->value);
                         continue;
                     case EXPR_STRING:
-                        sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                        sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->str->data, ((String*)e)->str->length);
                         continue;
                     case EXPR_BLANK:
                         sp_set_display_string(ctx, sd->handle, row, col, "", 0);
@@ -182,7 +182,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                     sp_set_display_number(ctx, sd->handle, row, col, ((Number*)e)->value);
                     continue;
                 case EXPR_STRING:
-                    sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->sv.text, ((String*)e)->sv.length);
+                    sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->str->data, ((String*)e)->str->length);
                     continue;
                 case EXPR_BLANK:
                     sp_set_display_string(ctx, sd->handle, row, col, "", 0);
@@ -224,12 +224,7 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
             break;
         case EXPR_STRING:{
             outval->kind = DRSP_RESULT_STRING;
-            StringView sv = ((String*)e)->sv;
-            DrspStr* s = drsp_create_str(ctx, sv.text, sv.length);
-            if(!s){
-                error = 1;
-                goto finish;
-            }
+            DrspAtom s = ((String*)e)->str;
             outval->s.length = s->length;
             outval->s.text = s->data;
         }break;
@@ -284,12 +279,7 @@ drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const S
             break;
         case EXPR_STRING:{
             outval->kind = DRSP_RESULT_STRING;
-            StringView sv = ((String*)e)->sv;
-            DrspStr* s = drsp_create_str(ctx, sv.text, sv.length);
-            if(!s){
-                error = 1;
-                goto finish;
-            }
+            DrspAtom s = ((String*)e)->str;
             outval->s.length = s->length;
             outval->s.text = s->data;
         }break;

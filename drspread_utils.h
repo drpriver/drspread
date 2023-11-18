@@ -12,8 +12,8 @@ get_range1dcol(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* col, i
     if(arg->kind != EXPR_RANGE1D_COLUMN && arg->kind != EXPR_RANGE1D_COLUMN_FOREIGN)
         return 1;
     if(arg->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
-        StringView sheet_name = ((ForeignRange1DColumn*)arg)->sheet_name;
-        SheetData* hd = sheet_lookup_by_name(ctx, sheet_name.text, sheet_name.length);
+        DrspAtom sheet_name = ((ForeignRange1DColumn*)arg)->sheet_name;
+        SheetData* hd = sheet_lookup_by_name(ctx, sheet_name);
         if(!hd) return 1;
         assert(hd);
         sd = hd;
@@ -23,14 +23,12 @@ get_range1dcol(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* col, i
     intptr_t start = rng->row_start;
     if(start == IDX_DOLLAR) start = caller_row;
     intptr_t colnum;
-    if(sv_equals(rng->col_name, SV("$"))){
+    if(rng->col_name == drsp_dollar_atom())
         colnum = caller_col;
-    }
-    else if(!rng->col_name.length){
+    else if(!rng->col_name->length)
         colnum = 0;
-    }
     else {
-        colnum = sp_name_to_col_idx(sd, rng->col_name.text, rng->col_name.length);
+        colnum = sp_name_to_col_idx(sd, rng->col_name);
         if(colnum == -1) return 1;
     }
     if(start < 0) start += sp_col_height(sd, colnum);
@@ -58,34 +56,32 @@ get_range1drow(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* row, i
     if(arg->kind != EXPR_RANGE1D_ROW && arg->kind != EXPR_RANGE1D_ROW_FOREIGN)
         return 1;
     if(arg->kind == EXPR_RANGE1D_ROW_FOREIGN){
-        StringView sheet_name = ((ForeignRange1DRow*)arg)->sheet_name;
-        SheetData* hd = sheet_lookup_by_name(ctx, sheet_name.text, sheet_name.length);
+        DrspAtom sheet_name = ((ForeignRange1DRow*)arg)->sheet_name;
+        SheetData* hd = sheet_lookup_by_name(ctx, sheet_name);
         if(!hd) return 1;
         sd = hd;
         *rsd = hd;
     }
     Range1DRow* rng = (Range1DRow*)arg;
-    StringView sv_start = rng->col_start;
     intptr_t start;
-    if(sv_equals(sv_start, SV("$")))
+    if(rng->col_start == drsp_dollar_atom())
         start = caller_col;
-    else if(!sv_start.length){
+    else if(!rng->col_start->length){
         start = 0;
     }
     else
-        start = sp_name_to_col_idx(sd, sv_start.text, sv_start.length);
+        start = sp_name_to_col_idx(sd, rng->col_start);
     if(start == -1) return 1;
     intptr_t row_idx = rng->row_idx;
     if(row_idx == IDX_DOLLAR) row_idx = caller_row;
-    StringView sv_end = rng->col_end;
     intptr_t end;
-    if(sv_equals(sv_end, SV("$")))
+    if(rng->col_end == drsp_dollar_atom())
         end = caller_col;
-    else if(!sv_end.length){
+    else if(!rng->col_end->length){
         end = sp_row_width(sd, row_idx);
     }
     else
-        end = sp_name_to_col_idx(sd, sv_end.text, sv_end.length);
+        end = sp_name_to_col_idx(sd, rng->col_end);
     if(end == -1) return 1;
     if(end < start){
         intptr_t tmp = end;
@@ -136,7 +132,7 @@ scalar_expr_is_truthy(Expression* e){
         case EXPR_NUMBER:
             return !!((Number*)e)->value;
         case EXPR_STRING:
-            return !!((String*)e)->sv.length;
+            return !!((String*)e)->str->length;
         default:
             __builtin_unreachable();
     }

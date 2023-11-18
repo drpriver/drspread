@@ -118,6 +118,7 @@ int
 drsp_destroy_ctx(DrSpreadCtx*_Nullable);
 
 typedef struct DrspStr DrspStr;
+typedef const struct DrspStr* DrspAtom;
 
 // If the sheet does not exist, this also creates the sheet.
 // This means that sheets always have a name.

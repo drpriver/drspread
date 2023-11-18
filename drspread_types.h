@@ -198,7 +198,7 @@ struct FunctionCall {
 typedef struct UserFunctionCall UserFunctionCall;
 struct UserFunctionCall {
     Expression e;
-    StringView name;
+    DrspAtom name;
     int argc;
     Expression*_Nonnull*_Nonnull argv;
 };
@@ -211,7 +211,7 @@ enum {IDX_EXTRA_DIMENSIONAL = DRSP_IDX_EXTRA_DIMENSIONAL}; // INT32_MIN+3
 typedef struct Range0D Range0D;
 struct Range0D {
     Expression e;
-    StringView col_name;
+    DrspAtom col_name;
     intptr_t row;
 };
 
@@ -221,13 +221,13 @@ struct ForeignRange0D {
         Expression e;
         Range0D r;
     };
-    StringView sheet_name;
+    DrspAtom sheet_name;
 };
 
 typedef struct Range1DColumn Range1DColumn;
 struct Range1DColumn {
     Expression e;
-    StringView col_name;
+    DrspAtom col_name;
     intptr_t row_start, row_end; // inclusive
 };
 
@@ -235,7 +235,7 @@ typedef struct Range1DRow Range1DRow;
 struct Range1DRow {
     Expression e;
     intptr_t row_idx;
-    StringView col_start, col_end; // inclusive
+    DrspAtom col_start, col_end; // inclusive
 };
 
 typedef struct ForeignRange1DColumn ForeignRange1DColumn;
@@ -244,7 +244,7 @@ struct ForeignRange1DColumn {
         Range1DColumn r;
         Expression e;
     };
-    StringView sheet_name;
+    DrspAtom sheet_name;
 };
 
 typedef struct ForeignRange1DRow ForeignRange1DRow;
@@ -253,7 +253,7 @@ struct ForeignRange1DRow {
         Range1DRow r;
         Expression e;
     };
-    StringView sheet_name;
+    DrspAtom sheet_name;
 };
 
 typedef struct Binary Binary;
@@ -278,7 +278,7 @@ struct Unary {
 typedef struct String String;
 struct String {
     Expression e;
-    StringView sv;
+    DrspAtom str;
 };
 
 typedef struct ComputedArray ComputedArray;
@@ -306,15 +306,15 @@ struct RowCol {
 typedef struct RowColSv RowColSv;
 struct RowColSv {
     RowCol rc;
-    StringView sv;
+    DrspAtom sv;
 };
 static inline
-StringView*_Nullable
+DrspAtom _Nullable
 get_cached_cell(CellCache* cache, intptr_t row, intptr_t col);
 
 static inline
 int
-set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, const char*restrict txt, size_t len);
+set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom txt);
 
 
 
@@ -334,15 +334,26 @@ struct DrspStr {
     char data[];
 };
 
+
 DRSP_INTERNAL
-DrspStr*_Nullable
-drsp_create_str(DrSpreadCtx*, const char* txt, size_t len);
+DrspAtom _Nullable
+drsp_intern_str(DrSpreadCtx*, const char*_Null_unspecified txt, size_t len);
+
+DRSP_INTERNAL
+DrspAtom _Nullable
+drsp_intern_str_lower(DrSpreadCtx*, const char*_Null_unspecified txt, size_t len);
+
+DRSP_INTERNAL
+DrspAtom _Nullable
+drsp_intern_sv_lower(DrSpreadCtx* ctx, StringView sv);
 
 force_inline
-StringView
-drsp_to_sv(const DrspStr* s){
-    return (StringView){s->length, s->data};
-}
+DrspAtom
+drsp_dollar_atom(void);
+
+force_inline
+DrspAtom
+drsp_nil_atom(void);
 
 typedef struct StringHeap StringHeap;
 struct StringHeap {
@@ -372,7 +383,7 @@ struct CachedResult{
     enum CachedResultKind kind;
     union {
         double number;
-        DrspStr* string;
+        DrspAtom string;
     };
 };
 static inline
@@ -383,7 +394,7 @@ cached_result_eq_ignoring_loc(const CachedResult* a, const CachedResult* b){
         case CACHED_RESULT_NULL:
             return 1;
         case CACHED_RESULT_STRING:
-            return sv_equals(drsp_to_sv(a->string), drsp_to_sv(b->string));
+            return a->string ==  b->string;
         case CACHED_RESULT_NUMBER:
             // eq or both nan
             return a->number == b->number || (a->number != a->number && b->number != b->number);
@@ -403,7 +414,7 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
             return 0;
         case EXPR_STRING:{
             String* s = (String*)e;
-            DrspStr* str = drsp_create_str(ctx, s->sv.text, s->sv.length);
+            DrspAtom str = s->str;
             if(!str) return 1;
             out->kind = CACHED_RESULT_STRING;
             out->string = str;
@@ -417,7 +428,7 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
         case EXPR_RANGE1D_COLUMN:
         case EXPR_RANGE1D_COLUMN_FOREIGN:
         case EXPR_COMPUTED_ARRAY:{
-            DrspStr* str = drsp_create_str(ctx, "[[array]]", sizeof("[[array]]")-1);
+            DrspAtom str = drsp_intern_str(ctx, "[[array]]", sizeof("[[array]]")-1);
             if(!str) return 1;
             out->kind = CACHED_RESULT_STRING;
             out->string = str;
@@ -453,7 +464,7 @@ cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
         case CACHED_RESULT_STRING:{
             String* s = expr_alloc(ctx, EXPR_STRING);
             if(!s) return NULL;
-            s->sv = drsp_to_sv(cr->string);
+            s->str = cr->string;
             return &s->e;
         }
         default:
@@ -484,8 +495,8 @@ struct ExtraDimensionalCellCache {
 };
 typedef struct SheetData SheetData;
 struct SheetData {
-    DrspStr* name;
-    DrspStr*_Nullable alias;
+    DrspAtom name;
+    DrspAtom _Nullable alias;
     SheetHandle handle;
     CellCache cell_cache;
     ColCache col_cache;
@@ -544,7 +555,7 @@ sheet_get_or_create_by_handle(DrSpreadCtx* ctx, SheetHandle handle);
 
 DRSP_INTERNAL
 SheetData*_Nullable
-sheet_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len);
+sheet_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name);
 
 DRSP_INTERNAL
 SheetData*_Nullable
@@ -552,7 +563,7 @@ udf_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle);
 
 DRSP_INTERNAL
 SheetData*_Nullable
-udf_lookup_by_name(DrSpreadCtx* ctx, const char* name, size_t len);
+udf_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name);
 
 DRSP_INTERNAL
 void
@@ -636,24 +647,25 @@ str_arena_alloc(StringArena*_Nullable*_Nonnull parena, size_t len){
 
 static inline
 int
-sv_cat(DrSpreadCtx* ctx, size_t n, const StringView* strs, StringView* out){
+sv_cat(DrSpreadCtx* ctx, size_t n, const DrspAtom _Nonnull* const _Nonnull strs, DrspAtom _Nullable*_Nonnull out){
     size_t len = 0;
     for(size_t i = 0; i < n; i++)
-        len += strs[i].length;
+        len += strs[i]->length;
     if(!len) {
-        out->length = 0;
-        out->text = "";
+        *out = drsp_nil_atom();
         return 0;
     }
     char* data = str_arena_alloc(&ctx->temp_string_arena, len);
     if(!data) return 1;
     char* p = data;
     for(size_t i = 0; i < n; i++){
-        __builtin_memcpy(p, strs[i].text, strs[i].length);
-        p += strs[i].length;
+        __builtin_memcpy(p, strs[i]->data, strs[i]->length);
+        p += strs[i]->length;
     }
-    out->text = data;
-    out->length = len;
+    // FIXME: free data here
+    DrspAtom s = drsp_intern_str(ctx, data, len);
+    if(!s) return 1;
+    *out = s;
     return 0;
 }
 
@@ -752,14 +764,16 @@ sp_row_width(const SheetData* sd, intptr_t row){
 
 force_inline
 intptr_t
-sp_name_to_col_idx(SheetData* sd, const char* name, size_t len){
-    intptr_t* pidx = get_cached_col_name(&sd->col_cache, name, len);
+sp_name_to_col_idx(SheetData* sd, DrspAtom name){
+    intptr_t* pidx = get_cached_col_name(&sd->col_cache, name);
     if(pidx) return *pidx;
+    const char* txt = name->data;
+    size_t len = name->length;
     if(len < 3){
         intptr_t x = 0;
         for(size_t i = 0; i < len; i++){
             x *= 26;
-            uint8_t c = name[i];
+            uint8_t c = txt[i];
             c |= 0x20u;
             if(c < 'a') goto notfound;
             if(c > 'z') goto notfound;

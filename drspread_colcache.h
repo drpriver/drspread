@@ -16,13 +16,13 @@ struct ColCache {
 
 static inline
 intptr_t*_Nullable
-get_cached_col_name(ColCache* cache, const char* name, size_t len);
+get_cached_col_name(ColCache* cache, DrspAtom name);
 
 
 // empty string means delete
 static inline
 int
-set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t value);
+set_cached_col_name(ColCache* cache, DrspAtom name, intptr_t value);
 
 static inline
 void

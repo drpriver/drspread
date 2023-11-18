@@ -8,23 +8,22 @@
 
 typedef struct ColName ColName;
 struct ColName {
-    StringView name;
+    DrspAtom name;
     intptr_t idx;
 };
 
 static inline
 int
-set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t value){
-    StringView nm = {len, name};
+set_cached_col_name(ColCache* cache, DrspAtom name, intptr_t value){
     ColName* names = (ColName*)cache->data;
     _Bool found = 0;
     for(size_t i = 0; i < cache->n; i++){
-        if(sv_iequals(nm, names[i].name)){
+        if(name == names[i].name){
             names[i].idx = value;
             found = 1;
         }
         else if(names[i].idx == value){
-            names[i].name = nm;
+            names[i].name = name;
             found = 1;
         }
     }
@@ -36,7 +35,7 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
         cache->data = (unsigned char*)names;
         cache->cap = new_cap;
     }
-    names[cache->n++] = (ColName){nm, value};
+    names[cache->n++] = (ColName){name, value};
     return 0;
 #if 0
     if(cache->n*2 >= cache->cap){
@@ -89,11 +88,10 @@ set_cached_col_name(ColCache* cache, const char* name, size_t len, intptr_t valu
 
 static inline
 intptr_t*_Nullable
-get_cached_col_name(ColCache* cache, const char* name, size_t len){
-    StringView nm = {len, name};
+get_cached_col_name(ColCache* cache, DrspAtom name){
     ColName* names = (ColName*)cache->data;
     for(size_t i = 0; i < cache->n; i++){
-        if(sv_iequals(nm, names[i].name)){
+        if(name == names[i].name){
             return &names[i].idx;
         }
     }

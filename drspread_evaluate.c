@@ -60,7 +60,8 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         cell_other:;
         String* s = expr_alloc(ctx, EXPR_STRING);
         if(!s) return NULL;
-        s->sv = sv;
+        s->str = drsp_intern_str(ctx, sv.text, sv.length);
+        if(!s->str) return NULL;
         return &s->e;
     }
     {
@@ -158,20 +159,20 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     BAD(lhs);
                 ComputedArray* l = (ComputedArray*)lhs;
                 if(rhs->kind == EXPR_STRING){
-                    StringView r = ((String*)rhs)->sv;
+                    DrspAtom r = ((String*)rhs)->str;
                     for(intptr_t i = 0; i < l->length; i++){
                         Expression* e = l->data[i];
                         if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_STRING)
                             BAD(Error(ctx, ""));
                         _Bool cmp;
-                        StringView sv = ((String*)e)->sv;
+                        DrspAtom s = ((String*)e)->str;
                         switch(op){
                             case BIN_EQ:
-                                cmp = sv_equals(sv, r);
+                                cmp = s == r;
                                 break;
                             case BIN_NE:
-                                cmp = !sv_equals(sv, r);
+                                cmp = s != r;
                                 break;
                             default:
                                 BAD(Error(ctx, ""));
@@ -204,20 +205,20 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     BAD(rhs);
                 ComputedArray* r = (ComputedArray*)rhs;
                 if(lhs->kind == EXPR_STRING){
-                    StringView l = ((String*)lhs)->sv;
+                    DrspAtom l = ((String*)lhs)->str;
                     for(intptr_t i = 0; i < r->length; i++){
                         Expression* e = r->data[i];
                         if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_STRING)
                             BAD(Error(ctx, ""));
                         _Bool cmp;
-                        StringView sv = ((String*)e)->sv;
+                        DrspAtom s = ((String*)e)->str;
                         switch(op){
                             case BIN_EQ:
-                                cmp = sv_equals(sv, l);
+                                cmp = s == l;
                                 break;
                             case BIN_NE:
-                                cmp = !sv_equals(sv, l);
+                                cmp = s != l;
                                 break;
                             default:
                                 BAD(Error(ctx, ""));
@@ -321,10 +322,10 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         _Bool cmp;
                         switch(op){
                             case BIN_EQ:
-                                cmp = sv_equals(((String*)ld)->sv, ((String*)e)->sv);
+                                cmp = ((String*)ld)->str == ((String*)e)->str;
                                 break;
                             case BIN_NE:
-                                cmp = !sv_equals(((String*)ld)->sv, ((String*)e)->sv);
+                                cmp = ((String*)ld)->str != ((String*)e)->str;
                                 break;
                             default:
                                 BAD(Error(ctx, ""));
@@ -359,10 +360,10 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                 _Bool cmp;
                 switch(op){
                     case BIN_EQ:
-                        cmp = sv_equals(l->sv, r->sv);
+                        cmp = l->str == r->str;
                         break;
                     case BIN_NE:
-                        cmp = !sv_equals(l->sv, r->sv);
+                        cmp = l->str != r->str;
                         break;
                     default:
                         BAD(Error(ctx, ""));
@@ -412,17 +413,15 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
         }
         case EXPR_RANGE0D_FOREIGN:{
             ForeignRange0D* rng = (ForeignRange0D*)expr;
-            StringView sn = rng->sheet_name;
-            SheetData* fsd = sheet_lookup_by_name(ctx, sn.text, sn.length);
+            SheetData* fsd = sheet_lookup_by_name(ctx, rng->sheet_name);
             if(!fsd) return Error(ctx, "");
             intptr_t r = rng->r.row;
             if(r == IDX_DOLLAR) r = caller_row;
             intptr_t c;
-            StringView col = rng->r.col_name;
-            if(sv_equals(col, SV("$")))
+            if(rng->r.col_name == drsp_dollar_atom())
                 c = caller_col;
             else
-                c = sp_name_to_col_idx(fsd, col.text, col.length);
+                c = sp_name_to_col_idx(fsd, rng->r.col_name);
             if(c == IDX_DOLLAR) c = caller_col;
             if(c == -1) return Error(ctx, "column not found");
             return evaluate(ctx, fsd, r, c);
@@ -432,11 +431,10 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             intptr_t r = rng->row;
             if(r == IDX_DOLLAR) r = caller_row;
             intptr_t c;
-            StringView col = rng->col_name;
-            if(sv_equals(col, SV("$")))
+            if(rng->col_name == drsp_dollar_atom())
                 c = caller_col;
             else
-                c = sp_name_to_col_idx(sd, col.text, col.length);
+                c = sp_name_to_col_idx(sd, rng->col_name);
             if(c == IDX_DOLLAR) c = caller_col;
             if(c == -1) return Error(ctx, "column not found");
             return evaluate(ctx, sd, r, c);
@@ -478,7 +476,7 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
         }
         case EXPR_USER_DEFINED_FUNC_CALL:{
             UserFunctionCall* ufc = (UserFunctionCall*)expr;
-            SheetData* udf = udf_lookup_by_name(ctx, ufc->name.text, ufc->name.length);
+            SheetData* udf = udf_lookup_by_name(ctx, ufc->name);
             if(!udf) return Error(ctx, "Can't find udf of this name");
             if(udf->paramc != ufc->argc){
                 return Error(ctx, "Wrong number of args");
