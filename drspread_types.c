@@ -32,14 +32,20 @@ drsp_create_ctx(ARGS){
     return ctx;
 }
 
-DRSP_EXPORT
-int
-drsp_destroy_ctx(DrSpreadCtx*_Nullable ctx){
-    if(!ctx) return 0;
+static
+void
+drsp_destroy_ctx_(DrSpreadCtx* ctx){
     free_string_arenas(ctx->temp_string_arena);
     free_sheet_datas(ctx);
     destroy_string_heap(&ctx->sheap);
     memset(ctx, 0xfe, sizeof(DrSpreadCtx));
+}
+
+DRSP_EXPORT
+int
+drsp_destroy_ctx(DrSpreadCtx*_Nullable ctx){
+    if(!ctx) return 0;
+    drsp_destroy_ctx_(ctx);
     drsp_alloc(sizeof*ctx+CTX_EXTRA, ctx, 0, _Alignof *ctx);
     return 0;
 }

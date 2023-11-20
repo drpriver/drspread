@@ -134,6 +134,9 @@ sv_set(Value* v, StringView sv){
 
 typedef DrSpreadCtx DrSpreadCtx;
 
+// Destroys the contents, but does not free ctx.
+static void drsp_destroy_ctx_(DrSpreadCtx* ctx);
+
 TYPED_ENUM(ExpressionKind, uintptr_t){
     EXPR_ERROR                  =  0,
     EXPR_STRING                 =  1,
