@@ -2170,6 +2170,7 @@ const FuncInfo FUNC1[] = {
 DRSP_INTERNAL
 const FuncInfo FUNC2[] = {
     {SVI("if"),    &drsp_if},
+    {SVI("lu"),    &drsp_tablelookup},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC3[] = {
@@ -2199,7 +2200,7 @@ const FuncInfo FUNC4[] = {
     {SVI("mean"),  &drsp_avg},
 #ifdef DRSPREAD_CLI_C
 #ifdef __APPLE__
-    {SVI("time"), &drsp_time},
+    {SVI("time"),  &drsp_time},
 #endif
 #endif
     {SVI("prod"),  &drsp_prod},
