@@ -1,5 +1,0 @@
-Changelog::kv
-  created: 2023-06-29T17:22:07Z
-Created Jun 29, 2023, 10:22AM::md.update
-Summary::md.summary
-  Interning strings would make a lot of things easier.
