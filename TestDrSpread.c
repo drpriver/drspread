@@ -867,6 +867,14 @@ TestFunction(TestFuncs){
         "=MiN(mAX(-1, -2), 1)\n"
         "=mean(b)\n"
 
+        // nonexistent
+        "=h()\n"
+        "=ha()\n"
+        "=hah()\n"
+        "=haha()\n"
+        "=hahah()\n"
+        "=hahaha()\n"
+
     ;
     SheetRow expected[] = {
         ROW("60", "-1.5"),
@@ -953,8 +961,15 @@ TestFunction(TestFuncs){
 
         ROW("-1"),
         ROW("15"),
+
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
+        ROW("error"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 6);
 }
 TestFunction(TestFuncsV){
     const char* input =
