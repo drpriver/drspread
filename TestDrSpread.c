@@ -61,6 +61,7 @@ static TestFunc TestUserFunctions;
 static TestFunc TestShortColNames;
 static TestFunc TestDeleteColNames;
 static TestFunc TestExtraDimensional;
+static TestFunc TestEditing;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -89,6 +90,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestShortColNames);
         RegisterTest(TestDeleteColNames);
         RegisterTest(TestExtraDimensional);
+        RegisterTest(TestEditing);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -2272,6 +2274,160 @@ TestFunction(TestExtraDimensional){
     drsp_destroy_ctx(ctx);
     EXPECT_NO_LEAKS();
     TESTEND();
+}
+
+TestFunction(TestEditing){
+    TESTBEGIN();
+    const char* input =
+        "1 | =sum(a)\n"
+        "2 | =cat('a', 'b')\n"
+    ;
+    SpreadSheet sheet = {0};
+    int err = read_csv_from_string(&sheet, input);
+    TestAssertFalse(err);
+    SheetOps ops = sheet_ops();
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    TestAssert(ctx);
+    SheetHandle sheethandle = (SheetHandle)&sheet;
+    err = drsp_set_sheet_name(ctx, sheethandle, "$this", 5);
+    TestAssertFalse(err);
+
+    for(intptr_t r = 0; r < sheet.rows; r++){
+        const SheetRow* row = &sheet.cells[r];
+        for(int c = 0; c < row->n; c++){
+            if(!row->lengths[c]) continue;
+            err = drsp_set_cell_str(ctx, sheethandle, r, c, row->data[c], row->lengths[c]);
+            // don't bloat the stats
+            if(err) TestAssertFalse(err);
+        }
+    }
+    int nerr = drsp_evaluate_formulas(ctx);
+    TestExpectEquals(nerr, 0);
+    {
+        SheetRow expected[] = {
+            ROW("1", "3"),
+            ROW("2", "ab"),
+        };
+        TestAssertEquals(sheet.rows, arrlen(expected));
+        for(size_t i = 0; i < arrlen(expected); i++){
+            const SheetRow* display_row = &sheet.display[i];
+            const SheetRow* expected_row = &expected[i];
+            TestAssertEquals(display_row->n, expected_row->n);
+            for(int j = 0; j < display_row->n; j++){
+                TEST_stats.executed++;
+                const char* lhs = display_row->data[j];
+                const char* rhs = expected_row->data[j];
+                if(!streq(lhs, rhs)){
+                    TEST_stats.failures++;
+                      TestReport("Test condition failed");
+                      TestReport("row %zu, col %d", i, j);
+                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                              _test_color_green, lhs, _test_color_reset,
+                              _test_color_red, _test_color_reset,
+                              _test_color_green, rhs, _test_color_reset);
+                }
+            }
+        }
+    }
+    #define SET_CELL(r, c, x) drsp_set_cell_str(ctx, sheethandle, r, c, x, sizeof(x)-1)
+    err = SET_CELL(1, 0, "3");
+    if(err) TestAssertFalse(err);
+
+    {
+        SheetRow expected[] = {
+            ROW("1", "4"),
+            ROW("3", "ab"),
+        };
+        nerr = drsp_evaluate_formulas(ctx);
+        TestExpectEquals(nerr, 0);
+        for(size_t i = 0; i < arrlen(expected); i++){
+            const SheetRow* display_row = &sheet.display[i];
+            const SheetRow* expected_row = &expected[i];
+            TestAssertEquals(display_row->n, expected_row->n);
+            for(int j = 0; j < display_row->n; j++){
+                TEST_stats.executed++;
+                const char* lhs = display_row->data[j];
+                const char* rhs = expected_row->data[j];
+                if(!streq(lhs, rhs)){
+                    TEST_stats.failures++;
+                      TestReport("Test condition failed");
+                      TestReport("row %zu, col %d", i, j);
+                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                              _test_color_green, lhs, _test_color_reset,
+                              _test_color_red, _test_color_reset,
+                              _test_color_green, rhs, _test_color_reset);
+                }
+            }
+        }
+    }
+
+    err = SET_CELL(1, 1, "=CAT('', '')");
+    if(err) TestAssertFalse(err);
+
+    {
+        SheetRow expected[] = {
+            ROW("1", "4"),
+            ROW("3", ""),
+        };
+        nerr = drsp_evaluate_formulas(ctx);
+        TestExpectEquals(nerr, 0);
+        for(size_t i = 0; i < arrlen(expected); i++){
+            const SheetRow* display_row = &sheet.display[i];
+            const SheetRow* expected_row = &expected[i];
+            TestAssertEquals(display_row->n, expected_row->n);
+            for(int j = 0; j < display_row->n; j++){
+                TEST_stats.executed++;
+                const char* lhs = display_row->data[j];
+                const char* rhs = expected_row->data[j];
+                if(!streq(lhs, rhs)){
+                    TEST_stats.failures++;
+                      TestReport("Test condition failed");
+                      TestReport("row %zu, col %d", i, j);
+                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                              _test_color_green, lhs, _test_color_reset,
+                              _test_color_red, _test_color_reset,
+                              _test_color_green, rhs, _test_color_reset);
+                }
+            }
+        }
+    }
+
+    err = SET_CELL(1, 1, "=CAT(''");
+    if(err) TestAssertFalse(err);
+
+    {
+        SheetRow expected[] = {
+            ROW("1", "4"),
+            ROW("3", "error"),
+        };
+        nerr = drsp_evaluate_formulas(ctx);
+        TestExpectEquals(nerr, 1);
+        for(size_t i = 0; i < arrlen(expected); i++){
+            const SheetRow* display_row = &sheet.display[i];
+            const SheetRow* expected_row = &expected[i];
+            TestAssertEquals(display_row->n, expected_row->n);
+            for(int j = 0; j < display_row->n; j++){
+                TEST_stats.executed++;
+                const char* lhs = display_row->data[j];
+                const char* rhs = expected_row->data[j];
+                if(!streq(lhs, rhs)){
+                    TEST_stats.failures++;
+                      TestReport("Test condition failed");
+                      TestReport("row %zu, col %d", i, j);
+                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                              _test_color_green, lhs, _test_color_reset,
+                              _test_color_red, _test_color_reset,
+                              _test_color_green, rhs, _test_color_reset);
+                }
+            }
+        }
+    }
+
+    drsp_destroy_ctx(ctx);
+    cleanup_sheet(&sheet);
+    EXPECT_NO_LEAKS();
+    TESTEND();
+    #undef SET_CELL
 }
 
 
