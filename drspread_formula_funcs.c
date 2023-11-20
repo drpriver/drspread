@@ -2171,6 +2171,7 @@ DRSP_INTERNAL
 const FuncInfo FUNC2[] = {
     {SVI("if"),    &drsp_if},
     {SVI("lu"),    &drsp_tablelookup},
+    {SVI("ln"),    &drsp_log},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC3[] = {
