@@ -1203,7 +1203,7 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             blue, result.funcs_executed,
             reset, text);
 
-    text = result.executed == 1? "test executed" : "tests executed";
+    text = result.executed == 1? "test statement executed" : "test statements executed";
     TestPrintf("%s%s%s: %s%zu%s %s\n",
             gray, filename, reset,
             blue, result.executed, reset,
