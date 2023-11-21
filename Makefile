@@ -14,15 +14,18 @@ ifeq ($(OS),Windows_NT)
 EXE=.exe
 LM=
 CC=clang
+OPEN=start
 else
 EXE=
 UNAME := $(shell uname)
 ifeq ($(UNAME),Darwin)
 LM=
 CC=clang
+OPEN=open
 else
 CC=gcc
 LM=-lm
+OPEN=xdg-open
 endif
 endif
 
@@ -121,6 +124,12 @@ ALL= \
     drspread_glue.js \
     demo.js \
     testspread_glue.js \
+# requires meson
+# also, rm -rf doesn't work on windows
+.PHONY: coverage
+coverage:
+	rm -rf covdir && meson setup covdir -Db_coverage=true && cd covdir && ninja test && ninja -v coverage-html && cd .. && $(OPEN) covdir/meson-logs/coveragereport/index.html
+
 
 all: $(ALL)
 .DEFAULT_GOAL:=all

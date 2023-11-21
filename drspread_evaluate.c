@@ -128,8 +128,10 @@ double_bin_cmp(BinaryKind op, double l, double r){
         case BIN_GE:  value = l >= r; break;
         case BIN_EQ:  value = l == r; break;
         case BIN_NE:  value = l != r; break;
+        // GCOV_EXCL_START
         default: __builtin_trap();
     }
+        // GCOV_EXCL_STOP
     return value;
 }
 
@@ -458,8 +460,8 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
                 // GCOV_EXCL_START
                 case UN_PLUS: __builtin_unreachable();
                 default: __builtin_trap();
-                // GCOV_EXCL_STOP
             }
+                // GCOV_EXCL_STOP
             ctx->a->cursor = chk;
             Number* r = expr_alloc(ctx, EXPR_NUMBER);
             if(!r) return NULL;
