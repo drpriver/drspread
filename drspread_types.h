@@ -83,10 +83,13 @@ TYPED_ENUM(ValueKind, uintptr_t){
     VALUE_NULL,
     VALUE_ERROR,
 };
+#if UINTPTR_MAX == UINT32_MAX
+#define DRSPREAD_32BIT
+#endif
 
 typedef struct Value Value;
 struct Value{
-#ifdef __wasm__
+#ifdef DRSPREAD_32BIT
     ValueKind kind;
     unsigned _pad;
     union {
@@ -112,7 +115,7 @@ _Static_assert(sizeof(Value)==16, "");
 static inline
 StringView
 sv_of(const Value* v){
-#ifdef __wasm__
+#ifdef DRSPREAD_32BIT
     return v->_string;
 #else
     return (StringView){v->length, v->_s};
@@ -122,7 +125,7 @@ sv_of(const Value* v){
 static inline
 void
 sv_set(Value* v, StringView sv){
-#ifdef __wasm__
+#ifdef DRSPREAD_32BIT
     v->_string = sv;
 #else
     v->_s = sv.text;
