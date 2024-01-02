@@ -287,7 +287,7 @@ struct CellCache {
 
 typedef struct RowCol RowCol;
 struct RowCol {
-    intptr_t row, col;
+    int32_t row, col;
 };
 
 typedef struct RowColSv RowColSv;
@@ -353,8 +353,8 @@ DRSP_INTERNAL
 void
 destroy_string_heap(StringHeap* heap);
 
-typedef struct ResultCache ResultCache;
-struct ResultCache {
+typedef struct OutputResultCache OutputResultCache;
+struct OutputResultCache {
     size_t n, cap;
     unsigned char* data;
 };
@@ -428,6 +428,39 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
     }
 }
 
+static inline
+int
+expr_to_cached_result_no_array(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
+    (void)ctx;
+    switch(e->kind){
+        case EXPR_NUMBER:
+            out->kind = CACHED_RESULT_NUMBER;
+            out->number = ((Number*)e)->value;
+            return 0;
+        case EXPR_STRING:{
+            String* s = (String*)e;
+            DrspAtom str = s->str;
+            if(!str) return 1;
+            out->kind = CACHED_RESULT_STRING;
+            out->string = str;
+            return 0;
+        }break;
+        case EXPR_BLANK:
+            out->kind = CACHED_RESULT_NULL;
+            return 0;
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN:
+        case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
+        case EXPR_COMPUTED_ARRAY:
+            return 1;
+        default:
+        case EXPR_ERROR:
+            out->kind = CACHED_RESULT_ERROR;
+            return 0;
+    }
+}
+
 force_inline
 void*_Nullable
 expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind);
@@ -461,11 +494,11 @@ cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
 }
 DRSP_INTERNAL
 CachedResult*_Nullable
-get_cached_result(ResultCache* cache, intptr_t row, intptr_t col);
+get_cached_output_result(OutputResultCache* cache, intptr_t row, intptr_t col);
 
 DRSP_INTERNAL
 CachedResult*_Nullable
-has_cached_result(const ResultCache* cache, intptr_t row, intptr_t col);
+has_cached_output_result(const OutputResultCache* cache, intptr_t row, intptr_t col);
 
 
 typedef struct UserDefinedFunctionParameter UserDefinedFunctionParameter;
@@ -493,7 +526,10 @@ struct SheetData {
     ColCache col_cache;
     ExtraDimensionalCellCache extra_dimensional;
     intptr_t width, height;
-    ResultCache result_cache;
+    OutputResultCache output_result_cache;
+#if 0
+    OutputResultCache result_cache;
+#endif
     unsigned flags;
     int paramc;
     UserDefinedFunctionParameter params[4];
@@ -733,10 +769,9 @@ struct FuncInfo {
     FormulaFunc* func;
 };
 
-
 DRSP_INTERNAL
-const char*_Nullable
-sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len);
+DrspAtom
+sp_cell_atom(SheetData* sd, intptr_t row, intptr_t col);
 
 // We pretend that we support ragged sheets, even though we don't.
 force_inline

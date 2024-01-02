@@ -74,7 +74,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 buff_set(ctx->a, bc);
                 Expression* e = evaluate(ctx, sd, row, col);
                 if(e && e->kind == EXPR_BLANK){
-                    if(!has_cached_result(&sd->result_cache, row, col))
+                    if(!has_cached_output_result(&sd->output_result_cache, row, col))
                         continue;
 
                 }
@@ -93,7 +93,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 }
                 #endif
                 if(!e) e = Error(ctx, "oom"); // Error doesn't alloc
-                CachedResult* cr = get_cached_result(&sd->result_cache, row, col);
+                CachedResult* cr = get_cached_output_result(&sd->output_result_cache, row, col);
                 if(cr){
                     CachedResult tmp_cr;
                     tmp_cr.loc = (RowCol){row, col};
@@ -157,7 +157,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 sp_set_display_error(ctx, sd->handle, row, col, "oom", 5);
                 continue;
             }
-            CachedResult* cr = get_cached_result(&sd->result_cache, IDX_EXTRA_DIMENSIONAL, edc->id);
+            CachedResult* cr = get_cached_output_result(&sd->output_result_cache, IDX_EXTRA_DIMENSIONAL, edc->id);
             if(cr){
                 CachedResult tmp_cr;
                 tmp_cr.loc = (RowCol){IDX_EXTRA_DIMENSIONAL, edc->id};

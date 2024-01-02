@@ -36,31 +36,33 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
                 return hfa->e;
         }
     }
-    size_t len = 0;
     if(row != IDX_EXTRA_DIMENSIONAL)
         if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
             return expr_alloc(ctx, EXPR_BLANK);
-    const char* txt = sp_cell_text(sd, row, col, &len);
-    if(!txt) return expr_alloc(ctx, EXPR_BLANK);
-    StringView sv = stripped2(txt, len);
+    const DrspAtom a = sp_cell_atom(sd, row, col);
+    if(a == drsp_nil_atom()) return expr_alloc(ctx, EXPR_BLANK);
+    StringView sv = {a->length, a->data};
+    assert(sv.length);
     // These `goto`s are a bit unorthodox, but it is basically a switch,
     // with the ability of cell_number to jump to cell_other
-    if(!sv.length) goto cell_empty;
+    // if(!sv.length) goto cell_empty;
     if(sv.text[0] == '=')
         goto cell_formula;
     if((sv.text[0] >= '0' && sv.text[0] <= '9') || sv.text[0] == '.' || sv.text[0] == '-')
         goto cell_number;
     goto cell_other;
+    /*
     {
         cell_empty:;
         Expression* e = expr_alloc(ctx, EXPR_BLANK);
         return e;
     }
+    */
     {
         cell_other:;
         String* s = expr_alloc(ctx, EXPR_STRING);
         if(!s) return NULL;
-        s->str = drsp_intern_str(ctx, sv.text, sv.length);
+        s->str = a;
         if(!s->str) return NULL;
         return &s->e;
     }
@@ -77,7 +79,7 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     {
         cell_formula:;
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
-        Expression *root = parse(ctx, sv.text, sv.length);
+        Expression *root = parse(ctx, a);
         if(!root || root->kind == EXPR_ERROR){
             buff_set(ctx->a, bc);
             return root;
@@ -107,7 +109,8 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
 DRSP_INTERNAL
 Expression*_Nullable
 evaluate_string(DrSpreadCtx* ctx, SheetData* sd, const char* txt, size_t len, intptr_t caller_row, intptr_t caller_col){
-    Expression *root = parse(ctx, txt, len);
+    DrspAtom a = drsp_intern_str(ctx, txt, len);
+    Expression *root = parse(ctx, a);
     if(!root || root->kind == EXPR_ERROR) return root;
     Expression *e = evaluate_expr(ctx, sd, root, caller_row, caller_col);
     return e;

@@ -139,7 +139,7 @@ void
 cleanup_sheet_data(SheetData* d){
     drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+2*sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
     cleanup_col_cache(&d->col_cache);
-    drsp_alloc(d->result_cache.cap*(sizeof(CachedResult)+2*sizeof(uint32_t)), d->result_cache.data, 0, _Alignof(CachedResult));
+    drsp_alloc(d->output_result_cache.cap*(sizeof(CachedResult)+2*sizeof(uint32_t)), d->output_result_cache.data, 0, _Alignof(CachedResult));
 }
 
 // preload empty string and length 1 strings
@@ -205,6 +205,9 @@ drsp_nil_atom(void){
 
 static DrspAtom _Nullable
 drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
+    StringView sv = stripped2(txt, length);
+    txt = sv.text;
+    length = sv.length;
     if(length > UINT16_MAX) return NULL;
     if(!length) return (DrspAtom)&short_strings[0];
     if(length == 1 && (uint8_t)*txt <= 127){
@@ -221,6 +224,9 @@ drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t lengt
 
 static DrspAtom _Nullable
 drsp_intern_str_lower(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
+    StringView sv = stripped2(txt, length);
+    txt = sv.text;
+    length = sv.length;
     if(length > UINT16_MAX) return NULL;
     if(!length) return (DrspAtom)&short_strings[0];
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
@@ -402,7 +408,7 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom str){
 
 DRSP_INTERNAL
 CachedResult*_Nullable
-get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
+get_cached_output_result(OutputResultCache* cache, intptr_t row, intptr_t col){
     // printf("%zd,%zd\n", row, col);
     if(unlikely(cache->n >= cache->cap)){
         size_t old_cap = cache->cap;
@@ -457,8 +463,9 @@ get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
 
 DRSP_INTERNAL
 CachedResult*_Nullable
-has_cached_result(const ResultCache* cache, intptr_t row, intptr_t col){
+has_cached_output_result(const OutputResultCache* cache, intptr_t row, intptr_t col){
     size_t cap = cache->cap;
+    if(!cap) return NULL;
     RowCol key = {row, col};
     uint32_t hash = hash_alignany(&key, sizeof key);
     CachedResult *items = (CachedResult*)cache->data;
@@ -525,21 +532,16 @@ sheet_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name){
 }
 
 DRSP_INTERNAL
-const char*_Nullable
-sp_cell_text(SheetData* sd, intptr_t row, intptr_t col, size_t* len){
+DrspAtom
+sp_cell_atom(SheetData* sd, intptr_t row, intptr_t col){
     if(row != IDX_EXTRA_DIMENSIONAL)
-        if(row < 0 || col < 0 || row >= sd->height || col >= sd->width){
-            *len = 0;
-            return "";
-        }
+        if(row < 0 || col < 0 || row >= sd->height || col >= sd->width)
+            return drsp_nil_atom();
     CellCache* cache = &sd->cell_cache;
     DrspAtom cached = get_cached_cell(cache, row, col);
-    if(!cached) {
-        *len = 0;
-        return "";
-    }
-    *len = cached->length;
-    return cached->data;
+    if(!cached)
+        return drsp_nil_atom();
+    return cached;
 }
 
 DRSP_INTERNAL

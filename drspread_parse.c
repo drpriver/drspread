@@ -71,7 +71,11 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
 
 DRSP_INTERNAL
 Expression*_Nullable
-parse(DrSpreadCtx* ctx, const char* txt, size_t length){
+parse(DrSpreadCtx* ctx, 
+        // const char* txt, size_t length){
+        DrspAtom a){
+    const char* txt = a->data;
+    size_t length = a->length;
     StringView sv = {length, txt};
     lstrip(&sv);
     while(sv.length && sv.text[0] == '=')
