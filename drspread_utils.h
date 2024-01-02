@@ -42,8 +42,8 @@ get_range1dcol(DrSpreadCtx*ctx, SheetData* sd, Expression* arg, intptr_t* col, i
     }
     if(end < 0) return 1;
     if(start < 0) return 1;
-    // XXX: this is kind of a hack, but who needs more than 65k rows
-    if(end - start > 65000) return 1;
+    // XXX: this is kind of a hack.
+    if(end - start > DRSP_MAX_ROWS) return 1;
     *col = colnum;
     *rowstart = start;
     *rowend = end;

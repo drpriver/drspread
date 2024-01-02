@@ -54,6 +54,7 @@ DRSP_TYPED_ENUM(DrspResultKind, uintptr_t){
     DRSP_RESULT_NUMBER = 1,
     DRSP_RESULT_STRING = 2,
 };
+enum {DRSP_MAX_ROWS=10065000};
 
 // Opaque Struct
 // Cast to your actual type in your implementation functions.
