@@ -1266,7 +1266,7 @@ display_number(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, double val
         }
         if(!n) buff[0] = '0';
         char* p = dot;
-        while(p - buff > 3){
+        while(p - buff > 3 + (buff[0]=='-')){
             p -= 3;
             memmove(p+1, p, n - (p-buff));
             n++;
