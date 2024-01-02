@@ -442,7 +442,8 @@ int
 write_display(SpreadSheet* sheet, FILE* out){
     if(sheet->name.length){
         fprintf(out, "-*- %.*s -*-\n", (int)sheet->name.length, sheet->name.text);
-        fprintf(out, "-------------------\n");
+        // fprintf(out, "-------------------\n");
+        fprintf(out, "───────────────────\n");
     }
     intptr_t C = 0;
     int lens[12] = {4,4,4,4,4,4,4,4,4,4,4,4};
@@ -462,29 +463,32 @@ write_display(SpreadSheet* sheet, FILE* out){
             if(lens[i] < len) lens[i] = len;
         }
     }
-    fprintf(out, "    | ");
+    fprintf(out, "    │ ");
     if(C > 12) C = 12;
     for(intptr_t i = 0; i < C; i++){
         if(i < sheet->colnames.n){
-            fprintf(out, " %-*.*s |", lens[i], (int)sheet->colnames.lengths[i], sheet->colnames.data[i]);
+            fprintf(out, " %-*.*s │", lens[i], (int)sheet->colnames.lengths[i], sheet->colnames.data[i]);
         }
         else
-            fprintf(out, " %-*c |", lens[i], (int)(i + 'a'));
+            fprintf(out, " %-*c │", lens[i], (int)(i + 'a'));
     }
     fputc('\n', out);
-    fprintf(out, "----|-");
+    fprintf(out, "────┼─");
     for(intptr_t i = 0; i < C; i++){
         for(int j = 0; j < lens[i]+2; j++){
-            fputc('-', out);
+            fprintf(out, "─");
         }
-        fputc('|', out);
+        if(i == C -1)
+            fprintf(out, "┤");
+        else
+            fprintf(out, "┼");
     }
     fputc('\n', out);
     for(intptr_t row = 0; row < sheet->rows; row++){
         const SheetRow* ro = &sheet->display[row];
-        fprintf(out, "%3zd | ", row+1);
+        fprintf(out, "%3zd │ ", row+1);
         for(int col = 0; col < ro->n; col++){
-            fprintf(out, " %-*s%s", lens[col < 12?col:11], ro->data[col], " |");
+            fprintf(out, " %-*s%s", lens[col < 12?col:11], ro->data[col], " │");
         }
         fputc('\n', out);
     }
