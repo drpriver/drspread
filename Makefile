@@ -48,11 +48,11 @@ Bin/drspread_bench$(EXE): drspread_cli.c Makefile | Bin Depends
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3 -std=gnu2x
 
-Bin/drspread_tui$(EXE): drspread_tui.c | Bin
+Bin/drsp$(EXE): drspread_tui.c | Bin
 	$(CC) $(WFLAGS) -Wno-sign-compare $< -o $@ $(DEPFLAGS) Depends/d.dep -g -std=gnu2x $(LM) $(SANITIZE)
 
 .PHONY: drspread_tui
-drspread_tui: Bin/drspread_tui$(EXE)
+drspread_tui: Bin/drsp$(EXE)
 
 
 
@@ -133,7 +133,7 @@ ALL= \
     drspread_glue.js \
     demo.js \
     testspread_glue.js \
-    Bin/drspread_tui$(EXE)
+    Bin/drsp$(EXE)
 # requires meson
 # also, rm -rf doesn't work on windows
 .PHONY: coverage
