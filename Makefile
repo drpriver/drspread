@@ -124,11 +124,19 @@ ALL= \
     drspread_glue.js \
     demo.js \
     testspread_glue.js \
+    Bin/drspread_tui$(EXE)
 # requires meson
 # also, rm -rf doesn't work on windows
 .PHONY: coverage
 coverage:
 	rm -rf covdir && meson setup covdir -Db_coverage=true && cd covdir && ninja test && ninja -v coverage-html && cd .. && $(OPEN) covdir/meson-logs/coveragereport/index.html
+
+Bin/drspread_tui$(EXE): drspread_tui.c | Bin
+	$(CC) $(WFLAGS) -Wno-sign-compare $< -o $@ $(DEPFLAGS) Depends/d.dep -g -fsanitize=undefined,address -std=gnu2x
+
+.PHONY: drspread_tui
+drspread_tui: Bin/drspread_tui$(EXE)
+
 
 
 all: $(ALL)
