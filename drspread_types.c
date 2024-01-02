@@ -604,6 +604,21 @@ drsp_get_sheet_flags(DrSpreadCtx*restrict ctx, SheetHandle sheet){
     return sd->flags;
 }
 
+DRSP_EXPORT
+DrspAtom _Nullable
+drsp_atomize(DrSpreadCtx* restrict ctx, const char* txt, size_t length){
+    DrspAtom atom = drsp_intern_str(ctx, txt, length);
+    return atom;
+}
+
+DRSP_EXPORT
+const char*
+drsp_atom_get_str(DrSpreadCtx* restrict ctx, DrspAtom restrict atom, size_t* restrict length){
+    (void)ctx;
+    *length = atom->length;
+    return atom->data;
+}
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

@@ -87,14 +87,17 @@ TYPED_ENUM(ValueKind, uintptr_t){
 #define DRSPREAD_32BIT
 #endif
 
+typedef struct DrspStr DrspStr;
+typedef const struct DrspStr* DrspAtom;
+
 typedef struct Value Value;
 struct Value{
 #ifdef DRSPREAD_32BIT
     ValueKind kind;
-    unsigned _pad;
+    uintptr_t _pad;
     union {
         double number;
-        StringView _string;
+        DrspAtom atom;
         struct {
             intptr_t length;
             Value* data;
@@ -104,35 +107,13 @@ struct Value{
     ValueKind kind: 3;
     uintptr_t length: 61;
     union {
-        const char* _s;
+        DrspAtom atom;
         double number;
         Value* data;
     };
 #endif
 };
 _Static_assert(sizeof(Value)==16, "");
-
-static inline
-StringView
-sv_of(const Value* v){
-#ifdef DRSPREAD_32BIT
-    return v->_string;
-#else
-    return (StringView){v->length, v->_s};
-#endif
-}
-
-static inline
-void
-sv_set(Value* v, StringView sv){
-#ifdef DRSPREAD_32BIT
-    v->_string = sv;
-#else
-    v->_s = sv.text;
-    v->length = sv.length;
-#endif
-}
-
 
 
 typedef DrSpreadCtx DrSpreadCtx;

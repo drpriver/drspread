@@ -5,6 +5,10 @@
 #ifdef __clang__
 #pragma clang assume_nonnull begin
 #endif
+
+typedef struct DrspStr DrspStr;
+typedef const struct DrspStr* DrspAtom;
+
 // This is a hash table
 typedef struct ColCache ColCache;
 struct ColCache {

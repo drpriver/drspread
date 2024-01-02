@@ -121,6 +121,14 @@ drsp_destroy_ctx(DrSpreadCtx*_Nullable);
 typedef struct DrspStr DrspStr;
 typedef const struct DrspStr* DrspAtom;
 
+DRSP_EXPORT
+DrspAtom _Nullable
+drsp_atomize(DrSpreadCtx* restrict, const char* restrict, size_t length);
+
+DRSP_EXPORT
+const char* _Nullable
+drsp_atom_get_str(DrSpreadCtx* restrict, DrspAtom restrict, size_t* restrict length);
+
 // If the sheet does not exist, this also creates the sheet.
 // This means that sheets always have a name.
 // Names do not have to be unique, but looking up sheets by name
