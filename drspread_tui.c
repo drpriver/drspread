@@ -1746,6 +1746,7 @@ void update_display(void){
             printf("\033[H\033[2J");
         }
         need_rescale = 0;
+        need_redisplay = 1;
         rescaled++;
     }
     if(need_redisplay){
