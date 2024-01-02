@@ -1,3 +1,6 @@
+#ifdef __linux__
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <termios.h>
 #include <unistd.h>
@@ -12,6 +15,66 @@
 #include <stdarg.h>
 #include "term_util.h"
 #include "drspread.h"
+
+#ifdef _WIN32
+void* memmem(const void* haystack, size_t hsz, const void* needle, size_t nsz){
+    if(nsz > hsz) return NULL;
+    char* hay = (char*)haystack;
+    for(size_t i = 0; i <= hsz-nsz; i++){
+        if(memcmp(hay+i, needle, nsz) == 0)
+            return hay+i;
+    }
+    return NULL;
+}
+
+static inline
+char*_Nullable
+strsep(char*_Nullable*_Nonnull stringp, const char* delim){
+    char* result = *stringp;
+    char* s = *stringp;
+    if(s){
+        for(;*s;s++){
+            for(const char* d=delim;*d;d++){
+                if(*s == *d){
+                    // This is garbage, but whatever, it's just for
+                    // demo/testing purposes.
+                    if(*d == '\n' && s != result && s[-1] == '\r')
+                        s[-1] = '\0';
+                    *s = '\0';
+                    *stringp = s+1;
+                    return result;
+                }
+            }
+        }
+    }
+    *stringp = NULL;
+    return result;
+}
+static inline void* xmalloc(size_t sz);
+
+static inline
+int
+vasprintf(char*_Nullable*_Nonnull out, const char* fmt, va_list vap){
+    va_list vap2;
+    va_copy(vap2, vap);
+    int len = vsnprintf(NULL, 0, fmt, vap);
+    char* buff = xmalloc(len+1);
+    int ret = vsnprintf(buff, len+1, fmt, vap2);
+    *out = buff;
+    va_end(vap2);
+    return ret;
+}
+
+static inline
+char*
+strdup(const char* p){
+    size_t len = strlen(p);
+    char* t = xmalloc(len+1);
+    memcpy(t, p, len+1);
+    return t;
+}
+
+#endif
 
 DrSpreadCtx* CTX;
 DrspAtom nil_atom;
@@ -279,7 +342,7 @@ struct Pasteboard {
 };
 Pasteboard PASTEBOARD;
 
-void 
+void
 set_rc_val_a(Rows* rows, int y, int x, DrspAtom a){
     if(y >= rows->count && a == nil_atom) return;
     while(y >= rows->count)
@@ -440,7 +503,7 @@ note_nested_change(UndoStack* undos){
     return result;
 }
 
-void 
+void
 push_undo_event(UndoStack* undos, Undoable ud){
     truncate_undos(undos);
     undos->cursor++;
@@ -481,7 +544,7 @@ struct Sheet {
 typedef struct LineEdit LineEdit;
 struct LineEdit {
     char prev_search[1024];
-    char previous_query[1024];
+    char *previous_query;
     int buff_cursor;
     int buff_len;
     char buff[1024];
@@ -2485,11 +2548,13 @@ main(int argc, char** argv){
                             }
                             switch(outval.kind){
                                 case DRSP_RESULT_STRING:
-                                    snprintf(EDIT.previous_query, sizeof EDIT.previous_query, "%s -> %.*s", EDIT.buff, (int)outval.s.length, outval.s.text);
+                                    free(EDIT.previous_query);
+                                    EDIT.previous_query = xsprintf("%s -> %.*s", EDIT.buff, (int)outval.s.length, outval.s.text);
                                     begin_line_edit_buff("", 0);
                                     break;
                                 case DRSP_RESULT_NUMBER:
-                                    snprintf(EDIT.previous_query, sizeof EDIT.previous_query, "%s -> %f", EDIT.buff, outval.d);
+                                    free(EDIT.previous_query);
+                                    EDIT.previous_query = xsprintf("%s -> %.2f", EDIT.buff, outval.d);
                                     begin_line_edit_buff("", 0);
                                     break;
                                 case DRSP_RESULT_NULL:

@@ -48,6 +48,15 @@ Bin/drspread_bench$(EXE): drspread_cli.c Makefile | Bin Depends
 Bin/drspread.o: drspread.c Makefile | Bin Depends
 	$(CC) $< -c -o $@ $(DEPFLAGS) Depends/drspread.o.dep $(WFLAGS) -g -O3 -std=gnu2x
 
+Bin/drspread_tui$(EXE): drspread_tui.c | Bin
+	$(CC) $(WFLAGS) -Wno-sign-compare $< -o $@ $(DEPFLAGS) Depends/d.dep -g -std=gnu2x $(LM) $(SANITIZE)
+
+.PHONY: drspread_tui
+drspread_tui: Bin/drspread_tui$(EXE)
+
+
+
+
 ifneq ($(OS),Windows_NT)
 # This doesn't work on windows.
 .PHONY: clean
@@ -130,14 +139,6 @@ ALL= \
 .PHONY: coverage
 coverage:
 	rm -rf covdir && meson setup covdir -Db_coverage=true && cd covdir && ninja test && ninja -v coverage-html && cd .. && $(OPEN) covdir/meson-logs/coveragereport/index.html
-
-Bin/drspread_tui$(EXE): drspread_tui.c | Bin
-	$(CC) $(WFLAGS) -Wno-sign-compare $< -o $@ $(DEPFLAGS) Depends/d.dep -g -fsanitize=undefined,address -std=gnu2x
-
-.PHONY: drspread_tui
-drspread_tui: Bin/drspread_tui$(EXE)
-
-
 
 all: $(ALL)
 .DEFAULT_GOAL:=all
