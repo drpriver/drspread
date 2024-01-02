@@ -82,7 +82,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 #endif
                 if(!e){ // OOM, don't cache the result.
                     nerrs++;
-                    sp_set_display_error(ctx, sd->handle, row, col, "oom", 5);
+                    sp_set_display_error(ctx, sd->handle, row, col, "oom", 3);
                     continue;
                 }
                 CachedResult* cr = get_cached_result(&sd->result_cache, row, col);
