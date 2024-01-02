@@ -137,9 +137,9 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
 DRSP_INTERNAL
 void
 cleanup_sheet_data(SheetData* d){
-    drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
+    drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+2*sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
     cleanup_col_cache(&d->col_cache);
-    drsp_alloc(d->result_cache.cap*(sizeof(CachedResult)+sizeof(uint32_t)), d->result_cache.data, 0, _Alignof(CachedResult));
+    drsp_alloc(d->result_cache.cap*(sizeof(CachedResult)+2*sizeof(uint32_t)), d->result_cache.data, 0, _Alignof(CachedResult));
 }
 
 // preload empty string and length 1 strings
@@ -336,7 +336,7 @@ get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
     uint32_t hash = hash_alignany(&key, sizeof key);
     RowColSv *items = (RowColSv*)cache->data;
     uint32_t* indexes = (uint32_t*)(cache->data + sizeof(RowColSv)*cap);
-    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)2*cap);
     for(;;){
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
@@ -346,7 +346,7 @@ get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
             return items[i].sv;
         }
         idx++;
-        if(unlikely(idx >= cap)) idx = 0;
+        if(unlikely(idx >= 2*cap)) idx = 0;
     }
 }
 
@@ -354,25 +354,25 @@ get_cached_cell(CellCache* cache, intptr_t row, intptr_t col){
 static inline
 int
 set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom str){
-    if(unlikely(cache->n*2 >= cache->cap)){
+    if(unlikely(cache->n >= cache->cap)){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
-        size_t new_size = new_cap*(sizeof(RowColSv)+sizeof(uint32_t));
-        size_t old_size = old_cap*(sizeof(RowColSv)+sizeof(uint32_t));
+        size_t new_size = new_cap*(sizeof(RowColSv)+2*sizeof(uint32_t));
+        size_t old_size = old_cap*(sizeof(RowColSv)+2*sizeof(uint32_t));
         unsigned char* new_data = drsp_alloc(old_size, cache->data, new_size, _Alignof(RowColSv));
         if(!new_data) return 1;
         cache->data = new_data;
         cache->cap = new_cap;
         uint32_t* indexes = (uint32_t*)(new_data + sizeof(RowColSv)*new_cap);
-        __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
+        __builtin_memset(indexes, 0xff, 2*sizeof(*indexes)*new_cap);
         RowColSv *items = (RowColSv*)new_data;
         for(size_t i = 0; i < cache->n; i++){
             RowCol k = items[i].rc;
             uint32_t hash = hash_alignany(&k, sizeof k);
-            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)2*new_cap);
             while(indexes[idx] != UINT32_MAX){
                 idx++;
-                if(unlikely(idx >= new_cap)) idx = 0;
+                if(unlikely(idx >= 2*new_cap)) idx = 0;
             }
             indexes[idx] = i;
         }
@@ -382,7 +382,7 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom str){
     uint32_t hash = hash_alignany(&key, sizeof key);
     RowColSv *items = (RowColSv*)cache->data;
     uint32_t* indexes = (uint32_t*)(cache->data + sizeof(RowColSv)*cap);
-    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)2*cap);
     for(;;){
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
@@ -396,29 +396,34 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom str){
             return 0;
         }
         idx++;
-        if(unlikely(idx >= cap)) idx = 0;
+        if(unlikely(idx >= 2*cap)) idx = 0;
     }
 }
 
 DRSP_INTERNAL
 CachedResult*_Nullable
 get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
-    if(unlikely(cache->n*2 >= cache->cap)){
+    // printf("%zd,%zd\n", row, col);
+    if(unlikely(cache->n >= cache->cap)){
         size_t old_cap = cache->cap;
         size_t new_cap = old_cap?old_cap*2:128;
-        size_t new_size = new_cap*(sizeof(CachedResult)+sizeof(uint32_t));
-        size_t old_size = old_cap*(sizeof(CachedResult)+sizeof(uint32_t));
+        size_t new_size = new_cap*(sizeof(CachedResult)+2*sizeof(uint32_t));
+        size_t old_size = old_cap*(sizeof(CachedResult)+2*sizeof(uint32_t));
+        // fprintf(stderr, "cache->n: %zu\n", cache->n);
+        // fprintf(stderr, "old_cap: %zu\n", old_cap);
+        // fprintf(stderr, "new_cap: %zu\n", old_cap);
+        // fprintf(stderr, "new_size: %zu\n", new_size);
         unsigned char* new_data = drsp_alloc(old_size, cache->data, new_size, _Alignof(CachedResult));
         if(!new_data) return NULL;
         cache->data = new_data;
         cache->cap = new_cap;
         uint32_t* indexes = (uint32_t*)(new_data + sizeof(CachedResult)*new_cap);
-        __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
+        __builtin_memset(indexes, 0xff, 2*sizeof(*indexes)*new_cap);
         CachedResult *items = (CachedResult*)new_data;
         for(size_t i = 0; i < cache->n; i++){
             RowCol k = items[i].loc;
             uint32_t hash = hash_alignany(&k, sizeof k);
-            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap*2);
             while(indexes[idx] != UINT32_MAX){
                 idx++;
                 if(unlikely(idx >= new_cap)) idx = 0;
@@ -431,7 +436,7 @@ get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
     uint32_t hash = hash_alignany(&key, sizeof key);
     CachedResult *items = (CachedResult*)cache->data;
     uint32_t* indexes = (uint32_t*)(cache->data + sizeof(CachedResult)*cap);
-    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)cap*2);
     for(;;){
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
@@ -446,7 +451,29 @@ get_cached_result(ResultCache* cache, intptr_t row, intptr_t col){
             return &items[i];
         }
         idx++;
-        if(unlikely(idx >= cap)) idx = 0;
+        if(unlikely(idx >= cap*2)) idx = 0;
+    }
+}
+
+DRSP_INTERNAL
+CachedResult*_Nullable
+has_cached_result(const ResultCache* cache, intptr_t row, intptr_t col){
+    size_t cap = cache->cap;
+    RowCol key = {row, col};
+    uint32_t hash = hash_alignany(&key, sizeof key);
+    CachedResult *items = (CachedResult*)cache->data;
+    uint32_t* indexes = (uint32_t*)(cache->data + sizeof(CachedResult)*cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)cap*2);
+    for(;;){
+        uint32_t i = indexes[idx];
+        if(i == UINT32_MAX){ // empty slot
+            return NULL;
+        }
+        if(items[i].loc.row == row && items[i].loc.col == col){
+            return &items[i];
+        }
+        idx++;
+        if(unlikely(idx >= cap*2)) idx = 0;
     }
 }
 

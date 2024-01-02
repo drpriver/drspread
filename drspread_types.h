@@ -463,6 +463,10 @@ DRSP_INTERNAL
 CachedResult*_Nullable
 get_cached_result(ResultCache* cache, intptr_t row, intptr_t col);
 
+DRSP_INTERNAL
+CachedResult*_Nullable
+has_cached_result(const ResultCache* cache, intptr_t row, intptr_t col);
+
 
 typedef struct UserDefinedFunctionParameter UserDefinedFunctionParameter;
 struct UserDefinedFunctionParameter {

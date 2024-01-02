@@ -73,6 +73,11 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
             for(intptr_t col = 0; col < sd->width; col++){
                 buff_set(ctx->a, bc);
                 Expression* e = evaluate(ctx, sd, row, col);
+                if(e && e->kind == EXPR_BLANK){
+                    if(!has_cached_result(&sd->result_cache, row, col))
+                        continue;
+
+                }
                 // benchmarking
                 #ifdef BENCHMARKING
                     for(int i = 0; i < 100000; i++){
