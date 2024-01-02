@@ -80,11 +80,14 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                         e = evaluate(ctx, sd, row, col);
                     }
                 #endif
+                #if 0
                 if(!e){ // OOM, don't cache the result.
                     nerrs++;
                     sp_set_display_error(ctx, sd->handle, row, col, "oom", 3);
                     continue;
                 }
+                #endif
+                if(!e) e = Error(ctx, "oom"); // Error doesn't alloc
                 CachedResult* cr = get_cached_result(&sd->result_cache, row, col);
                 if(cr){
                     CachedResult tmp_cr;
@@ -97,6 +100,9 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                             continue;
                         }
                         *cr = tmp_cr;
+                        // FIXME: If the set display function returns an
+                        // error we need to delete our cache result
+                        // instead of caching.
                         switch(tmp_cr.kind){
                             case CACHED_RESULT_NULL:
                                 sp_set_display_string(ctx, sd->handle, row, col, "", 0);
