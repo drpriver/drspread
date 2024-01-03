@@ -276,6 +276,7 @@ int need_rescale = 1;
 int need_recalc = 1;
 int SEL_X=-1, SEL_Y=-1;
 int mode = 0; // MOVE_MODE
+char* status = NULL;
 enum {
     MOVE_MODE = 0,
     INSERT_MODE,
@@ -288,6 +289,15 @@ enum {
 };
 enum {DEFAULT_WIDTH=8};
 enum {MAX_FILL_WIDTH=16};
+void set_status(const char* fmt, ...){
+    free(status);
+    va_list va;
+    va_start(va, fmt);
+    int n = vasprintf(&status, fmt, va);
+    va_end(va);
+    if(n < 0 || status == NULL)
+        abort();
+}
 void redisplay(void);
 void change_mode(int m){
     redisplay();
@@ -545,7 +555,6 @@ struct Sheet {
 typedef struct LineEdit LineEdit;
 struct LineEdit {
     char prev_search[1024];
-    char *previous_query;
     int buff_cursor;
     int buff_len;
     char buff[1024];
@@ -1632,6 +1641,12 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
     if(fp) fclose(fp);
     if(delete_tmp) remove(tmpname);
     free(tmpname);
+    if(result == 0){
+        set_status("Wrote to '%s'", filename);
+    }
+    else {
+        set_status("Failed to write to '%s': %s", filename, strerror(errno));
+    }
     return result;
 }
 
@@ -1746,6 +1761,8 @@ void update_display(void){
         else
             printf("[%zu] %s ", i+1, sh->name);
     }
+    printf("\033[%d;0H", ROWS-1);
+    printf("\033[2K%s", status);
     printf("\033[%d;0H", ROWS);
     if(mode == INSERT_MODE || mode == CHANGE_MODE){
         printf("\033[2K%s", EDIT.buff);
@@ -1761,8 +1778,6 @@ void update_display(void){
         printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1+1);
     }
     if(mode == QUERY_MODE){
-        printf("\033[%d;0H", ROWS-1);
-        printf("\033[2K  %s", EDIT.previous_query);
         printf("\033[%d;%dH\033[2K> %s", ROWS, 0, EDIT.buff);
         printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1+1+1);
     }
@@ -1948,6 +1963,7 @@ int get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
 
 int
 main(int argc, char** argv){
+    set_status("");
     int pid = getpid();
     LOG("pid: %d\n", pid);
     struct sigaction sa;
@@ -2022,6 +2038,10 @@ main(int argc, char** argv){
             free(txt);
         }
     }
+#if 0
+    int err = drsp_evaluate_formulas(CTX);
+    return err;
+#endif
 
     begin_tui();
     atexit(end_tui);
@@ -2533,13 +2553,11 @@ main(int argc, char** argv){
                             }
                             switch(outval.kind){
                                 case DRSP_RESULT_STRING:
-                                    free(EDIT.previous_query);
-                                    EDIT.previous_query = xsprintf("%s -> %.*s", EDIT.buff, (int)outval.s.length, outval.s.text);
+                                    set_status("%s -> %.*s", EDIT.buff, (int)outval.s.length, outval.s.text);
                                     begin_line_edit_buff("", 0);
                                     break;
                                 case DRSP_RESULT_NUMBER:
-                                    free(EDIT.previous_query);
-                                    EDIT.previous_query = xsprintf("%s -> %.2f", EDIT.buff, outval.d);
+                                    set_status("%s -> %.2f", EDIT.buff, outval.d);
                                     begin_line_edit_buff("", 0);
                                     break;
                                 case DRSP_RESULT_NULL:
