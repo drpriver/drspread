@@ -305,16 +305,16 @@ set_cached_cell(CellCache* cache, intptr_t row, intptr_t col, DrspAtom txt);
 
 
 
-enum {STRING_ARENA_SIZE=16*1024 - sizeof(void*) - sizeof(size_t)};
-typedef struct StringArena StringArena;
-struct StringArena {
-    StringArena*_Nullable next;
+enum {LINKED_ARENA_SIZE=16*1024 - sizeof(void*) - sizeof(size_t)};
+typedef struct LinkedArena LinkedArena;
+struct LinkedArena {
+    LinkedArena*_Nullable next;
     size_t used;
-    char data[STRING_ARENA_SIZE];
+    char data[LINKED_ARENA_SIZE];
 };
 static inline
 void
-free_string_arenas(StringArena*_Nullable arena);
+free_string_arenas(LinkedArena*_Nullable arena);
 
 struct DrspStr {
     uint16_t length;
@@ -344,7 +344,7 @@ drsp_nil_atom(void);
 
 typedef struct StringHeap StringHeap;
 struct StringHeap {
-    StringArena*_Nullable arena;
+    LinkedArena*_Nullable arena;
     size_t n, cap;
     unsigned char* data;
 };
@@ -559,7 +559,7 @@ struct DrSpreadCtx {
 #ifndef DRSPREAD_DIRECT_OPS
     const SheetOps _ops; // don't call these directly
 #endif
-    StringArena* temp_string_arena;
+    LinkedArena* temp_string_arena;
     StringHeap sheap;
     SheetMap map;
     BuffAllocator* a;
@@ -594,7 +594,7 @@ udf_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name);
 
 DRSP_INTERNAL
 void
-free_string_arenas(StringArena*_Nullable arena);
+free_string_arenas(LinkedArena*_Nullable arena);
 
 DRSP_INTERNAL
 void
@@ -648,28 +648,7 @@ computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
 
 static inline
 void*_Nullable
-str_arena_alloc(StringArena*_Nullable*_Nonnull parena, size_t len){
-    if(len & 1) len++;
-    if(len > STRING_ARENA_SIZE) return NULL;
-    StringArena* arena = *parena;
-    if(!arena || arena->used+len > STRING_ARENA_SIZE){
-        while(arena){
-            if(arena->used+len <= STRING_ARENA_SIZE){
-                goto alloced;
-            }
-            arena = arena->next;
-        }
-        arena = drsp_alloc(0, NULL, sizeof *arena, _Alignof *arena);
-        if(!arena) return NULL;
-        arena->next = *parena;
-        arena->used = 0;
-        *parena = arena;
-    }
-    alloced:;
-    char* p = arena->data + arena->used;
-    arena->used += len;
-    return p;
-}
+linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len);
 
 
 static inline
@@ -682,7 +661,7 @@ sv_cat(DrSpreadCtx* ctx, size_t n, const DrspAtom _Nonnull* const _Nonnull strs,
         *out = drsp_nil_atom();
         return 0;
     }
-    char* data = str_arena_alloc(&ctx->temp_string_arena, len);
+    char* data = linked_arena_alloc(&ctx->temp_string_arena, len);
     if(!data) return 1;
     char* p = data;
     for(size_t i = 0; i < n; i++){

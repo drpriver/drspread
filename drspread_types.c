@@ -287,7 +287,7 @@ drsp_create_str_(DrSpreadCtx* ctx, const char* txt, size_t length){
     for(;;){
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
-            DrspStr* str = str_arena_alloc(&heap->arena, sz);
+            DrspStr* str = linked_arena_alloc(&heap->arena, sz);
             // DrspAtom str = malloc(sz);
             if(!str) return NULL;
             str->length = length;
@@ -315,9 +315,9 @@ destroy_string_heap(StringHeap* heap){
 
 DRSP_INTERNAL
 void
-free_string_arenas(StringArena*_Nullable arena){
+free_string_arenas(LinkedArena*_Nullable arena){
     while(arena){
-        StringArena* to_free = arena;
+        LinkedArena* to_free = arena;
         arena = arena->next;
         drsp_alloc(sizeof *to_free, to_free, 0, _Alignof *to_free);
     }
@@ -647,6 +647,32 @@ drsp_atom_get_str(DrSpreadCtx* restrict ctx, DrspAtom restrict atom, size_t* res
     *length = atom->length;
     return atom->data;
 }
+
+static inline
+void*_Nullable
+linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len){
+    if(len & 1) len++;
+    if(len > LINKED_ARENA_SIZE) return NULL;
+    LinkedArena* arena = *parena;
+    if(!arena || arena->used+len > LINKED_ARENA_SIZE){
+        while(arena){
+            if(arena->used+len <= LINKED_ARENA_SIZE){
+                goto alloced;
+            }
+            arena = arena->next;
+        }
+        arena = drsp_alloc(0, NULL, sizeof *arena, _Alignof *arena);
+        if(!arena) return NULL;
+        arena->next = *parena;
+        arena->used = 0;
+        *parena = arena;
+    }
+    alloced:;
+    char* p = arena->data + arena->used;
+    arena->used += len;
+    return p;
+}
+
 
 #ifdef __clang__
 #pragma clang assume_nonnull end
