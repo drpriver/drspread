@@ -352,6 +352,29 @@ DRSP_INTERNAL
 void
 destroy_string_heap(StringHeap* heap);
 
+typedef struct ParseHeap ParseHeap;
+struct ParseHeap {
+    LinkedArena*_Nullable arena;
+    size_t n, cap;
+    unsigned char* data;
+};
+
+DRSP_INTERNAL
+void
+destroy_parse_heap(ParseHeap* heap);
+
+DRSP_INTERNAL
+Expression*_Nullable
+has_cached_parse(DrSpreadCtx*, DrspAtom a);
+
+DRSP_INTERNAL
+Expression*_Null_unspecified*_Nullable
+getsert_cached_parse(DrSpreadCtx*, DrspAtom a);
+
+DRSP_INTERNAL
+void
+cache_parse(DrSpreadCtx* ctx, DrspAtom a, Expression*_Nonnull e);
+
 typedef struct OutputResultCache OutputResultCache;
 struct OutputResultCache {
     size_t n, cap;
@@ -465,6 +488,10 @@ void*_Nullable
 expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind);
 
 force_inline
+void*_Nullable
+parser_expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind);
+
+force_inline
 ComputedArray*_Nullable
 computed_array_alloc(DrSpreadCtx* ctx, size_t nitems);
 
@@ -560,6 +587,7 @@ struct DrSpreadCtx {
 #endif
     LinkedArena* temp_string_arena;
     StringHeap sheap;
+    ParseHeap pheap;
     SheetMap map;
     BuffAllocator* a;
     BuffAllocator _a;
@@ -639,6 +667,41 @@ expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
     return result;
 }
 
+
+force_inline
+void*_Nullable
+parser_expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
+    size_t sz;
+    switch(kind){
+        case EXPR_ERROR:
+            return &ctx->error;
+            break;
+        case EXPR_NUMBER:                 sz = sizeof(Number); break;
+        case EXPR_FUNCTION_CALL:          sz = sizeof(FunctionCall); break;
+        case EXPR_RANGE0D_FOREIGN:        sz = sizeof(ForeignRange0D); break;
+        case EXPR_RANGE0D:                sz = sizeof(Range0D); break;
+        case EXPR_RANGE1D_COLUMN_FOREIGN: sz = sizeof(ForeignRange1DColumn); break;
+        case EXPR_RANGE1D_COLUMN:         sz = sizeof(Range1DColumn); break;
+        case EXPR_RANGE1D_ROW:            sz = sizeof(Range1DRow); break;
+        case EXPR_RANGE1D_ROW_FOREIGN:    sz = sizeof(ForeignRange1DRow); break;
+        case EXPR_GROUP:                  sz = sizeof(Group); break;
+        case EXPR_BINARY:                 sz = sizeof(Binary); break;
+        case EXPR_UNARY:                  sz = sizeof(Unary); break;
+        case EXPR_STRING:                 sz = sizeof(String); break;
+        case EXPR_BLANK:
+            return &ctx->null;
+            break;
+        case EXPR_COMPUTED_ARRAY:
+            __builtin_trap();
+        case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
+        default: __builtin_trap();
+    }
+    void* result = linked_arena_alloc(&ctx->pheap.arena, sz);
+    if(!result) return NULL;
+    ((Expression*)result)->kind = kind;
+    return result;
+}
+
 force_inline
 ComputedArray*_Nullable
 computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
@@ -702,6 +765,64 @@ expr_size(ExpressionKind kind){
     return sz;
 }
 // GCOV_EXCL_STOP
+
+static
+void*_Nullable
+expr_clone(DrSpreadCtx* ctx, Expression* e){
+    if(e->kind == EXPR_COMPUTED_ARRAY){
+        abort();
+    }
+    else {
+        void* result = expr_alloc(ctx, e->kind);
+        if(!result) return NULL;
+        __builtin_memcpy(result, e, expr_size(e->kind));
+        switch(e->kind){
+            case EXPR_GROUP:{
+                Group* g = result;
+                g->expr = expr_clone(ctx, g->expr);
+                if(!g->expr) return NULL;
+            }break;
+            case EXPR_UNARY:{
+                Unary* u = result;
+                u->expr = expr_clone(ctx, u->expr);
+                if(!u->expr) return NULL;
+            }break;
+            case EXPR_BINARY:{
+                Binary* b = result;
+                b->lhs = expr_clone(ctx, b->lhs);
+                if(!b->lhs) return NULL;
+                b->rhs = expr_clone(ctx, b->rhs);
+                if(!b->rhs) return NULL;
+            }break;
+            case EXPR_FUNCTION_CALL:{
+                FunctionCall* fc = result;
+                void* p = buff_alloc(ctx->a, fc->argc * sizeof *fc->argv);
+                if(!p) return NULL;
+                __builtin_memcpy(p, fc->argv, fc->argc * sizeof *fc->argv);
+                fc->argv = p;
+                for(int i = 0; i < fc->argc; i++){
+                    fc->argv[i] = expr_clone(ctx, fc->argv[i]);
+                    if(!fc->argv[i]) return NULL;
+                }
+            }break;
+            case EXPR_USER_DEFINED_FUNC_CALL:{
+                UserFunctionCall* fc = result;
+                void* p = buff_alloc(ctx->a, fc->argc * sizeof *fc->argv);
+                if(!p) return NULL;
+                __builtin_memcpy(p, fc->argv, fc->argc * sizeof *fc->argv);
+                fc->argv = p;
+                for(int i = 0; i < fc->argc; i++){
+                    fc->argv[i] = expr_clone(ctx, fc->argv[i]);
+                    if(!fc->argv[i]) return NULL;
+                }
+            }break;
+            default:
+                break;
+
+        }
+        return result;
+    }
+}
 
 union ExprU{
     Expression e;

@@ -71,29 +71,32 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
 
 DRSP_INTERNAL
 Expression*_Nullable
-parse(DrSpreadCtx* ctx, 
-        // const char* txt, size_t length){
-        DrspAtom a){
-    const char* txt = a->data;
-    size_t length = a->length;
-    StringView sv = {length, txt};
+parse(DrSpreadCtx* ctx, DrspAtom a){
+    {
+        Expression* cached = has_cached_parse(ctx, a);
+        if(cached) return expr_clone(ctx, cached);
+    }
+    StringView sv = {a->length, a->data};
     lstrip(&sv);
     while(sv.length && sv.text[0] == '=')
         sv.text++, sv.length--;
     lstrip(&sv);
     // printf("'%s'\n", sv.text);
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* root = parse_comparison(ctx, &sv);
     if(!root || root->kind == EXPR_ERROR) {
-        buff_set(ctx->a, bc);
+        // XXX: free what we can
+        if(root->kind == EXPR_ERROR)
+            cache_parse(ctx, a, root);
         return root;
     }
     lstrip(&sv);
     if(sv.length != 0) {
-        buff_set(ctx->a, bc);
-        return Error(ctx, "");
+        // XXX: free what we can
+        Expression* e =  Error(ctx, "");
+        cache_parse(ctx, a, e);
+        return e;
     }
-    // fprintf(stderr, "%s:%d %zd bytes used\n", __func__, __LINE__, ctx->a.cursor - ctx->a.data);
+    cache_parse(ctx, a, root);
     return root;
 }
 
@@ -125,7 +128,7 @@ PARSEFUNC(parse_comparison){
         lstrip(sv);
         Expression* rhs = parse_addplus(ctx, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
-        Binary* b = expr_alloc(ctx, EXPR_BINARY);
+        Binary* b = parser_expr_alloc(ctx, EXPR_BINARY);
         if(!b) return NULL;
         b->lhs = lhs;
         b->rhs = rhs;
@@ -147,7 +150,7 @@ PARSEFUNC(parse_addplus){
         Expression* rhs = parse_divmul(ctx, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         BinaryKind op = c == '+'?BIN_ADD : BIN_SUB;
-        Binary* b = expr_alloc(ctx, EXPR_BINARY);
+        Binary* b = parser_expr_alloc(ctx, EXPR_BINARY);
         if(!b) return NULL;
         b->lhs = lhs;
         b->rhs = rhs;
@@ -169,7 +172,7 @@ PARSEFUNC(parse_divmul){
         Expression* rhs = parse_unary(ctx, sv);
         if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
         BinaryKind op = c == '*'?BIN_MUL : BIN_DIV;
-        Binary* b = expr_alloc(ctx, EXPR_BINARY);
+        Binary* b = parser_expr_alloc(ctx, EXPR_BINARY);
         if(!b) return NULL;
         b->lhs = lhs;
         b->rhs = rhs;
@@ -238,7 +241,7 @@ PARSEFUNC(parse_unary){
             }
         }
         if(!handled){
-            Unary* u = expr_alloc(ctx, EXPR_UNARY);
+            Unary* u = parser_expr_alloc(ctx, EXPR_UNARY);
             if(!u) return NULL;
             u->op = op;
             u->expr = e;
@@ -286,7 +289,7 @@ PARSEFUNC(parse_string){
     if(!sv->length) return Error(ctx, "");
     Expression* result;
     if(end != begin){
-        String* s = expr_alloc(ctx, EXPR_STRING);
+        String* s = parser_expr_alloc(ctx, EXPR_STRING);
         if(!s) return NULL;
         DrspAtom str = drsp_intern_str(ctx, begin, end-begin);
         if(!str) return NULL;
@@ -294,7 +297,7 @@ PARSEFUNC(parse_string){
         result = &s->e;
     }
     else {
-        result = expr_alloc(ctx, EXPR_BLANK);
+        result = parser_expr_alloc(ctx, EXPR_BLANK);
     }
     sv->length--, sv->text++;
     return result;
@@ -644,7 +647,7 @@ PARSEFUNC(parse_range){
         if(ncolnames > 1)
             return Error(ctx, "[col1:col2] is not supported\n");
         if(has_foreign){
-            ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+            ForeignRange1DColumn* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
             if(!rng) return NULL;
             rng->r.col_name = colnames[0];
             if(!rng->r.col_name) return NULL;
@@ -654,7 +657,7 @@ PARSEFUNC(parse_range){
             if(!rng->sheet_name) return NULL;
             return &rng->e;
         }
-        Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+        Range1DColumn* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
         if(!rng) return NULL;
         rng->col_name = colnames[0];
         if(!rng->col_name) return NULL;
@@ -666,7 +669,7 @@ PARSEFUNC(parse_range){
         assert(ncolnames); // XXX might need to be an early return? write tests
         if(ncolnames == 2){
             if(has_foreign){
-                ForeignRange1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW_FOREIGN);
+                ForeignRange1DRow* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_ROW_FOREIGN);
                 if(!rng) return NULL;
                 rng->r.col_start = colnames[0];
                 rng->r.col_end = colnames[1];
@@ -674,7 +677,7 @@ PARSEFUNC(parse_range){
                 rng->sheet_name = sheetname;
                 return &rng->e;
             }
-            Range1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW);
+            Range1DRow* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_ROW);
             if(!rng) return NULL;
             rng->col_start = colnames[0];
             rng->col_end = colnames[1];
@@ -682,14 +685,14 @@ PARSEFUNC(parse_range){
             return &rng->e;
         }
         if(has_foreign){
-            ForeignRange0D* rng = expr_alloc(ctx, EXPR_RANGE0D_FOREIGN);
+            ForeignRange0D* rng = parser_expr_alloc(ctx, EXPR_RANGE0D_FOREIGN);
             if(!rng) return NULL;
             rng->sheet_name = sheetname;
             rng->r.col_name = colnames[0];
             rng->r.row = numbers[0];
             return &rng->e;
         }
-        Range0D* rng = expr_alloc(ctx, EXPR_RANGE0D);
+        Range0D* rng = parser_expr_alloc(ctx, EXPR_RANGE0D);
         if(!rng) return NULL;
         rng->col_name = colnames[0];
         rng->row = numbers[0];
@@ -700,7 +703,7 @@ PARSEFUNC(parse_range){
     if(ncolnames == 2) return Error(ctx, "2d ranges unsupported");
     assert(ncolnames == 1);
     if(has_foreign){
-        ForeignRange1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
+        ForeignRange1DColumn* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
         if(!rng) return NULL;
         rng->r.col_name = colnames[0];
         rng->r.row_start = numbers[0];
@@ -708,7 +711,7 @@ PARSEFUNC(parse_range){
         rng->sheet_name = sheetname;
         return &rng->e;
     }
-    Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+    Range1DColumn* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
     if(!rng) return NULL;
     rng->col_name = colnames[0];
     rng->row_start = numbers[0];
@@ -736,7 +739,7 @@ PARSEFUNC(parse_number){
         break;
     }
     if(begin == end) return Error(ctx, "");
-    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    Number* n = parser_expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     DoubleResult dr = parse_double(begin, end-begin);
     if(dr.errored) return Error(ctx, "");
@@ -791,14 +794,14 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         lstrip(sv);
         if(!sv->length || sv->text[0] != ':'){
             if(row_idx == IDX_UNSET){
-                Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+                Range1DColumn* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
                 if(!rng) return NULL;
                 rng->col_name = colname;
                 rng->row_start = 0;
                 rng->row_end = -1;
                 return &rng->e;
             }
-            Range0D* rng = expr_alloc(ctx, EXPR_RANGE0D);
+            Range0D* rng = parser_expr_alloc(ctx, EXPR_RANGE0D);
             if(!rng) return NULL;
             rng->col_name = colname;
             rng->row = row_idx;
@@ -864,7 +867,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
         if(colname == drsp_nil_atom())
             colname = colname2;
         if(colname2 == drsp_nil_atom() || colname == colname2){
-            Range1DColumn* rng = expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
+            Range1DColumn* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_COLUMN);
             if(!rng) return NULL;
             rng->col_name = colname;
             rng->row_start = row_idx;
@@ -872,7 +875,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
             return &rng->e;
         }
         else if(row_idx == row_idx2 || (row_idx != -1 && row_idx2 == -1)){
-            Range1DRow* rng = expr_alloc(ctx, EXPR_RANGE1D_ROW);
+            Range1DRow* rng = parser_expr_alloc(ctx, EXPR_RANGE1D_ROW);
             if(!rng) return NULL;
             rng->col_start = colname;
             rng->col_end = colname2;
@@ -921,7 +924,7 @@ PARSEFUNC(parse_func_call){
     // This is pretty sloppy - always allocates space
     // for exactly 4 args - can't do less or more.
     enum {argmax=4};
-    Expression** argv = buff_alloc(ctx->a, argmax * sizeof *argv);
+    Expression** argv = linked_arena_alloc(&ctx->pheap.arena, argmax * sizeof *argv);
     int argc;
     for(argc = 0; argc < argmax; argc++){
         lstripc(sv);
@@ -936,7 +939,7 @@ PARSEFUNC(parse_func_call){
         return Error(ctx, "");
     sv->length--, sv->text++;
     if(func){
-        FunctionCall* fc = expr_alloc(ctx, EXPR_FUNCTION_CALL);
+        FunctionCall* fc = parser_expr_alloc(ctx, EXPR_FUNCTION_CALL);
         if(!fc) return NULL;
         fc->func = func;
         fc->argc = argc;
@@ -944,7 +947,7 @@ PARSEFUNC(parse_func_call){
         return &fc->e;
     }
     else {
-        UserFunctionCall* fc = expr_alloc(ctx, EXPR_USER_DEFINED_FUNC_CALL);
+        UserFunctionCall* fc = parser_expr_alloc(ctx, EXPR_USER_DEFINED_FUNC_CALL);
         if(!fc) return NULL;
         fc->name = a;
         fc->argc = argc;

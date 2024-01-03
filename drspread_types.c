@@ -38,6 +38,7 @@ drsp_destroy_ctx_(DrSpreadCtx* ctx){
     free_linked_arenas(ctx->temp_string_arena);
     free_sheet_datas(ctx);
     destroy_string_heap(&ctx->sheap);
+    destroy_parse_heap(&ctx->pheap);
     memset(ctx, 0xfe, sizeof(DrSpreadCtx));
 }
 
@@ -321,6 +322,102 @@ destroy_string_heap(StringHeap* heap){
     free_linked_arenas(heap->arena);
     drsp_alloc(heap->cap*(sizeof(DrspAtom)+2*sizeof(uint32_t)), heap->data, 0, _Alignof(DrspStr));
     __builtin_memset(heap, 0, sizeof *heap);
+}
+
+typedef struct ParsePair ParsePair;
+struct ParsePair {
+    DrspAtom key;
+    Expression* value;
+};
+
+DRSP_INTERNAL
+void
+destroy_parse_heap(ParseHeap* heap){
+    free_linked_arenas(heap->arena);
+    drsp_alloc(heap->cap*(sizeof(ParsePair)+2*sizeof(uint32_t)), heap->data, 0, _Alignof(ParsePair));
+    __builtin_memset(heap, 0, sizeof *heap);
+}
+
+
+DRSP_INTERNAL
+Expression*_Null_unspecified*_Nullable
+getsert_cached_parse(DrSpreadCtx* ctx, DrspAtom a){
+    ParseHeap* heap = &ctx->pheap;
+    size_t cap = heap->cap;
+    // XXX overflow checking
+    if(unlikely(heap->n >= cap)){
+        size_t old_cap = cap;
+        size_t new_cap = old_cap?old_cap*2:64;
+        size_t new_size = new_cap * (sizeof(ParsePair)+2*sizeof(uint32_t));
+        size_t old_size = old_cap * (sizeof(ParsePair)+2*sizeof(uint32_t));
+        unsigned char* new_data = drsp_alloc(old_size, heap->data, new_size, _Alignof(ParsePair));
+        if(!new_data) return NULL;
+        heap->data = new_data;
+        heap->cap = new_cap;
+        cap = new_cap;
+        uint32_t* indexes = (uint32_t*)(new_data + sizeof(ParsePair)*new_cap);
+        __builtin_memset(indexes, 0xff, 2*sizeof(*indexes)*new_cap);
+        ParsePair* items = (ParsePair*)new_data;
+        for(size_t i = 0; i < heap->n; i++){
+            ParsePair* item = &items[i];
+            uint32_t hash = hash_alignany(&item->key, sizeof item->key);
+            // fprintf(stderr, "%p -> %u\n", item->key, hash);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)2*new_cap);
+            while(indexes[idx] != UINT32_MAX){
+                idx++;
+                if(unlikely(idx >= 2*new_cap)) idx = 0;
+            }
+            indexes[idx] = i;
+        }
+    }
+    uint32_t hash = hash_alignany(&a, sizeof a);
+    uint32_t* indexes = (uint32_t*)(heap->data + sizeof(ParsePair)*cap);
+    ParsePair* items = (ParsePair*)heap->data;
+    uint32_t idx = fast_reduce32(hash, (uint32_t)2*cap);
+    for(;;){
+        uint32_t i = indexes[idx];
+        if(i == UINT32_MAX){ // empty slot
+            indexes[idx] = heap->n;
+            items[heap->n].key = a;
+            return &items[heap->n++].value;
+        }
+        ParsePair* item = &items[i];
+        if(item->key ==  a)
+            return &item->value;
+        idx++;
+        if(unlikely(idx >= 2*cap)) idx = 0;
+    }
+}
+
+DRSP_INTERNAL
+void
+cache_parse(DrSpreadCtx* ctx, DrspAtom a, Expression*_Nonnull e){
+    Expression** cached = getsert_cached_parse(ctx, a);
+    if(cached) *cached = e;
+}
+
+DRSP_INTERNAL
+Expression*_Nullable
+has_cached_parse(DrSpreadCtx* ctx, DrspAtom a){
+    ParseHeap* heap = &ctx->pheap;
+    size_t cap = heap->cap;
+    if(!cap) return NULL;
+    uint32_t hash = hash_alignany(&a, sizeof a);
+    uint32_t* indexes = (uint32_t*)(heap->data + sizeof(ParsePair)*cap);
+    ParsePair* items = (ParsePair*)heap->data;
+    uint32_t idx = fast_reduce32(hash, (uint32_t)2*cap);
+    for(;;){
+        uint32_t i = indexes[idx];
+        if(i == UINT32_MAX) // empty slot
+            return NULL;
+        ParsePair* item = &items[i];
+        if(item->key ==  a){
+            assert(item->value > (Expression*)1024);
+            return item->value;
+        }
+        idx++;
+        if(unlikely(idx >= 2*cap)) idx = 0;
+    }
 }
 
 DRSP_INTERNAL
