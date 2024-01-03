@@ -121,6 +121,7 @@ drsp_destroy_ctx(DrSpreadCtx*_Nullable);
 typedef struct DrspStr DrspStr;
 typedef const struct DrspStr* DrspAtom;
 
+// NOTE: strips leading and trailing whitespace
 DRSP_EXPORT
 DrspAtom _Nullable
 drsp_atomize(DrSpreadCtx* restrict, const char* restrict, size_t length);
@@ -145,9 +146,14 @@ DRSP_EXPORT
 int
 drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char* name, size_t length);
 
+// NOTE: strips leading and trailing whitespace
 DRSP_EXPORT
 int
 drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* restrict text, size_t length);
+
+DRSP_EXPORT
+int
+drsp_set_cell_atom(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, DrspAtom str);
 
 // Sets the text of a cell that is not actually in the 2d cell grid.
 // Useful for things like summaries.

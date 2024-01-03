@@ -116,8 +116,6 @@ struct Value{
 _Static_assert(sizeof(Value)==16, "");
 
 
-typedef DrSpreadCtx DrSpreadCtx;
-
 // Destroys the contents, but does not free ctx.
 static void drsp_destroy_ctx_(DrSpreadCtx* ctx);
 
@@ -312,9 +310,10 @@ struct LinkedArena {
     size_t used;
     char data[LINKED_ARENA_SIZE];
 };
-static inline
+
+DRSP_INTERNAL
 void
-free_string_arenas(LinkedArena*_Nullable arena);
+free_linked_arenas(LinkedArena*_Nullable arena);
 
 struct DrspStr {
     uint16_t length;
@@ -594,11 +593,16 @@ udf_lookup_by_name(DrSpreadCtx* ctx, DrspAtom name);
 
 DRSP_INTERNAL
 void
-free_string_arenas(LinkedArena*_Nullable arena);
+free_linked_arenas(LinkedArena*_Nullable arena);
 
 DRSP_INTERNAL
 void
 free_sheet_datas(DrSpreadCtx* ctx);
+
+static inline
+void*_Nullable
+linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len);
+
 
 // GCOV_EXCL_START
 force_inline
@@ -645,10 +649,6 @@ computed_array_alloc(DrSpreadCtx* ctx, size_t nitems){
     return cc;
 }
 // GCOV_EXCL_STOP
-
-static inline
-void*_Nullable
-linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len);
 
 
 static inline

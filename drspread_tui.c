@@ -354,10 +354,11 @@ set_rc_val_a(Rows* rows, int y, int x, DrspAtom a){
     row->data[x] = a;
 }
 
-void
+DrspAtom
 set_rc_val(Rows* rows, int y, int x, const char* value, size_t len){
     DrspAtom a = xatomize(value, len);
     set_rc_val_a(rows, y, x, a);
+    return a;
 }
 
 typedef struct TextChunk TextChunk;
@@ -586,7 +587,7 @@ void clear(Sheet* sheet){
         for(int x = 0; x < row->count; x++){
             if(row->data[x] != nil_atom){
                 row->data[x] = nil_atom;
-                drsp_set_cell_str(CTX, (SheetHandle)sheet, y, x, "", 0);
+                drsp_set_cell_atom(CTX, (SheetHandle)sheet, y, x, nil_atom);
             }
         }
     }
@@ -594,10 +595,10 @@ void clear(Sheet* sheet){
 }
 
 void
-update_cell_no_eval(int y, int x, const char* data, size_t len){
-    set_rc_val(&SHEET->data, y, x, data, len);
+update_cell_no_eval_a(int y, int x, DrspAtom a){
+    set_rc_val_a(&SHEET->data, y, x, a);
     int e;
-    e = drsp_set_cell_str(CTX, (SheetHandle)SHEET, y, x, data, len);
+    e = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, y, x, a);
     (void)e;
     if(x >= SHEET->columns.count){
         Column* col = append(&SHEET->columns);
@@ -606,19 +607,6 @@ update_cell_no_eval(int y, int x, const char* data, size_t len){
         col->calc_width = strlen(col->name);
         col->width = 9;
     }
-}
-// XXX: we should have a way to set atoms directly?
-void
-update_cell_no_eval_a(int y, int x, DrspAtom a){
-    size_t len;
-    const char* data = drsp_atom_get_str(CTX, a, &len);
-    update_cell_no_eval(y, x, data, len);
-}
-
-void
-update_cell(int y, int x, const char* data, size_t len){
-    update_cell_no_eval(y, x, data, len);
-    recalc();
 }
 
 void
@@ -784,7 +772,7 @@ void delete_cells(int y, int x, int h, int w){
         for(int dx = 0; dx < w; dx++){
             DrspAtom before = get_rc_a(&SHEET->data, y+dy, x+dx);
             if(before == nil_atom) continue;
-            update_cell(y+dy, x+dx, "", 0);
+            update_cell_a(y+dy, x+dx, nil_atom);
             DrspAtom after = nil_atom;
             *append(&u->nested) = (Undoable){
                 .kind = UNDO_CHANGE_CELL,
@@ -1406,13 +1394,11 @@ insert_row(int y, int n){
         const Row* old_row = iy+n<rows->count?&rows->data[iy+n]:&empty;
         size_t x = 0;
         for(;x < row->count; x++){
-            size_t len;
-            const char* txt = drsp_atom_get_str(CTX, row->data[x], &len);
-            int err = drsp_set_cell_str(CTX, (SheetHandle)SHEET, iy, x, txt, len);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, row->data[x]);
             (void)err;
         }
         for(;x < old_row->count; x++){
-            int err = drsp_set_cell_str(CTX, (SheetHandle)SHEET, iy, x, "", 0);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -1452,13 +1438,11 @@ void delete_row(int y, int n){
         const Row* new_row = &rows->data[iy+n];
         size_t x = 0;
         for(; x < new_row->count; x++){
-            size_t len;
-            const char* txt = drsp_atom_get_str(CTX, new_row->data[x], &len);
-            int err = drsp_set_cell_str(CTX, (SheetHandle)SHEET, iy, x, txt, len);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, new_row->data[x]);
             (void)err;
         }
         for(; x < deleted->count; x++){
-            int err = drsp_set_cell_str(CTX, (SheetHandle)SHEET, iy, x, "", 0);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -1466,7 +1450,7 @@ void delete_row(int y, int n){
         int iy = rows->count-i;
         const Row* last = &rows->data[iy];
         for(size_t x = 0; x < last->count; x++){
-            int err = drsp_set_cell_str(CTX, (SheetHandle)SHEET, iy, x, "", 0);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -2032,7 +2016,7 @@ main(int argc, char** argv){
                 }
                 for(;(token = strsep(&line, "\t|"));x++){
                     not_drsp:;
-                    update_cell_no_eval(y, x, token, strlen(token));
+                    update_cell_no_eval_a(y, x, xatomize(token, strlen(token)));
                 }
             }
             free(txt);
@@ -2472,7 +2456,7 @@ main(int argc, char** argv){
                     case CTRL_J:
                     case ENTER:{
                         DrspAtom before = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
-                        update_cell(CELL_Y, CELL_X, EDIT.buff, EDIT.buff_len);
+                        update_cell_a(CELL_Y, CELL_X, xatomize(EDIT.buff, EDIT.buff_len));
                         DrspAtom after = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
                         if(before != after){
                             if(editing_ud.kind != UNDO_NESTED){

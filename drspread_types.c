@@ -35,7 +35,7 @@ drsp_create_ctx(ARGS){
 static
 void
 drsp_destroy_ctx_(DrSpreadCtx* ctx){
-    free_string_arenas(ctx->temp_string_arena);
+    free_linked_arenas(ctx->temp_string_arena);
     free_sheet_datas(ctx);
     destroy_string_heap(&ctx->sheap);
     memset(ctx, 0xfe, sizeof(DrSpreadCtx));
@@ -82,8 +82,24 @@ drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, int
         sd->height = row+1;
     if(col+1 > sd->width)
         sd->width = col+1;
+    StringView sv = stripped2(text, length);
+    text = sv.text;
+    length = sv.length;
     DrspAtom str = drsp_intern_str(ctx, text, length);
     if(!str) return 1;
+    return set_cached_cell(&sd->cell_cache, row, col, str);
+}
+
+DRSP_EXPORT
+int
+drsp_set_cell_atom(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, intptr_t col, DrspAtom str){
+    if(!str) return 1;
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    if(row+1 > sd->height)
+        sd->height = row+1;
+    if(col+1 > sd->width)
+        sd->width = col+1;
     return set_cached_cell(&sd->cell_cache, row, col, str);
 }
 
@@ -205,9 +221,6 @@ drsp_nil_atom(void){
 
 static DrspAtom _Nullable
 drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
-    StringView sv = stripped2(txt, length);
-    txt = sv.text;
-    length = sv.length;
     if(length > UINT16_MAX) return NULL;
     if(!length) return (DrspAtom)&short_strings[0];
     if(length == 1 && (uint8_t)*txt <= 127){
@@ -224,9 +237,6 @@ drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t lengt
 
 static DrspAtom _Nullable
 drsp_intern_str_lower(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
-    StringView sv = stripped2(txt, length);
-    txt = sv.text;
-    length = sv.length;
     if(length > UINT16_MAX) return NULL;
     if(!length) return (DrspAtom)&short_strings[0];
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
@@ -256,26 +266,26 @@ drsp_create_str_(DrSpreadCtx* ctx, const char* txt, size_t length){
     size_t sz = offsetof(DrspStr, data)+length;
     size_t cap = heap->cap;
     // XXX overflow checking
-    if(unlikely(heap->n*2 >= cap)){
+    if(unlikely(heap->n >= cap)){
         size_t old_cap = cap;
         size_t new_cap = old_cap?old_cap*2:1024;
-        size_t new_size = new_cap * (sizeof(DrspAtom)+sizeof(uint32_t));
-        size_t old_size = old_cap * (sizeof(DrspAtom)+sizeof(uint32_t));
+        size_t new_size = new_cap * (sizeof(DrspAtom)+2*sizeof(uint32_t));
+        size_t old_size = old_cap * (sizeof(DrspAtom)+2*sizeof(uint32_t));
         unsigned char* new_data = drsp_alloc(old_size, heap->data, new_size, _Alignof(DrspStr));
         if(!new_data) return NULL;
         heap->data = new_data;
         heap->cap = new_cap;
         cap = new_cap;
         uint32_t* indexes = (uint32_t*)(new_data + sizeof(DrspAtom)*new_cap);
-        __builtin_memset(indexes, 0xff, sizeof(*indexes)*new_cap);
+        __builtin_memset(indexes, 0xff, 2*sizeof(*indexes)*new_cap);
         DrspAtom* items = (DrspAtom*)new_data;
         for(size_t i = 0; i < heap->n; i++){
             DrspAtom item = items[i];
             uint32_t hash = hash_align1(item->data, item->length);
-            uint32_t idx = fast_reduce32(hash, (uint32_t)new_cap);
+            uint32_t idx = fast_reduce32(hash, (uint32_t)2*new_cap);
             while(indexes[idx] != UINT32_MAX){
                 idx++;
-                if(unlikely(idx >= new_cap)) idx = 0;
+                if(unlikely(idx >= 2*new_cap)) idx = 0;
             }
             indexes[idx] = i;
         }
@@ -283,7 +293,7 @@ drsp_create_str_(DrSpreadCtx* ctx, const char* txt, size_t length){
     uint32_t hash = hash_align1(txt, length);
     uint32_t* indexes = (uint32_t*)(heap->data + sizeof(DrspAtom)*cap);
     DrspAtom* items = (DrspAtom*)heap->data;
-    uint32_t idx = fast_reduce32(hash, (uint32_t)cap);
+    uint32_t idx = fast_reduce32(hash, (uint32_t)2*cap);
     for(;;){
         uint32_t i = indexes[idx];
         if(i == UINT32_MAX){ // empty slot
@@ -301,21 +311,21 @@ drsp_create_str_(DrSpreadCtx* ctx, const char* txt, size_t length){
             return item;
         }
         idx++;
-        if(unlikely(idx >= cap)) idx = 0;
+        if(unlikely(idx >= 2*cap)) idx = 0;
     }
 }
 
 DRSP_INTERNAL
 void
 destroy_string_heap(StringHeap* heap){
-    free_string_arenas(heap->arena);
-    drsp_alloc(heap->cap*(sizeof(DrspAtom)+sizeof(uint32_t)), heap->data, 0, _Alignof(DrspStr));
+    free_linked_arenas(heap->arena);
+    drsp_alloc(heap->cap*(sizeof(DrspAtom)+2*sizeof(uint32_t)), heap->data, 0, _Alignof(DrspStr));
     __builtin_memset(heap, 0, sizeof *heap);
 }
 
 DRSP_INTERNAL
 void
-free_string_arenas(LinkedArena*_Nullable arena){
+free_linked_arenas(LinkedArena*_Nullable arena){
     while(arena){
         LinkedArena* to_free = arena;
         arena = arena->next;
@@ -636,6 +646,9 @@ drsp_get_sheet_flags(DrSpreadCtx*restrict ctx, SheetHandle sheet){
 DRSP_EXPORT
 DrspAtom _Nullable
 drsp_atomize(DrSpreadCtx* restrict ctx, const char* txt, size_t length){
+    StringView sv = stripped2(txt, length);
+    txt = sv.text;
+    length = sv.length;
     DrspAtom atom = drsp_intern_str(ctx, txt, length);
     return atom;
 }
@@ -655,7 +668,9 @@ linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len){
     if(len > LINKED_ARENA_SIZE) return NULL;
     LinkedArena* arena = *parena;
     if(!arena || arena->used+len > LINKED_ARENA_SIZE){
-        while(arena){
+        // This seems inefficient?
+        // Do we really need to pack the arenas?
+        if(1)while(arena){
             if(arena->used+len <= LINKED_ARENA_SIZE){
                 goto alloced;
             }
