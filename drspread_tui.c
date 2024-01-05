@@ -2308,6 +2308,7 @@ main(int argc, char** argv){
                         begin_line_edit();
                         break;
                     case ESC:
+                        set_status("");
                         change_mode(MOVE_MODE);
                         break;
                     case ';':
