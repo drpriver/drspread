@@ -91,17 +91,13 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         }
         unsigned char tmp[sizeof(union ExprU)];
         ExpressionKind kind = e->kind;
-        switch(kind){
-            case EXPR_COMPUTED_ARRAY:
-                return e;
-            default:
-                __builtin_memcpy(tmp, e, expr_size(kind));
-                break;
-        }
+        if(kind == EXPR_COMPUTED_ARRAY)
+            return e;
+        size_t sz = expr_size(kind);
+        __builtin_memcpy(tmp, e, sz);
         buff_set(ctx->a, bc);
         Expression* r = expr_alloc(ctx, kind);
-        if(expr_size(kind) != sizeof(Expression))
-            __builtin_memcpy(r, tmp, expr_size(kind));
+        __builtin_memcpy(r, tmp, sz);
         return r;
     }
 }
