@@ -2038,7 +2038,7 @@ main(int argc, char** argv){
             free(txt);
         }
     }
-#if 0
+#if 0 || defined(DRSP_TUI_BENCH)
     int err = drsp_evaluate_formulas(CTX);
     return err;
 #endif
