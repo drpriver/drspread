@@ -69,80 +69,85 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* sd = &ctx->map.data[i];
-        for(intptr_t row = 0; row < sd->height; row++){
-            for(intptr_t col = 0; col < sd->width; col++){
-                buff_set(ctx->a, bc);
-                Expression* e = evaluate(ctx, sd, row, col);
-                if(e && e->kind == EXPR_BLANK){
-                    if(!has_cached_output_result(&sd->output_result_cache, row, col))
-                        continue;
+        RowColSv* items = (RowColSv*)sd->cell_cache.data;
+        for(size_t j = 0; j < sd->cell_cache.n; j++){
+            intptr_t row = items[j].rc.row;
+            intptr_t col = items[j].rc.col;
+            buff_set(ctx->a, bc);
+            Expression* e;
+            if(items[j].sv == drsp_nil_atom())
+                e = expr_alloc(ctx, EXPR_BLANK);
+            else
+                e = evaluate(ctx, sd, row, col);
+            if(e && e->kind == EXPR_BLANK){
+                if(!has_cached_output_result(&sd->output_result_cache, row, col))
+                    continue;
 
+            }
+            // benchmarking
+            #ifdef BENCHMARKING
+                for(int i = 0; i < 100000; i++){
+                    buff_set(ctx->a, bc);
+                    e = evaluate(ctx, sd, row, col);
                 }
-                // benchmarking
-                #ifdef BENCHMARKING
-                    for(int i = 0; i < 100000; i++){
-                        buff_set(ctx->a, bc);
-                        e = evaluate(ctx, sd, row, col);
+            #endif
+            #if 0
+            if(!e){ // OOM, don't cache the result.
+                nerrs++;
+                sp_set_display_error(ctx, sd->handle, row, col, "oom", 3);
+                continue;
+            }
+            #endif
+            if(!e) e = Error(ctx, "oom"); // Error doesn't alloc
+            CachedResult* cr = get_cached_output_result(&sd->output_result_cache, row, col);
+            if(cr){
+                CachedResult tmp_cr;
+                tmp_cr.loc = (RowCol){row, col};
+                int err = expr_to_cached_result(ctx, e, &tmp_cr);
+                if(!err){
+                    if(cached_result_eq_ignoring_loc(cr, &tmp_cr)){
+                        if(tmp_cr.kind == CACHED_RESULT_ERROR)
+                            nerrs++;
+                        continue;
                     }
-                #endif
-                #if 0
-                if(!e){ // OOM, don't cache the result.
+                    *cr = tmp_cr;
+                    // FIXME: If the set display function returns an
+                    // error we need to delete our cache result
+                    // instead of caching.
+                    switch(tmp_cr.kind){
+                        case CACHED_RESULT_NULL:
+                            sp_set_display_string(ctx, sd->handle, row, col, "", 0);
+                            continue;
+                        case CACHED_RESULT_NUMBER:
+                            sp_set_display_number(ctx, sd->handle, row, col, tmp_cr.number);
+                            continue;
+                        case CACHED_RESULT_STRING:
+                            sp_set_display_string(ctx, sd->handle, row, col, tmp_cr.string->data, tmp_cr.string->length);
+                            continue;
+                        default: break;
+                    }
                     nerrs++;
-                    sp_set_display_error(ctx, sd->handle, row, col, "oom", 3);
+                    sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
                     continue;
                 }
-                #endif
-                if(!e) e = Error(ctx, "oom"); // Error doesn't alloc
-                CachedResult* cr = get_cached_output_result(&sd->output_result_cache, row, col);
-                if(cr){
-                    CachedResult tmp_cr;
-                    tmp_cr.loc = (RowCol){row, col};
-                    int err = expr_to_cached_result(ctx, e, &tmp_cr);
-                    if(!err){
-                        if(cached_result_eq_ignoring_loc(cr, &tmp_cr)){
-                            if(tmp_cr.kind == CACHED_RESULT_ERROR)
-                                nerrs++;
-                            continue;
-                        }
-                        *cr = tmp_cr;
-                        // FIXME: If the set display function returns an
-                        // error we need to delete our cache result
-                        // instead of caching.
-                        switch(tmp_cr.kind){
-                            case CACHED_RESULT_NULL:
-                                sp_set_display_string(ctx, sd->handle, row, col, "", 0);
-                                continue;
-                            case CACHED_RESULT_NUMBER:
-                                sp_set_display_number(ctx, sd->handle, row, col, tmp_cr.number);
-                                continue;
-                            case CACHED_RESULT_STRING:
-                                sp_set_display_string(ctx, sd->handle, row, col, tmp_cr.string->data, tmp_cr.string->length);
-                                continue;
-                            default: break;
-                        }
-                        nerrs++;
-                        sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
-                        continue;
-                    }
-                }
-                // Fallback, don't cache the result.
-                // GCOV_EXCL_START
-                switch(e->kind){
-                    case EXPR_NUMBER:
-                        sp_set_display_number(ctx, sd->handle, row, col, ((Number*)e)->value);
-                        continue;
-                    case EXPR_STRING:
-                        sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->str->data, ((String*)e)->str->length);
-                        continue;
-                    case EXPR_BLANK:
-                        sp_set_display_string(ctx, sd->handle, row, col, "", 0);
-                        continue;
-                    default: break;
-                }
-                nerrs++;
-                sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
-                // GCOV_EXCL_STOP
             }
+            // Fallback, don't cache the result.
+            // GCOV_EXCL_START
+            switch(e->kind){
+                case EXPR_NUMBER:
+                    sp_set_display_number(ctx, sd->handle, row, col, ((Number*)e)->value);
+                    continue;
+                case EXPR_STRING:
+                    sp_set_display_string(ctx, sd->handle, row, col, ((String*)e)->str->data, ((String*)e)->str->length);
+                    continue;
+                case EXPR_BLANK:
+                    sp_set_display_string(ctx, sd->handle, row, col, "", 0);
+                    continue;
+                default: break;
+            }
+            nerrs++;
+            sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+            // GCOV_EXCL_STOP
         }
         for(unsigned i = 0; i < sd->extra_dimensional.count; i++){
             ExtraDimensionalCell* edc = &sd->extra_dimensional.cells[i];
