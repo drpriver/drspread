@@ -95,13 +95,13 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
             case EXPR_COMPUTED_ARRAY:
                 return e;
             default:
-                memcpy(tmp, e, expr_size(kind));
+                __builtin_memcpy(tmp, e, expr_size(kind));
                 break;
         }
         buff_set(ctx->a, bc);
         Expression* r = expr_alloc(ctx, kind);
         if(expr_size(kind) != sizeof(Expression))
-            memcpy(r, tmp, expr_size(kind));
+            __builtin_memcpy(r, tmp, expr_size(kind));
         return r;
     }
 }
