@@ -223,7 +223,7 @@ drsp_nil_atom(void){
 static DrspAtom _Nullable
 drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
     if(length > UINT16_MAX) return NULL;
-    if(!length) return (DrspAtom)&short_strings[0];
+    if(!length) return drsp_nil_atom();
     if(length == 1 && (uint8_t)*txt <= 127){
         uint8_t c = (uint8_t)*txt;
         c++;
@@ -239,7 +239,7 @@ drsp_intern_str(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t lengt
 static DrspAtom _Nullable
 drsp_intern_str_lower(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t length){
     if(length > UINT16_MAX) return NULL;
-    if(!length) return (DrspAtom)&short_strings[0];
+    if(!length) return drsp_nil_atom();
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     char* tmp = buff_alloc(ctx->a, length);
     if(!tmp) return NULL;
