@@ -1728,6 +1728,8 @@ TestFunction(TestComplexMultisheet){
         { SV("[Overview, Encumbrance, 1]"),                   2. },
         // case insensitive
         { SV("[overview, encumbrance, 1]"),                   2. },
+        { SV("cell('overview', 'encumbrance', 1)"),           2. },
+        { SV("cell('Overview', 'Encumbrance', 1)"),           2. },
         { SV("f(col('overview', 'encumbrance', 1, 1))"),      2. },
         { SV("f(row('overview', 'encumbrance', 'encumbrance', 1))"),  2. },
     };

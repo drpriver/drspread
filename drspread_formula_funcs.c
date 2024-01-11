@@ -871,6 +871,8 @@ FORMULAFUNC(drsp_cell){
         if(!sheet || sheet->kind == EXPR_ERROR) return sheet;
         if(sheet->kind != EXPR_STRING) return Error(ctx, "");
         DrspAtom a = ((String*)sheet)->str;
+        a = drsp_intern_str_lower(ctx, a->data, a->length);
+        if(!a) return NULL;
         fsd = sheet_lookup_by_name(ctx, a);
         if(!fsd) return Error(ctx, "");
         argv++, argc--;
@@ -879,6 +881,8 @@ FORMULAFUNC(drsp_cell){
     if(!col || col->kind == EXPR_ERROR) return col;
     if(col->kind != EXPR_STRING) return Error(ctx, "");
     DrspAtom csv = ((String*)col)->str;
+    csv = drsp_intern_str_lower(ctx, csv->data, csv->length);
+    if(!csv) return NULL;
     intptr_t col_idx = sp_name_to_col_idx(fsd, csv);
     if(col_idx < 0) return Error(ctx, "");
     Expression* row = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
