@@ -62,6 +62,7 @@ static TestFunc TestShortColNames;
 static TestFunc TestDeleteColNames;
 static TestFunc TestExtraDimensional;
 static TestFunc TestEditing;
+static TestFunc TestNamedCells;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -91,6 +92,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestDeleteColNames);
         RegisterTest(TestExtraDimensional);
         RegisterTest(TestEditing);
+        RegisterTest(TestNamedCells);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -2445,6 +2447,89 @@ TestFunction(TestEditing){
     EXPECT_NO_LEAKS();
     TESTEND();
     #undef SET_CELL
+}
+
+TestFunction(TestNamedCells){
+    TESTBEGIN();
+    const char* input =
+        "1 | 2\n"
+        "3 | 4\n"
+    ;
+    SpreadSheet sheet = {0};
+    int err = read_csv_from_string(&sheet, input);
+    TestAssertFalse(err);
+    SheetOps ops = sheet_ops();
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    TestAssert(ctx);
+    SheetHandle handle = (SheetHandle)&sheet;
+    err = drsp_set_sheet_name(ctx, handle, "a", 1);
+    TestAssertFalse(err);
+    for(intptr_t r = 0; r < sheet.rows; r++){
+        const SheetRow* row = &sheet.cells[r];
+        for(int c = 0; c < row->n; c++){
+            if(!row->lengths[c]) continue;
+            err = drsp_set_cell_str(ctx, handle, r, c, row->data[c], row->lengths[c]);
+            // don't bloat the stats
+            if(err) TestAssertFalse(err);
+        }
+    }
+    {
+        DrSpreadResult val = {0};
+        StringView q = SV("foo");
+        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+        TestExpectTrue(err);
+
+        StringView name = SV("foo");
+        err = drsp_set_named_cell(ctx, handle, name.text, name.length, 0, 0);
+        TestAssertFalse(err);
+
+        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+        TestAssertFalse(err);
+        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+        TestAssertEquals(val.d, 1.);
+
+        err = drsp_set_named_cell(ctx, handle, name.text, name.length, 1, 1);
+        TestAssertFalse(err);
+
+        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+        TestAssertFalse(err);
+        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+        TestAssertEquals(val.d, 4.);
+
+        err = drsp_clear_named_cell(ctx, handle, name.text, name.length);
+        TestAssertFalse(err);
+
+        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+        TestExpectTrue(err);
+
+        err = drsp_set_named_cell(ctx, handle, name.text, name.length, 0, 1);
+        TestAssertFalse(err);
+
+        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+        TestAssertFalse(err);
+        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+        TestAssertEquals(val.d, 2.);
+
+        err = drsp_set_named_cell(ctx, handle, name.text, name.length, 0, 1);
+        TestAssertFalse(err);
+
+        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+        TestAssertFalse(err);
+        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+        TestAssertEquals(val.d, 2.);
+
+        err = drsp_clear_named_cell(ctx, handle, name.text, name.length);
+        TestAssertFalse(err);
+
+        // Unclear if clearing twice should not be an error.
+        err = drsp_clear_named_cell(ctx, handle, name.text, name.length);
+        TestAssertFalse(err);
+
+    }
+    drsp_destroy_ctx(ctx);
+    cleanup_sheet(&sheet);
+    EXPECT_NO_LEAKS();
+    TESTEND();
 }
 
 

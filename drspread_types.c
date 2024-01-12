@@ -157,6 +157,7 @@ cleanup_sheet_data(SheetData* d){
     drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+2*sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
     cleanup_col_cache(&d->col_cache);
     drsp_alloc(d->output_result_cache.cap*(sizeof(CachedResult)+2*sizeof(uint32_t)), d->output_result_cache.data, 0, _Alignof(CachedResult));
+    cleanup_named_cells(&d->named_cells);
 }
 
 // preload empty string and length 1 strings
@@ -783,6 +784,96 @@ linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len){
     char* p = arena->data + arena->used;
     arena->used += len;
     return p;
+}
+
+DRSP_INTERNAL
+const NamedCell*_Nullable
+get_named_cell(const NamedCells* cells, DrspAtom name){
+    for(size_t i = 0; i < cells->count; i++){
+        if(name == cells->data[i].name)
+            return &cells->data[i];
+    }
+    return NULL;
+}
+
+DRSP_INTERNAL
+int
+set_named_cell(NamedCells* cells, DrspAtom name, intptr_t row, intptr_t col){
+    for(size_t i = 0; i < cells->count; i++){
+        if(name == cells->data[i].name){
+            cells->data[i].col = col;
+            cells->data[i].row = row;
+            return 0;
+        }
+    }
+    if(cells->count == cells->capacity){
+        size_t new_cap = cells->capacity?cells->capacity*2:2;
+        void* p = drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, new_cap * sizeof *cells->data, _Alignof(*cells->data));
+        if(!p) return 1;
+        cells->data = p;
+        cells->capacity = new_cap;
+    }
+    cells->data[cells->count++] = (NamedCell){
+        .name = name,
+        .row = row,
+        .col = col,
+    };
+    return 0;
+}
+
+DRSP_INTERNAL
+void
+cleanup_named_cells(NamedCells* cells){
+    if(cells->data)
+        drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, 0, _Alignof(*cells->data));
+}
+
+DRSP_INTERNAL
+void
+clear_named_cell(NamedCells* cells, DrspAtom name){
+    for(size_t i = 0; i < cells->count; i++){
+        if(name != cells->data[i].name)
+            continue;
+        if(i == cells->count -1){
+            cells->count--;
+            return;
+        }
+        __builtin_memmove(cells->data+i, cells->data+i+1, (cells->count-i-1) * sizeof *cells->data);
+        cells->count--;
+        return;
+    }
+}
+
+DRSP_EXPORT
+int
+drsp_set_named_cell(DrSpreadCtx* restrict ctx, SheetHandle sheet, const char* restrict name, size_t name_len, intptr_t row, intptr_t col){
+    if(!name || !name_len) return 1;
+    if(row < 0) return 1;
+    if(col < 0) return 1;
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    StringView sv = stripped2(name, name_len);
+    if(!sv.length) return 1;
+    // don't allow overwriting implied column names
+    if(sv.length < 2) return 1;
+    DrspAtom a = drsp_intern_sv_lower(ctx, sv);
+    if(!a) return 1;
+    int err = set_named_cell(&sd->named_cells, a, row, col);
+    return err;
+}
+
+DRSP_EXPORT
+int
+drsp_clear_named_cell(DrSpreadCtx* restrict ctx, SheetHandle sheet, const char* restrict name, size_t name_len){
+    if(!name || !name_len) return 1;
+    SheetData* sd = sheet_lookup_by_handle(ctx, sheet);
+    if(!sd) return 1;
+    StringView sv = stripped2(name, name_len);
+    if(!sv.length) return 1;
+    DrspAtom a = drsp_intern_sv_lower(ctx, sv);
+    if(!a) return 1;
+    clear_named_cell(&sd->named_cells, a);
+    return 0;
 }
 
 

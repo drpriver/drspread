@@ -20,6 +20,8 @@ type DrSpreadCtx = {
     make_sheet:(sheet:number, name:string) => number;
     set_sheet_alias:(sheet:number, name:string) => number;
     set_col_name:(sheet:number, idx: number, name:string) => number;
+    set_cell_name:(sheet:number, name:string, row:number, col:number) => number;
+    del_cell_name:(sheet:number, name:string) => number;
     del_sheet:(sheet:number) => number;
     set_flags:(sheet:number, flags:DrspSheetFlags) => number;
     set_flag:(sheet:number, flag: DrspSheetFlags, on:boolean|number) => number;
@@ -36,6 +38,8 @@ type DrSpreadExports = {
     drsp_evaluate_string: (ctx:number, sheet:number, ptext:number, txtlen:number, result:number, caller_row:number, caller_col:number) => number;
     drsp_set_cell_str:(ctx:number, sheet:number, row:number, col:number, ptxt:number, txtlen:number) => number;
     drsp_set_extra_dimensional_str:(ctx:number, sheet:number, id:number, ptxt:number, txtlen:number) => number;
+    drsp_set_named_cell: (ctx:number, sheet:number, ptxt:number, txtlen:number, row:number, col:number)=> number;
+    drsp_clear_named_cell: (ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_name:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_sheet_alias:(ctx:number, sheet:number, ptxt:number, txtlen:number) => number;
     drsp_set_col_name:(ctx:number, sheet:number, idx:number, ptxt:number, txtlen:number) => number;
@@ -159,6 +163,20 @@ return fetch(wasm_path)
                     const encoded = encoder.encode(s);
                     mem.set(encoded, exports.wasm_str_buff.value);
                     const e = exports.drsp_set_cell_str(ctx, sheet, row, col, exports.wasm_str_buff.value, encoded.length);
+                    return e;
+                },
+                set_cell_name:(sheet:number, name:string, row:number, col:number):number=>{
+                    const ctx = result.id;
+                    const encoded = encoder.encode(name);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    const e = exports.drsp_set_named_cell(ctx, sheet, exports.wasm_str_buff.value, encoded.length, row, col);
+                    return e;
+                },
+                del_cell_name: (sheet:number, name:string):number => {
+                    const ctx = result.id;
+                    const encoded = encoder.encode(name);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    const e = exports.drsp_clear_named_cell(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
                     return e;
                 },
                 set_extra_str: (sheet:number, id:number, s:string):number => {

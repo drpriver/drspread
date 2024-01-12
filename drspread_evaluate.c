@@ -401,13 +401,21 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
         case EXPR_BLANK:
         case EXPR_ERROR:
         case EXPR_NUMBER:
-        case EXPR_RANGE1D_COLUMN:
         case EXPR_RANGE1D_COLUMN_FOREIGN:
         case EXPR_RANGE1D_ROW:
         case EXPR_RANGE1D_ROW_FOREIGN:
         case EXPR_COMPUTED_ARRAY:
         case EXPR_STRING:
             return expr;
+        case EXPR_RANGE1D_COLUMN:{
+            Range1DColumn* rng = (Range1DColumn*)expr;
+            if(rng->row_start == 0 && rng->row_end == -1){
+                // this could be a named cell
+                const NamedCell* cell = get_named_cell(&sd->named_cells, rng->col_name);
+                if(cell) return evaluate(ctx, sd, cell->row, cell->col);
+            }
+            return expr;
+        }
         case EXPR_FUNCTION_CALL:{
             FunctionCall* fc = (FunctionCall*)expr;
             return fc->func(ctx, sd, caller_row, caller_col, fc->argc, fc->argv);

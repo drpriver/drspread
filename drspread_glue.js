@@ -87,6 +87,20 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                     const e = exports.drsp_set_cell_str(ctx, sheet, row, col, exports.wasm_str_buff.value, encoded.length);
                     return e;
                 },
+                set_cell_name: (sheet, name, row, col) => {
+                    const ctx = result.id;
+                    const encoded = encoder.encode(name);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    const e = exports.drsp_set_named_cell(ctx, sheet, exports.wasm_str_buff.value, encoded.length, row, col);
+                    return e;
+                },
+                del_cell_name: (sheet, name) => {
+                    const ctx = result.id;
+                    const encoded = encoder.encode(name);
+                    mem.set(encoded, exports.wasm_str_buff.value);
+                    const e = exports.drsp_clear_named_cell(ctx, sheet, exports.wasm_str_buff.value, encoded.length);
+                    return e;
+                },
                 set_extra_str: (sheet, id, s) => {
                     const ctx = result.id;
                     const encoded = encoder.encode(s);

@@ -276,7 +276,6 @@ struct ComputedArray {
 // This is a hash table
 typedef struct CellCache CellCache;
 struct CellCache {
-    SheetHandle handle;
     size_t n;
     size_t cap;
     unsigned char* data;
@@ -543,6 +542,34 @@ struct ExtraDimensionalCellCache {
     unsigned count;
     ExtraDimensionalCell cells[8];
 };
+typedef struct NamedCell NamedCell;
+struct NamedCell {
+    DrspAtom name;
+    intptr_t row, col;
+};
+
+typedef struct NamedCells NamedCells;
+struct NamedCells {
+    NamedCell* data;
+    size_t count, capacity;
+};
+
+DRSP_INTERNAL
+const NamedCell*_Nullable
+get_named_cell(const NamedCells* cells, DrspAtom name);
+
+DRSP_INTERNAL
+int
+set_named_cell(NamedCells* cells, DrspAtom name, intptr_t row, intptr_t col);
+
+DRSP_INTERNAL
+void
+clear_named_cell(NamedCells* cells, DrspAtom name);
+
+DRSP_INTERNAL
+void
+cleanup_named_cells(NamedCells* cells);
+
 typedef struct SheetData SheetData;
 struct SheetData {
     DrspAtom name;
@@ -553,6 +580,7 @@ struct SheetData {
     ExtraDimensionalCellCache extra_dimensional;
     intptr_t width, height;
     OutputResultCache output_result_cache;
+    NamedCells named_cells;
 #if 0
     OutputResultCache result_cache;
 #endif
