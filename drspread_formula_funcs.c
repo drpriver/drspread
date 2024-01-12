@@ -865,32 +865,83 @@ FORMULAFUNC(drsp_try){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_cell){
     SheetData* fsd = sd;
-    if(argc != 2 && argc != 3) return Error(ctx, "");
-    if(argc == 3){
+    if(argc != 1 && argc != 2 && argc != 3) return Error(ctx, "");
+    if(argc == 1){
+        // cell('cell name')
+        Expression* name = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
+        if(!name || name->kind == EXPR_ERROR) return name;
+        if(name->kind != EXPR_STRING) return Error(ctx, "");
+        DrspAtom a = drsp_atom_lower(ctx, ((String*)name)->str);
+        if(!a) return NULL;
+        const NamedCell* cell = get_named_cell(&sd->named_cells, a);
+        if(!cell) return Error(ctx, "");
+        return evaluate(ctx, sd, cell->row, cell->col);
+    }
+    if(argc == 2){
+        // either
+        // cell('col', row)
+        // or
+        // cell('sheet', 'cell name')
+        Expression* arg1 = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
+        if(!arg1 || arg1->kind == EXPR_ERROR) return arg1;
+        if(arg1->kind != EXPR_STRING) return Error(ctx, "");
+        DrspAtom a = drsp_atom_lower(ctx, ((String*)arg1)->str);
+        if(!a) return NULL;
+
+        Expression* arg2 = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
+        if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
+        if(arg2->kind == EXPR_STRING){
+            fsd = sheet_lookup_by_name(ctx, a);
+            if(!fsd) return Error(ctx, "");
+            a = drsp_atom_lower(ctx, ((String*)arg2)->str);
+            if(!a) return NULL;
+            const NamedCell* cell = get_named_cell(&fsd->named_cells, a);
+            if(!cell) return Error(ctx, "");
+            return evaluate(ctx, fsd, cell->row, cell->col);
+        }
+        else {
+            intptr_t col_idx = sp_name_to_col_idx(fsd, a);
+            if(col_idx < 0) return Error(ctx, "");
+
+            if(arg2->kind != EXPR_NUMBER) return Error(ctx, "");
+            intptr_t row_idx = (intptr_t)((Number*)arg2)->value;
+            row_idx--;
+            if(row_idx < 0) return Error(ctx, "");
+            return evaluate(ctx, fsd, row_idx, col_idx);
+        }
+    }
+    assert(argc == 3);
+    // cell('sheet', 'col', row);
+    {
         Expression* sheet = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!sheet || sheet->kind == EXPR_ERROR) return sheet;
         if(sheet->kind != EXPR_STRING) return Error(ctx, "");
-        DrspAtom a = ((String*)sheet)->str;
-        a = drsp_intern_str_lower(ctx, a->data, a->length);
+        DrspAtom a = drsp_atom_lower(ctx, ((String*)sheet)->str);
         if(!a) return NULL;
         fsd = sheet_lookup_by_name(ctx, a);
         if(!fsd) return Error(ctx, "");
-        argv++, argc--;
     }
-    Expression* col = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
-    if(!col || col->kind == EXPR_ERROR) return col;
-    if(col->kind != EXPR_STRING) return Error(ctx, "");
-    DrspAtom csv = ((String*)col)->str;
-    csv = drsp_intern_str_lower(ctx, csv->data, csv->length);
-    if(!csv) return NULL;
-    intptr_t col_idx = sp_name_to_col_idx(fsd, csv);
-    if(col_idx < 0) return Error(ctx, "");
-    Expression* row = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
-    if(!row || row->kind == EXPR_ERROR) return row;
-    if(row->kind != EXPR_NUMBER) return Error(ctx, "");
-    intptr_t row_idx = (intptr_t)((Number*)row)->value;
-    row_idx--;
-    if(row_idx < 0) return Error(ctx, "");
+
+    intptr_t col_idx;
+    {
+        Expression* col = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
+        if(!col || col->kind == EXPR_ERROR) return col;
+        if(col->kind != EXPR_STRING) return Error(ctx, "");
+        DrspAtom a = drsp_atom_lower(ctx, ((String*)col)->str);
+        if(!a) return NULL;
+        col_idx = sp_name_to_col_idx(fsd, a);
+        if(col_idx < 0) return Error(ctx, "");
+    }
+
+    intptr_t row_idx;
+    {
+        Expression* row = evaluate_expr(ctx, sd, argv[2], caller_row, caller_col);
+        if(!row || row->kind == EXPR_ERROR) return row;
+        if(row->kind != EXPR_NUMBER) return Error(ctx, "");
+        row_idx = (intptr_t)((Number*)row)->value;
+        row_idx--;
+        if(row_idx < 0) return Error(ctx, "");
+    }
     return evaluate(ctx, fsd, row_idx, col_idx);
 }
 

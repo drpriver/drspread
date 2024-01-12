@@ -330,6 +330,10 @@ drsp_intern_str_lower(DrSpreadCtx*, const char*_Null_unspecified txt, size_t len
 
 DRSP_INTERNAL
 DrspAtom _Nullable
+drsp_atom_lower(DrSpreadCtx*, DrspAtom a);
+
+DRSP_INTERNAL
+DrspAtom _Nullable
 drsp_intern_sv_lower(DrSpreadCtx* ctx, StringView sv);
 
 force_inline

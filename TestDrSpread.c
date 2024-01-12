@@ -2475,48 +2475,74 @@ TestFunction(TestNamedCells){
     }
     {
         DrSpreadResult val = {0};
-        StringView q = SV("foo");
-        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
-        TestExpectTrue(err);
+        StringView qs[] = {
+            SV("foo"),
+            SV("cell('foo')"),
+            SV("[a, foo]"),
+            SV("cell('a', 'foo')"),
+        };
+        for(size_t i = 0; i < arrlen(qs); i++){
+            StringView q = qs[i];
+            err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+            TestExpectTrue(err);
+        }
 
         StringView name = SV("foo");
         err = drsp_set_named_cell(ctx, handle, name.text, name.length, 0, 0);
         TestAssertFalse(err);
 
-        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
-        TestAssertFalse(err);
-        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
-        TestAssertEquals(val.d, 1.);
+        for(size_t i = 0; i < arrlen(qs); i++){
+            StringView q = qs[i];
+            err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+            if(err){
+                TestAssertFalse(err);
+            }
+            TestAssertFalse(err);
+            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals(val.d, 1.);
+        }
 
         err = drsp_set_named_cell(ctx, handle, name.text, name.length, 1, 1);
         TestAssertFalse(err);
 
-        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
-        TestAssertFalse(err);
-        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
-        TestAssertEquals(val.d, 4.);
+        for(size_t i = 0; i < arrlen(qs); i++){
+            StringView q = qs[i];
+            err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+            TestAssertFalse(err);
+            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals(val.d, 4.);
+        }
 
         err = drsp_clear_named_cell(ctx, handle, name.text, name.length);
         TestAssertFalse(err);
 
-        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
-        TestExpectTrue(err);
+        for(size_t i = 0; i < arrlen(qs); i++){
+            StringView q = qs[i];
+            err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+            TestExpectTrue(err);
+        }
 
         err = drsp_set_named_cell(ctx, handle, name.text, name.length, 0, 1);
         TestAssertFalse(err);
 
-        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
-        TestAssertFalse(err);
-        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
-        TestAssertEquals(val.d, 2.);
+        for(size_t i = 0; i < arrlen(qs); i++){
+            StringView q = qs[i];
+            err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+            TestAssertFalse(err);
+            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals(val.d, 2.);
+        }
 
         err = drsp_set_named_cell(ctx, handle, name.text, name.length, 0, 1);
         TestAssertFalse(err);
 
-        err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
-        TestAssertFalse(err);
-        TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
-        TestAssertEquals(val.d, 2.);
+        for(size_t i = 0; i < arrlen(qs); i++){
+            StringView q = qs[i];
+            err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
+            TestAssertFalse(err);
+            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals(val.d, 2.);
+        }
 
         err = drsp_clear_named_cell(ctx, handle, name.text, name.length);
         TestAssertFalse(err);

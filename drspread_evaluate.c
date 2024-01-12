@@ -401,7 +401,6 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
         case EXPR_BLANK:
         case EXPR_ERROR:
         case EXPR_NUMBER:
-        case EXPR_RANGE1D_COLUMN_FOREIGN:
         case EXPR_RANGE1D_ROW:
         case EXPR_RANGE1D_ROW_FOREIGN:
         case EXPR_COMPUTED_ARRAY:
@@ -413,6 +412,18 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
                 // this could be a named cell
                 const NamedCell* cell = get_named_cell(&sd->named_cells, rng->col_name);
                 if(cell) return evaluate(ctx, sd, cell->row, cell->col);
+            }
+            return expr;
+        }
+        case EXPR_RANGE1D_COLUMN_FOREIGN:{
+            ForeignRange1DColumn* rng = (ForeignRange1DColumn*)expr;
+            if(rng->r.row_start == 0 && rng->r.row_end == -1){
+                // this could be a named cell.
+                SheetData* fsd = sheet_lookup_by_name(ctx, rng->sheet_name);
+                if(fsd){
+                    const NamedCell* cell = get_named_cell(&fsd->named_cells, rng->r.col_name);
+                    if(cell) return evaluate(ctx, fsd, cell->row, cell->col);
+                }
             }
             return expr;
         }

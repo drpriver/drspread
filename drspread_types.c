@@ -261,6 +261,12 @@ drsp_intern_str_lower(DrSpreadCtx* ctx, const char*_Null_unspecified txt, size_t
     return result;
 }
 
+DRSP_INTERNAL
+DrspAtom _Nullable
+drsp_atom_lower(DrSpreadCtx* ctx, DrspAtom a){
+    return drsp_intern_str_lower(ctx, a->data, a->length);
+}
+
 static
 DrspAtom _Nullable
 drsp_create_str_(DrSpreadCtx* ctx, const char* txt, size_t length){
