@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver <david@davidpriver.com>
+// Copyright © 2023-2024, David Priver <david@davidpriver.com>
 //
 let func_cells: Array<Array<string|number>> = [['', ''], ['', ''], ['', '']];
 let extra_cells: Array<string|number> = ['=1+1', '', ''];

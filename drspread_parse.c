@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver <david@davidpriver.com>
+// Copyright © 2023-2024, David Priver <david@davidpriver.com>
 //
 #ifndef DRSPREAD_PARSE_C
 #define DRSPREAD_PARSE_C

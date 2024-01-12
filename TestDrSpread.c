@@ -1,5 +1,5 @@
 //
-// Copyright © 2023, David Priver <david@davidpriver.com>
+// Copyright © 2023-2024, David Priver <david@davidpriver.com>
 //
 #ifdef _WIN32
 #define _CRT_NONSTDC_NO_WARNINGS 1
