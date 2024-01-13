@@ -396,6 +396,9 @@ TestFunction(TestParsing){
         // [f, :, 1]         -> 1d row f
         "=r([f, :, 3])\n"
 
+
+        "=1+2+\n" // parse error
+
     ;
     // NOTE: We print out the internal 0-based offsets instead
     //       of the user-facing 1-based offsets.
@@ -533,8 +536,10 @@ TestFunction(TestParsing){
 
         // [f, :, 1]         -> 1d row f
         ROW("R1RF([f, :, 2])"),
+
+        ROW("error"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
 }
 
 TestFunction(TestRanges){
