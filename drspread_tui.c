@@ -1544,6 +1544,10 @@ read_file(const char* filename){
 static
 int
 atomically_write_sheet(Sheet* sheet, const char* filename){
+    if(!filename){
+        set_status("No filename");
+        return 1;
+    }
     char* tmpname = NULL;
     FILE* fp = NULL;
     int result = 1;
