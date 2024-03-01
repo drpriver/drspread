@@ -1030,7 +1030,8 @@ void draw_grid(void){
         // LOG("colname[%zu]: '%s'\n", i, colname);
         // LOG("lpad: %d\n", lpad);
         // LOG("pwidth: %d\n", pwidth);
-        printf("\033[%d;%dH│%*s%.*s", 1, x, lpad, "", pwidth, colname);
+        // printf("\033[%d;%dH│%*s%.*s", 1, x, lpad, "", pwidth, colname);
+        printf("\033[%d;%dH %*s%.*s", 1, x, lpad, "", pwidth, colname);
         advance = width+1;
     }
     printf("\033[2;0H────");
@@ -1049,7 +1050,8 @@ void draw_grid(void){
             const Column* col = &SHEET->columns.data[ix];
             width = col->width;
         }
-        printf("\033[%d;%dH┼%.*s", 2, x, 3*width, border);
+        printf("\033[%d;%dH─%.*s", 2, x, 3*width, border);
+        // printf("\033[%d;%dH┼%.*s", 2, x, 3*width, border);
         // LOG("%d: \\033[%d;%dH┼%.*s\n", ix, 2, x, 3*width, border);
         advance = width+1;
     }
@@ -1098,7 +1100,8 @@ void draw_grid(void){
                 printf("\033[4m");
                 printf("\033[1;94m");
             }
-            printf("\033[%d;%dH│", y, x);
+            // printf("\033[%d;%dH│", y, x);
+            printf("\033[%d;%dH ", y, x);
             TextChunk chunk = get_rc_val(&SHEET->disp, iy, ix);
             if(chunk.vis_width < width){
                 printf("%*.*s ", width-1, imin((int)chunk._byte_len,width-1), chunk._txt);
