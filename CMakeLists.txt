@@ -65,10 +65,12 @@ set_target_properties(drspread-lib
 )
 
 add_executable(drspread drspread_cli.c)
+add_executable(drsp drspread_tui.c)
 target_link_libraries(drspread-lib ${LIBM_LIBRARIES})
 target_link_libraries(drspread-dylib ${LIBM_LIBRARIES})
 target_link_libraries(drspread-test-dylib ${LIBM_LIBRARIES})
 
+install(TARGETS drsp DESTINATION bin)
 install(TARGETS drspread-lib LIBRARY DESTINATION lib)
 install(TARGETS drspread-dylib
 		LIBRARY DESTINATION lib

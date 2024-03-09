@@ -34,7 +34,7 @@ drspread_dylib = both_libraries(
 drspread_test_lib = both_libraries(
   'drspread-test',
   'drspread.c',
-  install:true,
+  install:false,
   dependencies:[m_dep],
   version: meson.project_version(),
   soversion: meson.project_version(),
@@ -44,6 +44,7 @@ drspread_test_lib = both_libraries(
 )
 
 executable('drspread', 'drspread_cli.c', install:false, c_args:ignore_bogus_deprecations, dependencies:[m_dep])
+executable('drsp', 'drspread_tui.c', install:true, c_args:ignore_bogus_deprecations, dependencies:[m_dep])
 
 test_drspread_dy = executable(
   'test-drspread-dy-link',
