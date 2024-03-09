@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include "term_util.h"
 #include "drspread.h"
+#include "argument_parsing.h"
 
 #ifdef _WIN32
 void* memmem(const void* haystack, size_t hsz, const void* needle, size_t nsz){
@@ -78,6 +79,7 @@ strdup(const char* p){
 
 DrSpreadCtx* CTX;
 DrspAtom nil_atom;
+_Bool borderless;
 
 static inline
 _Bool
@@ -200,6 +202,7 @@ __attribute__((format(printf,1, 2)))
 LOG(const char* fmt, ...){
     static FILE* fp;
     if(!fp) fp = fopen("dbglog.txt", "wbe");
+    if(!fp) return;
 
     va_list va;
     va_start(va, fmt);
@@ -1008,6 +1011,7 @@ void handle_edit_key(int c){
 void draw_grid(void){
     int advance = 12;
     printf("\033[H\033[2K");
+    const int borderless_ = borderless;
     for(int x = 5, ix=BASE_X; x < COLS && ix < 27;x+=advance, ix++){
         const char* colname;
         char buff[2];
@@ -1030,8 +1034,10 @@ void draw_grid(void){
         // LOG("colname[%zu]: '%s'\n", i, colname);
         // LOG("lpad: %d\n", lpad);
         // LOG("pwidth: %d\n", pwidth);
-        // printf("\033[%d;%dH│%*s%.*s", 1, x, lpad, "", pwidth, colname);
-        printf("\033[%d;%dH %*s%.*s", 1, x, lpad, "", pwidth, colname);
+        if(borderless_)
+            printf("\033[%d;%dH %*s%.*s", 1, x, lpad, "", pwidth, colname);
+        else
+            printf("\033[%d;%dH│%*s%.*s", 1, x, lpad, "", pwidth, colname);
         advance = width+1;
     }
     printf("\033[2;0H────");
@@ -1100,8 +1106,10 @@ void draw_grid(void){
                 printf("\033[4m");
                 printf("\033[1;94m");
             }
-            // printf("\033[%d;%dH│", y, x);
-            printf("\033[%d;%dH ", y, x);
+            if(borderless_)
+                printf("\033[%d;%dH ", y, x);
+            else
+                printf("\033[%d;%dH│", y, x);
             TextChunk chunk = get_rc_val(&SHEET->disp, iy, ix);
             if(chunk.vis_width < width){
                 printf("%*.*s ", width-1, imin((int)chunk._byte_len,width-1), chunk._txt);
@@ -1968,8 +1976,83 @@ int get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
     return 1;
 }
 
+static
+void
+drsp_parse_args(int argc, char** argv, char* (*files)[64]){
+    ArgToParse pos_args[] = {
+        {
+            .name = SV("files"),
+            .dest = ARGDEST(*files),
+            .min_num = 0,
+            .max_num = arrlen(*files)-1,
+        },
+    };
+    ArgToParse kw_args[] = {
+        {
+            .name = SV("--borderless"),
+            .dest = ARGDEST(&borderless),
+            .help = "Don't draw separators between cells",
+        },
+    };
+    enum {HELP=0, FISH=1};
+    ArgToParse early_args[] = {
+        [HELP] = {
+            .name = SV("-h"),
+            .altname1 = SV("--help"),
+            .help = "Print this help and exit.",
+        },
+        [FISH] = {
+            .name = SV("-f"),
+            .altname1 = SV("--fish"),
+            .help = "List the names of the test functions and exit.",
+            .hidden = 1,
+        },
+    };
+    ArgParser argparser = {
+        .name = argc?argv[0]:"drsp",
+        .description = "TUI spreadsheet editor/evaluator",
+        .positional={
+            .args = pos_args,
+            .count = arrlen(pos_args),
+        },
+        .keyword={
+            .args = kw_args,
+            .count = arrlen(kw_args),
+        },
+        .early_out={
+            .args = early_args,
+            .count = arrlen(early_args),
+        },
+        .styling={.plain = !isatty(fileno(stdout)),},
+    };
+    Args args = argc?(Args){argc-1, (const char*const*)argv+1}: (Args){0, 0};
+    switch(check_for_early_out_args(&argparser, &args)){
+        case HELP:{
+            int columns = get_terminal_size().columns;
+            if(columns > 80)
+                columns = 80;
+            print_argparse_help(&argparser, columns);
+            exit(0);
+        }break;
+        case FISH:
+            print_argparse_fish_completions(&argparser);
+            exit(0);
+            break;
+        default:
+            break;
+    }
+    enum ArgParseError e = parse_args(&argparser, &args, ARGPARSE_FLAGS_NONE);
+    if(e){
+        print_argparse_error(&argparser, e);
+        fprintf(stderr, "Use --help to see usage.\n");
+        exit((int)e);
+    }
+}
+
 int
 main(int argc, char** argv){
+    char* files[64] = {0};
+    drsp_parse_args(argc, argv, &files);
     set_status("");
     int pid = getpid();
     LOG("pid: %d\n", pid);
@@ -1991,8 +2074,8 @@ main(int argc, char** argv){
     }
     else {
         int e;
-        for(int i = 1; i < argc; i++){
-            char* filename = argv[i];
+        for(char** f = files; *f; f++){
+            char* filename = *f;
             char* txt = read_file(filename);
             if(!txt) txt = xstrdup("");
             char* name;
@@ -2646,6 +2729,15 @@ main(int argc, char** argv){
                             || strcmp(EDIT.buff, "prev") == 0
                             || strcmp(EDIT.buff, "previous") == 0){
                                 next_sheet(-1);
+                                redisplay();
+                                change_mode(MOVE_MODE);
+                                continue;
+                            }
+                            if(strcmp(EDIT.buff, "border") == 0
+                            || strcmp(EDIT.buff, "bo") == 0
+                            || strcmp(EDIT.buff, "borderless") == 0
+                            ){
+                                borderless = !borderless;
                                 redisplay();
                                 change_mode(MOVE_MODE);
                                 continue;
