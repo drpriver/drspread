@@ -79,7 +79,7 @@ static inline
 char*_Nullable
 drsp_strdup(const char* txt){
     size_t len = strlen(txt)+1;
-    char* t = drsp_alloc(0, NULL, len, _Alignof *t);
+    char* t = drsp_alloc(0, NULL, len, _Alignof(char));
     if(!t) return t;
     memcpy(t, txt, len);
     return t;
@@ -92,7 +92,7 @@ drsp_asprintf(char*_Nullable*_Nonnull out, const char* fmt, ...){
     va_start(vap, fmt);
     va_copy(vap2, vap);
     int len = vsnprintf(NULL, 0, fmt, vap);
-    char* buff = drsp_alloc(0, NULL, len+1, _Alignof *buff);
+    char* buff = drsp_alloc(0, NULL, len+1, _Alignof(char));
     int ret = vsnprintf(buff, len+1, fmt, vap2);
     *out = buff;
     va_end(vap);
@@ -115,11 +115,11 @@ void
 sheet_row_push(SheetRow* ro, const char* txt){
     size_t oldsz = ro->n*sizeof txt;
     size_t newsz = ++ro->n*sizeof txt;
-    void* d = drsp_alloc(oldsz, ro->data, newsz, _Alignof txt);
+    void* d = drsp_alloc(oldsz, ro->data, newsz, _Alignof(const char*));
     if(!d) abort();
     ro->data = d;
     ro->data[ro->n-1] = txt;
-    d = drsp_alloc((ro->n-1)*sizeof txt, ro->lengths, ro->n * sizeof txt, _Alignof txt);
+    d = drsp_alloc((ro->n-1)*sizeof txt, ro->lengths, ro->n * sizeof txt, _Alignof(const char*));
     if(!d) abort();
     ro->lengths = d;
     ro->lengths[ro->n-1] = strlen(txt);
@@ -140,13 +140,13 @@ struct SpreadSheet {
 
 static void
 cleanup_row_pair(SheetRow* ro, SheetRow* disp){
-    drsp_alloc(ro->n*sizeof *ro->data, ro->data, 0, _Alignof *ro->data);
-    drsp_alloc(ro->n*sizeof *ro->lengths, ro->lengths, 0, _Alignof *ro->lengths);
+    drsp_alloc(ro->n*sizeof *ro->data, ro->data, 0, _Alignof(const char*));
+    drsp_alloc(ro->n*sizeof *ro->lengths, ro->lengths, 0, _Alignof(size_t));
     for(int i = 0; i < disp->n; i++){
         drsp_alloc(disp->lengths[i]+1, disp->data[i], 0, 1);
     }
-    drsp_alloc(disp->n*sizeof *disp->data, disp->data, 0, _Alignof *disp->data);
-    drsp_alloc(disp->n*sizeof *disp->lengths, disp->lengths, 0, _Alignof *disp->lengths);
+    drsp_alloc(disp->n*sizeof *disp->data, disp->data, 0, _Alignof (const char*));
+    drsp_alloc(disp->n*sizeof *disp->lengths, disp->lengths, 0, _Alignof (size_t));
 }
 
 static
@@ -156,10 +156,10 @@ cleanup_sheet(SpreadSheet* sheet){
     for(intptr_t i = 0; i < sheet->rows; i++){
         cleanup_row_pair(&sheet->cells[i], &sheet->display[i]);
     }
-    drsp_alloc(sheet->rows * sizeof *sheet->cells, sheet->cells, 0, _Alignof *sheet->cells);
-    drsp_alloc(sheet->rows * sizeof *sheet->display, sheet->display, 0, _Alignof *sheet->display);
-    drsp_alloc(sheet->colnames.n * sizeof *sheet->colnames.data, sheet->colnames.data, 0, _Alignof * sheet->colnames.data);
-    drsp_alloc(sheet->colnames.n * sizeof *sheet->colnames.lengths, sheet->colnames.lengths, 0, _Alignof *sheet->colnames.lengths);
+    drsp_alloc(sheet->rows * sizeof *sheet->cells, sheet->cells, 0, _Alignof(SheetRow));
+    drsp_alloc(sheet->rows * sizeof *sheet->display, sheet->display, 0, _Alignof(SheetRow));
+    drsp_alloc(sheet->colnames.n * sizeof *sheet->colnames.data, sheet->colnames.data, 0, _Alignof(const char*));
+    drsp_alloc(sheet->colnames.n * sizeof *sheet->colnames.lengths, sheet->colnames.lengths, 0, _Alignof(size_t));
 }
 
 static
@@ -167,11 +167,11 @@ void
 sheet_push_row(SpreadSheet* sheet, SheetRow ro, SheetRow disp){
     ++sheet->rows;
 
-    sheet->cells = drsp_alloc((sheet->rows-1)*sizeof *sheet->cells, sheet->cells, sheet->rows*sizeof *sheet->cells, _Alignof *sheet->cells);
+    sheet->cells = drsp_alloc((sheet->rows-1)*sizeof *sheet->cells, sheet->cells, sheet->rows*sizeof *sheet->cells, _Alignof(SheetRow));
     assert(sheet->cells);
     sheet->cells[sheet->rows-1] = ro;
 
-    sheet->display = drsp_alloc((sheet->rows-1)*sizeof *sheet->display, sheet->display, sizeof(*sheet->display)*sheet->rows, _Alignof *sheet->display);
+    sheet->display = drsp_alloc((sheet->rows-1)*sizeof *sheet->display, sheet->display, sizeof(*sheet->display)*sheet->rows, _Alignof(SheetRow));
     assert(sheet->display);
     sheet->display[sheet->rows-1] = disp;
 }
@@ -181,10 +181,10 @@ void
 sheet_pop_row(SpreadSheet* sheet){
     if(sheet->rows <= 0) return;
     int end = --sheet->rows;
-    if(end < 0) __builtin_unreachable(); // GCC spews a weird warning about malloc size otherwise
+    // if(end < 0) __builtin_unreachable(); // GCC spews a weird warning about malloc size otherwise
     cleanup_row_pair(&sheet->cells[end], &sheet->display[end]);
-    sheet->cells = drsp_alloc((end+1)*sizeof *sheet->cells, sheet->cells, end*sizeof *sheet->cells, _Alignof *sheet->cells);
-    sheet->display = drsp_alloc((end+1)*sizeof *sheet->display, sheet->display, end*sizeof *sheet->display, _Alignof *sheet->display);
+    sheet->cells = drsp_alloc((end+1)*sizeof *sheet->cells, sheet->cells, end*sizeof *sheet->cells, _Alignof(SheetRow));
+    sheet->display = drsp_alloc((end+1)*sizeof *sheet->display, sheet->display, end*sizeof *sheet->display, _Alignof(SheetRow));
 
 }
 
@@ -201,7 +201,7 @@ void
 cleanup_multisheet(MultiSpreadSheet* ms){
     for(int i = 0; i < ms->n; i++)
         cleanup_sheet(&ms->sheets[i]);
-    drsp_alloc(ms->n * sizeof *ms->sheets, ms->sheets, 0, _Alignof *ms->sheets);
+    drsp_alloc(ms->n * sizeof *ms->sheets, ms->sheets, 0, _Alignof(SpreadSheet));
     if(ms->txt)
         drsp_alloc(ms->txt_len+1, ms->txt, 0, 1);
 }
@@ -209,7 +209,7 @@ cleanup_multisheet(MultiSpreadSheet* ms){
 static
 SpreadSheet*_Nullable
 multisheet_alloc(MultiSpreadSheet* ms){
-    SpreadSheet* newsheets = drsp_alloc(ms->n * sizeof *newsheets, ms->sheets, (ms->n+1)*sizeof *newsheets, _Alignof *newsheets);
+    SpreadSheet* newsheets = drsp_alloc(ms->n * sizeof *newsheets, ms->sheets, (ms->n+1)*sizeof *newsheets, _Alignof(SpreadSheet));
     if(!newsheets) return NULL;
     assert(newsheets);
     ms->sheets = newsheets;
@@ -230,7 +230,7 @@ sheet_set_display_number(void* m, SheetHandle hnd, intptr_t row, intptr_t col, d
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     int printed;
     // free((void*)ro->data[col]);
-    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, _Alignof *ro->data[col]);
+    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, 1);
     if(val != val){ // nan
         ro->data[col] = drsp_strdup("nan");
         printed = 3;
@@ -254,7 +254,7 @@ sheet_set_display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, con
     if(unlikely(col < 0 || col >= ro->n)) return 1;
     (void)mess;
     (void)len;
-    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, _Alignof *ro->data[col]);
+    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, 1);
     // free((void*)ro->data[col]);
     ro->data[col] = drsp_strdup("error");
     ro->lengths[col] = 5;
@@ -268,7 +268,7 @@ sheet_set_display_string(void*m, SheetHandle hnd, intptr_t row, intptr_t col, co
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
-    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, _Alignof *ro->data[col]);
+    drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, 1);
     int printed = drsp_asprintf((char**)&ro->data[col], "%.*s", (int)len, mess);
     if(printed < 0) return 1;
     ro->lengths[col] = printed;
@@ -291,7 +291,7 @@ read_file(const char* filename){
     if(len < 0) goto fail;
     err = fseek(fp, 0, SEEK_SET);
     if(err) goto fail;
-    txt = drsp_alloc(0, NULL, len+1, _Alignof *txt);
+    txt = drsp_alloc(0, NULL, len+1, 1);
     if(!txt) goto fail;
     n = fread(txt, 1, len, fp);
     if(n != (size_t)len) goto fail;
@@ -301,7 +301,7 @@ read_file(const char* filename){
     return txt;
 
     fail:
-    if(txt) drsp_alloc(len+1, txt, 0, _Alignof *txt);
+    if(txt) drsp_alloc(len+1, txt, 0, 1);
     fclose(fp);
     return NULL;
 }

@@ -17,7 +17,7 @@ DrSpreadCtx* _Nullable
 drsp_create_ctx(ARGS){
 #undef ARGS
     size_t sz = (CTX_EXTRA+sizeof(DrSpreadCtx));
-    DrSpreadCtx* ctx = drsp_alloc(0, NULL, sz, _Alignof *ctx);
+    DrSpreadCtx* ctx = drsp_alloc(0, NULL, sz, _Alignof(DrSpreadCtx));
     // fprintf(stderr, "%zu\n", sz);
     __builtin_memset(ctx, 0, sizeof *ctx);
     if(!ctx) return NULL;
@@ -47,7 +47,7 @@ int
 drsp_destroy_ctx(DrSpreadCtx*_Nullable ctx){
     if(!ctx) return 0;
     drsp_destroy_ctx_(ctx);
-    drsp_alloc(sizeof*ctx+CTX_EXTRA, ctx, 0, _Alignof *ctx);
+    drsp_alloc(sizeof*ctx+CTX_EXTRA, ctx, 0, _Alignof(DrSpreadCtx));
     return 0;
 }
 
@@ -433,7 +433,7 @@ free_linked_arenas(LinkedArena*_Nullable arena){
     while(arena){
         LinkedArena* to_free = arena;
         arena = arena->next;
-        drsp_alloc(sizeof *to_free, to_free, 0, _Alignof *to_free);
+        drsp_alloc(sizeof *to_free, to_free, 0, _Alignof(LinkedArena));
     }
 }
 
@@ -444,7 +444,7 @@ free_sheet_datas(DrSpreadCtx* ctx){
         SheetData* d = &ctx->map.data[i];
         cleanup_sheet_data(d);
     }
-    drsp_alloc(ctx->map.cap*sizeof *ctx->map.data, ctx->map.data, 0, _Alignof *ctx->map.data);
+    drsp_alloc(ctx->map.cap*sizeof *ctx->map.data, ctx->map.data, 0, _Alignof(SheetData));
 }
 
 static inline
@@ -780,7 +780,7 @@ linked_arena_alloc(LinkedArena*_Nullable*_Nonnull parena, size_t len){
             }
             arena = arena->next;
         }
-        arena = drsp_alloc(0, NULL, sizeof *arena, _Alignof *arena);
+        arena = drsp_alloc(0, NULL, sizeof *arena, _Alignof(LinkedArena));
         if(!arena) return NULL;
         arena->next = *parena;
         arena->used = 0;
@@ -814,7 +814,7 @@ set_named_cell(NamedCells* cells, DrspAtom name, intptr_t row, intptr_t col){
     }
     if(cells->count == cells->capacity){
         size_t new_cap = cells->capacity?cells->capacity*2:2;
-        void* p = drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, new_cap * sizeof *cells->data, _Alignof(*cells->data));
+        void* p = drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, new_cap * sizeof *cells->data, _Alignof(NamedCell));
         if(!p) return 1;
         cells->data = p;
         cells->capacity = new_cap;
@@ -831,7 +831,7 @@ DRSP_INTERNAL
 void
 cleanup_named_cells(NamedCells* cells){
     if(cells->data)
-        drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, 0, _Alignof(*cells->data));
+        drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, 0, _Alignof(NamedCell));
 }
 
 DRSP_INTERNAL

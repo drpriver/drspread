@@ -30,7 +30,7 @@ set_cached_col_name(ColCache* cache, DrspAtom name, intptr_t value){
     if(found) return 0;
     if(cache->n >= cache->cap){
         size_t new_cap = cache->cap?cache->cap*2:4;
-        names = drsp_alloc(cache->cap * sizeof *names, names, new_cap* sizeof *names, _Alignof *names);
+        names = drsp_alloc(cache->cap * sizeof *names, names, new_cap* sizeof *names, _Alignof(ColName));
         if(!names) return 1;
         cache->data = (unsigned char*)names;
         cache->cap = new_cap;

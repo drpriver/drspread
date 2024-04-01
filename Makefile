@@ -36,9 +36,9 @@ endif
 
 ifneq (,$(findstring clang,$(CC)))
 SANITIZE=-fsanitize=address,undefined,nullability
-WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal -Wuninitialized -Wconditional-uninitialized
+WFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal -Wuninitialized -Wconditional-uninitialized
 endif
-WWFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types -Wno-gnu-alignof-expression -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
+WWFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-extension -Wno-gnu-zero-variadic-macro-arguments -Werror=int-conversion -Werror=incompatible-pointer-types  -Wno-language-extension-token -Werror=return-type -Werror=undefined-internal
 
 
 Bin/drspread$(EXE): drspread_cli.c Makefile | Bin Depends
