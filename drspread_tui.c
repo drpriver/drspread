@@ -196,12 +196,16 @@ array_ensure(void*  data, size_t* cap, size_t count, size_t T_sz){
     ((array)->data=array_ensure((array)->data, &(array)->capacity, (array)->count, sizeof *(array)->data), \
      &(array)->data[(array)->count++])
 
+const char* LOGFILE = NULL;
 static inline
 void
 __attribute__((format(printf,1, 2)))
 LOG(const char* fmt, ...){
     static FILE* fp;
-    if(!fp) fp = fopen("dbglog.txt", "wbe");
+    if(!fp) {
+        if(!LOGFILE) return;
+        fp = fopen(LOGFILE, "wbe");
+    }
     if(!fp) return;
 
     va_list va;
@@ -1985,6 +1989,7 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64]){
             .dest = ARGDEST(*files),
             .min_num = 0,
             .max_num = arrlen(*files)-1,
+            .help = "drsp or tsvs",
         },
     };
     ArgToParse kw_args[] = {
@@ -1993,6 +1998,11 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64]){
             .dest = ARGDEST(&borderless),
             .help = "Don't draw separators between cells",
         },
+        {
+            .name = SV("--logfile"),
+            .dest = ARGDEST(&LOGFILE),
+            .help = "File to log to.",
+        }
     };
     enum {HELP=0, FISH=1};
     ArgToParse early_args[] = {
