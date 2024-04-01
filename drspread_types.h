@@ -13,6 +13,8 @@
 #include "drspread_allocators.h"
 
 #if defined(__IMPORTC__)
+__import ldc.intrinsics;
+#define FrameAddress() (uintptr_t)llvm_frameaddress(0)
 #elif defined(__GNUC__) || defined(__clang__)
 #define FrameAddress() (uintptr_t)__builtin_frame_address(0)
 #elif defined(_MSC_VER)

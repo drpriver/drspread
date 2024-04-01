@@ -104,7 +104,7 @@ read_unaligned1(const void* p){
 
 
 
-#if defined(__ARM_ACLE) && __ARM_FEATURE_CRC32
+#if !defined(__IMPORTC__) && defined(__ARM_ACLE) && __ARM_FEATURE_CRC32
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

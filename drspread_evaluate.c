@@ -17,14 +17,13 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     {
         #ifdef FrameAddress
         uintptr_t frm = FrameAddress();
-        #endif
-
-        #ifdef __wasm__
-            uintptr_t limit = 10000;
-            if(frm < limit) return NULL;
-        #elif !defined(__IMPORTC__)
-            uintptr_t limit = ctx->limit;
-            if(frm < limit) return NULL;
+            #ifdef __wasm__
+                uintptr_t limit = 10000;
+                if(frm < limit) return NULL;
+            #else
+                uintptr_t limit = ctx->limit;
+                if(frm < limit) return NULL;
+            #endif
         #endif
     }
     // HACK

@@ -4,6 +4,13 @@
 #ifndef DRSPREAD_C
 #define DRSPREAD_C
 
+#if defined(__IMPORTC__)
+__import ldc.intrinsics;
+#define __builtin_log llvm_log
+#define __builtin_memmove llvm_memmove
+#endif
+
+
 #include "drspread.h"
 #include "drspread_evaluate.h"
 #include "drspread_parse.h"
