@@ -2077,7 +2077,7 @@ main(int argc, char** argv){
     CTX = drsp_create_ctx(&ops);
     nil_atom = xatomize("", 0);
 
-    if(argc < 2){
+    if(!files[0]){
         SHEET = new_sheet("main", NULL);
         int e = drsp_set_sheet_name(CTX, (SheetHandle)SHEET, SHEET->name, strlen(SHEET->name));
         if(e) goto finally;
