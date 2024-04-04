@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include "term_util.h"
+#define DRSP_EXPORT static
 #include "drspread.h"
 #include "argument_parsing.h"
 
@@ -77,9 +78,9 @@ strdup(const char* p){
 
 #endif
 
-DrSpreadCtx* CTX;
-DrspAtom nil_atom;
-_Bool borderless;
+static DrSpreadCtx* CTX;
+static DrspAtom nil_atom;
+static _Bool borderless;
 
 static inline
 _Bool
@@ -196,23 +197,21 @@ array_ensure(void*  data, size_t* cap, size_t count, size_t T_sz){
     ((array)->data=array_ensure((array)->data, &(array)->capacity, (array)->count, sizeof *(array)->data), \
      &(array)->data[(array)->count++])
 
-const char* LOGFILE = NULL;
+static const char* LOGFILE = NULL;
+static FILE* LOGFILE_FP = NULL;
 static inline
 void
 __attribute__((format(printf,1, 2)))
 LOG(const char* fmt, ...){
-    static FILE* fp;
-    if(!fp) {
-        if(!LOGFILE) return;
-        fp = fopen(LOGFILE, "wbe");
-    }
-    if(!fp) return;
+    if(!LOGFILE) return;
+    if(!LOGFILE_FP) LOGFILE_FP = fopen(LOGFILE, "wbe");
+    if(!LOGFILE_FP) return;
 
     va_list va;
     va_start(va, fmt);
-    vfprintf(fp, fmt, va);
+    vfprintf(LOGFILE_FP, fmt, va);
     va_end(va);
-    fflush(fp);
+    fflush(LOGFILE_FP);
 }
 
 
@@ -273,17 +272,17 @@ enum {
     DRAW_LINES   = 0x2,
     DRAW_CELLS   = 0x4,
 };
-TermState TS;
-int ROWS=-1, COLS=-1;
-int BASE_X, BASE_Y;
-int CELL_X, CELL_Y;
-int rescaled = 0;
-int need_redisplay = 1;
-int need_rescale = 1;
-int need_recalc = 1;
-int SEL_X=-1, SEL_Y=-1;
-int mode = 0; // MOVE_MODE
-char* status = NULL;
+static TermState TS;
+static int ROWS=-1, COLS=-1;
+static int BASE_X, BASE_Y;
+static int CELL_X, CELL_Y;
+static int rescaled = 0;
+static int need_redisplay = 1;
+static int need_rescale = 1;
+static int need_recalc = 1;
+static int SEL_X=-1, SEL_Y=-1;
+static int mode = 0; // MOVE_MODE
+static char* status = NULL;
 enum {
     MOVE_MODE = 0,
     INSERT_MODE,
@@ -296,7 +295,10 @@ enum {
 };
 enum {DEFAULT_WIDTH=8};
 enum {MAX_FILL_WIDTH=16};
-void set_status(const char* fmt, ...){
+
+static
+void
+set_status(const char* fmt, ...){
     free(status);
     va_list va;
     va_start(va, fmt);
@@ -305,8 +307,11 @@ void set_status(const char* fmt, ...){
     if(n < 0 || status == NULL)
         abort();
 }
-void redisplay(void);
-void change_mode(int m){
+static void redisplay(void);
+
+static
+void
+change_mode(int m){
     redisplay();
     if(m != MOVE_MODE && m != SELECT_MODE && m != LINE_SELECT_MODE){
         printf("\033[?25h\033[6 q");
@@ -318,7 +323,9 @@ void change_mode(int m){
     mode = m;
 }
 
-const char* mode_name(int mode){
+static
+const char*
+mode_name(int mode){
     switch(mode){
         case MOVE_MODE:        return "MOVE";
         case INSERT_MODE:      return "EDIT";
@@ -332,11 +339,15 @@ const char* mode_name(int mode){
     }
 }
 
-void redisplay(void){
+static
+void
+redisplay(void){
     need_redisplay = 1;
 }
 
-void recalc(void){
+static
+void
+recalc(void){
     need_recalc = 1;
 }
 
@@ -359,6 +370,7 @@ struct Pasteboard {
 };
 Pasteboard PASTEBOARD;
 
+static
 void
 set_rc_val_a(Rows* rows, int y, int x, DrspAtom a){
     if(y >= rows->count && a == nil_atom) return;
@@ -371,6 +383,7 @@ set_rc_val_a(Rows* rows, int y, int x, DrspAtom a){
     row->data[x] = a;
 }
 
+static
 DrspAtom
 set_rc_val(Rows* rows, int y, int x, const char* value, size_t len){
     DrspAtom a = xatomize(value, len);
@@ -386,6 +399,7 @@ struct TextChunk {
     size_t vis_width;
 };
 
+static
 TextChunk
 get_rc_val(Rows* rows, int y, int x){
     TextChunk result = {nil_atom, NULL, 0, 0};
@@ -401,6 +415,7 @@ get_rc_val(Rows* rows, int y, int x){
     return result;
 }
 
+static
 DrspAtom
 get_rc_a(Rows* rows, int y, int x){
     DrspAtom result = nil_atom;
@@ -468,6 +483,7 @@ struct UndoStack {
     size_t cursor;
 };
 
+static
 void
 cleanup_undoable(Undoable* undoable){
     switch(undoable->kind){
@@ -489,6 +505,7 @@ cleanup_undoable(Undoable* undoable){
     }
 }
 
+static
 void
 truncate_undos(UndoStack* undos){
     for(size_t i = undos->cursor; i < undos->count; i++){
@@ -497,6 +514,7 @@ truncate_undos(UndoStack* undos){
     undos->count = undos->cursor;
 }
 
+static
 void
 note_cell_change(UndoStack* undos, int y, int x, DrspAtom before, DrspAtom after){
     if(after == before) return;
@@ -512,6 +530,7 @@ note_cell_change(UndoStack* undos, int y, int x, DrspAtom before, DrspAtom after
     undos->cursor++;
 }
 
+static
 Undoable*
 note_nested_change(UndoStack* undos){
     truncate_undos(undos);
@@ -521,6 +540,7 @@ note_nested_change(UndoStack* undos){
     return result;
 }
 
+static
 void
 push_undo_event(UndoStack* undos, Undoable ud){
     truncate_undos(undos);
@@ -528,6 +548,7 @@ push_undo_event(UndoStack* undos, Undoable ud){
     *append(undos) = ud;
 }
 
+static
 Undoable*
 note_delete_row(UndoStack* undos){
     truncate_undos(undos);
@@ -537,6 +558,7 @@ note_delete_row(UndoStack* undos){
     return result;
 }
 
+static
 void
 note_insert_rows(UndoStack* undos, int y, int n){
     truncate_undos(undos);
@@ -576,6 +598,7 @@ struct Sheets {
 };
 Sheets SHEETS = {0};
 
+static
 Sheet*
 find_sheet(const char* name){
     for(size_t i = 0; i < SHEETS.count; i++){
@@ -585,6 +608,7 @@ find_sheet(const char* name){
     return NULL;
 }
 
+static
 Sheet*
 new_sheet(const char* name, const char* filename){
     assert(!find_sheet(name));
@@ -596,7 +620,9 @@ new_sheet(const char* name, const char* filename){
     return result;
 }
 
-void clear(Sheet* sheet){
+static
+void
+clear(Sheet* sheet){
     for(int y = 0; y < sheet->data.count; y++){
         Row* row = &sheet->data.data[y];
         for(int x = 0; x < row->count; x++){
@@ -609,6 +635,7 @@ void clear(Sheet* sheet){
     recalc();
 }
 
+static
 void
 update_cell_no_eval_a(Sheet* sheet, int y, int x, DrspAtom a){
     set_rc_val_a(&sheet->data, y, x, a);
@@ -629,15 +656,18 @@ update_cell_no_eval_a(Sheet* sheet, int y, int x, DrspAtom a){
     }
 }
 
+static
 void
 update_cell_a(Sheet* sheet, int y, int x, DrspAtom a){
     update_cell_no_eval_a(sheet, y, x, a);
     recalc();
 }
 
+static
 void
 insert_row(Sheet* sheet, int y, int n);
 
+static
 void
 delete_row(Sheet* sheet, int y, int n);
 
@@ -650,6 +680,7 @@ enum PasteKind {
 
 typedef enum PasteKind PasteKind;
 
+static
 void
 paste_rows(Sheet* sheet, const Rows* rows, int y, int x, PasteKind line_paste){
     // LOG("line_paste: %d\n", (int)line_paste);
@@ -742,11 +773,15 @@ paste_rows(Sheet* sheet, const Rows* rows, int y, int x, PasteKind line_paste){
     recalc();
 }
 
-void cleanup_row(Row* deleted){
+static
+void
+cleanup_row(Row* deleted){
     free(deleted->data);
 }
 
-void copy_cells(Sheet* sheet, int y, int x, int h, int w){
+static
+void
+copy_cells(Sheet* sheet, int y, int x, int h, int w){
     while(PASTEBOARD.rows.count > h){
         Row* last = &PASTEBOARD.rows.data[PASTEBOARD.rows.count-1];
         cleanup_row(last);
@@ -765,7 +800,9 @@ void copy_cells(Sheet* sheet, int y, int x, int h, int w){
     PASTEBOARD.line_paste = 0;
 }
 
-void copy_rows(Sheet* sheet, int y, int h){
+static
+void
+copy_rows(Sheet* sheet, int y, int h){
     int w = 0;
     for(size_t iy = y; iy < y+h && iy < sheet->data.count; iy++){
         const Row* row = &sheet->data.data[iy];
@@ -776,7 +813,9 @@ void copy_rows(Sheet* sheet, int y, int h){
     PASTEBOARD.line_paste = 1;
 }
 
-void delete_cells(Sheet* sheet, int y, int x, int h, int w){
+static
+void
+delete_cells(Sheet* sheet, int y, int x, int h, int w){
     copy_cells(sheet, y, x, h, w);
     for(int dy = 0; dy < h; dy++){
         for(int dx = 0; dx < w; dx++){
@@ -808,10 +847,13 @@ void delete_cells(Sheet* sheet, int y, int x, int h, int w){
     recalc();
 }
 
-void paste(Sheet* sheet, int y, int x, PasteKind pastekind){
+static
+void
+paste(Sheet* sheet, int y, int x, PasteKind pastekind){
     paste_rows(sheet, &PASTEBOARD.rows, y, x, pastekind);
 }
 
+static
 void
 change_col_width(Sheet* sheet, int x, int dw){
     while(x >= sheet->columns.count){
@@ -833,6 +875,7 @@ change_col_width(Sheet* sheet, int x, int dw){
     col->width = w;
 }
 
+static
 void
 change_col_width_fill(Sheet* sheet, int x){
     if(x >= sheet->columns.count)
@@ -859,6 +902,7 @@ change_col_width_fill(Sheet* sheet, int x){
     change_col_width(sheet, x, w-col->width);
 }
 
+static
 void
 rename_column(Sheet* sheet, int x, const char* p){
     char* name = xstrdup(p);
@@ -879,7 +923,9 @@ rename_column(Sheet* sheet, int x, const char* p){
     recalc();
 }
 
-void line_select_bounds(Sheet* sheet, int* x0, int* x1){
+static
+void
+line_select_bounds(Sheet* sheet, int* x0, int* x1){
     *x0 = 0;
     size_t max = 0;
     for(size_t i = 0; i < sheet->data.count; i++)
@@ -889,7 +935,9 @@ void line_select_bounds(Sheet* sheet, int* x0, int* x1){
 }
 
 
-void move(int dx, int dy){
+static
+void
+move(int dx, int dy){
     // LOG("dx, dy: %d, %d\n", dx, dy);
     CELL_Y += dy;
     if(CELL_Y < 0) CELL_Y = 0;
@@ -923,7 +971,9 @@ void move(int dx, int dy){
     redisplay();
 }
 
-void begin_line_edit_buff(const char* txt, size_t len){
+static
+void
+begin_line_edit_buff(const char* txt, size_t len){
     if(!txt) txt = "";
     assert(len < sizeof(EDIT.buff));
     memcpy(EDIT.buff, txt, len);
@@ -932,7 +982,9 @@ void begin_line_edit_buff(const char* txt, size_t len){
     EDIT.buff_len = len;
 }
 
-void begin_line_edit(Sheet* sheet){
+static
+void
+begin_line_edit(Sheet* sheet){
     if(mode == CHANGE_MODE)
         begin_line_edit_buff("", 0);
     else {
@@ -943,6 +995,7 @@ void begin_line_edit(Sheet* sheet){
     }
 }
 
+static
 void
 insert_text(const char* txt, size_t n){
     if(EDIT.buff_len >= sizeof(EDIT.buff)-n)
@@ -957,7 +1010,9 @@ insert_text(const char* txt, size_t n){
     EDIT.buff[EDIT.buff_len] = 0;
 }
 
-void handle_edit_key(int c){
+static
+void
+handle_edit_key(int c){
     switch(c){
         case HOME:
         case CTRL_A:
@@ -1014,9 +1069,9 @@ void handle_edit_key(int c){
     }
 }
 
-
-
-void draw_grid(Sheet* sheet){
+static
+void
+draw_grid(Sheet* sheet){
     int advance = 12;
     printf("\033[H\033[2K");
     const int borderless_ = borderless;
@@ -1260,6 +1315,7 @@ sighandler(int sig){
 }
 
 
+static
 int
 display_number(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, double value){
     (void)ctx;
@@ -1296,6 +1352,7 @@ display_number(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, double val
     return 0;
 }
 
+static
 int
 display_error(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char* txt, size_t len){
     (void)ctx;
@@ -1307,6 +1364,7 @@ display_error(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char*
     return 0;
 }
 
+static
 int
 display_string(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char* txt, size_t len){
     (void)ctx;
@@ -1318,6 +1376,7 @@ display_string(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char
 }
 
 
+static
 SheetOps
 make_ops(void){
     SheetOps ops = {
@@ -1339,6 +1398,7 @@ struct CellCoord {
     int column, row;
 };
 
+static
 CellCoord
 screen_to_cell(Sheet* sheet, int x, int y){
     if(x < 4)
@@ -1371,6 +1431,7 @@ screen_to_cell(Sheet* sheet, int x, int y){
 }
 
 
+static
 CellLoc
 cell_to_screen(Sheet* sheet, int x, int y){
     int screen_x = 1+4;
@@ -1393,6 +1454,7 @@ cell_to_screen(Sheet* sheet, int x, int y){
     return loc;
 }
 
+static
 void
 insert_row(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
@@ -1432,6 +1494,7 @@ insert_row(Sheet* sheet, int y, int n){
     }
 }
 
+static
 void
 insert_row_with_undo(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
@@ -1443,7 +1506,9 @@ insert_row_with_undo(Sheet* sheet, int y, int n){
 }
 
 
-void delete_row(Sheet* sheet, int y, int n){
+static
+void
+delete_row(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
     Rows* rows = &sheet->data;
     if(y >= rows->count) return;
@@ -1489,7 +1554,9 @@ void delete_row(Sheet* sheet, int y, int n){
     rows->count -= n;
 }
 
-void delete_row_with_undo(Sheet* sheet, int y, int n){
+static
+void
+delete_row_with_undo(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
     Rows* rows = &sheet->data;
     if(y >= rows->count) return;
@@ -1673,7 +1740,9 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
     return result;
 }
 
-Sheet* next_sheet(Sheet* sheet, int d){
+static
+Sheet*
+next_sheet(Sheet* sheet, int d){
     int idx;
     for(idx = 0; idx < SHEETS.count; idx++){
         if(SHEETS.data[idx] == sheet)
@@ -1688,6 +1757,7 @@ Sheet* next_sheet(Sheet* sheet, int d){
     return SHEETS.data[idx];
 }
 
+static
 void
 apply_undo(Sheet* sheet, Undoable* u){
     switch(u->kind){
@@ -1713,6 +1783,7 @@ apply_undo(Sheet* sheet, Undoable* u){
     }
 
 }
+static
 void
 apply_redo(Sheet* sheet, Undoable* u){
     switch(u->kind){
@@ -1738,6 +1809,7 @@ apply_redo(Sheet* sheet, Undoable* u){
     }
 }
 
+static
 void
 undo(Sheet* sheet){
     UndoStack* ud = &sheet->undo;
@@ -1747,6 +1819,7 @@ undo(Sheet* sheet){
     apply_undo(sheet, u);
 }
 
+static
 void
 redo(Sheet* sheet){
     UndoStack* ud = &sheet->undo;
@@ -1757,7 +1830,9 @@ redo(Sheet* sheet){
 }
 
 
-void update_display(Sheet* sheet){
+static
+void
+update_display(Sheet* sheet){
     if(need_rescale){
         TermSize sz = get_terminal_size();
         if(ROWS != sz.rows || COLS != sz.columns){
@@ -1809,7 +1884,9 @@ void update_display(Sheet* sheet){
     fflush(stdout);
 }
 
-int get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
+static
+int
+get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
     char _c;
     char sequence[8] = {0};
     ssize_t nread = read_one(&_c, /*block=*/1);
