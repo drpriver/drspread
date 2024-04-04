@@ -2095,6 +2095,12 @@ main(int argc, char** argv){
             _Bool is_drsp = 0;
             {
                 char* slash = strrchr(filename, '/');
+                #ifdef _WIN32
+                {
+                    char* backslash = strrchr(slash?slash:filename, '\\');
+                    if(backslash) slash = backslash;
+                }
+                #endif
                 name = slash?slash+1:filename;
                 char* dot = strrchr(name, '.');
                 if(dot)
