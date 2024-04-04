@@ -575,7 +575,6 @@ struct Sheets {
     size_t count, capacity;
 };
 Sheets SHEETS = {0};
-Sheet* SHEET;
 
 Sheet*
 find_sheet(const char* name){
@@ -611,31 +610,36 @@ void clear(Sheet* sheet){
 }
 
 void
-update_cell_no_eval_a(int y, int x, DrspAtom a){
-    set_rc_val_a(&SHEET->data, y, x, a);
+update_cell_no_eval_a(Sheet* sheet, int y, int x, DrspAtom a){
+    set_rc_val_a(&sheet->data, y, x, a);
     int e;
-    e = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, y, x, a);
+    e = drsp_set_cell_atom(CTX, (SheetHandle)sheet, y, x, a);
     (void)e;
-    if(x >= SHEET->columns.count){
-        Column* col = append(&SHEET->columns);
+    if(x >= sheet->columns.count){
+        Column* col = append(&sheet->columns);
         *col = (Column){0};
-        col->name = xsprintf("%c", 'a' + x);
+        if(x > 25){
+            col->name = xsprintf("A%c", 'a' + x-26);
+        }
+        else {
+            col->name = xsprintf("%c", 'a' + x);
+        }
         col->calc_width = strlen(col->name);
         col->width = 9;
     }
 }
 
 void
-update_cell_a(int y, int x, DrspAtom a){
-    update_cell_no_eval_a(y, x, a);
+update_cell_a(Sheet* sheet, int y, int x, DrspAtom a){
+    update_cell_no_eval_a(sheet, y, x, a);
     recalc();
 }
 
 void
-insert_row(int y, int n);
+insert_row(Sheet* sheet, int y, int n);
 
 void
-delete_row(int y, int n);
+delete_row(Sheet* sheet, int y, int n);
 
 enum PasteKind {
     PASTE_NORMAL = 0,
@@ -647,7 +651,7 @@ enum PasteKind {
 typedef enum PasteKind PasteKind;
 
 void
-paste_rows(const Rows* rows, int y, int x, PasteKind line_paste){
+paste_rows(Sheet* sheet, const Rows* rows, int y, int x, PasteKind line_paste){
     // LOG("line_paste: %d\n", (int)line_paste);
     Undoable* ud = NULL;
     switch(line_paste){
@@ -655,31 +659,31 @@ paste_rows(const Rows* rows, int y, int x, PasteKind line_paste){
             for(int dy = 0; dy < rows->count; dy++){
                 const Row* row = &rows->data[dy];
                 for(int dx = 0; dx < row->count; dx++){
-                    DrspAtom before = get_rc_a(&SHEET->data, y+dy, x+dx);
+                    DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
                     if(before == row->data[dx]) continue;
                     goto did_change;
                 }
             }
             return;
             did_change:;
-            ud = note_nested_change(&SHEET->undo);
+            ud = note_nested_change(&sheet->undo);
             break;
         case PASTE_BELOW:
-            ud = note_nested_change(&SHEET->undo);
+            ud = note_nested_change(&sheet->undo);
             y++;
             *append(&ud->nested) = (Undoable){
                 .kind = UNDO_INSERT_ROWS,
                 .insert_rows = { .y=y, .n=rows->count, },
             };
-            insert_row(y, rows->count);
+            insert_row(sheet, y, rows->count);
             break;
         case PASTE_ABOVE:
-            ud = note_nested_change(&SHEET->undo);
+            ud = note_nested_change(&sheet->undo);
             *append(&ud->nested) = (Undoable){
                 .kind = UNDO_INSERT_ROWS,
                 .insert_rows = { .y=y, .n=rows->count, },
             };
-            insert_row(y, rows->count);
+            insert_row(sheet, y, rows->count);
             break;
         case PASTE_REPLACE:{
             int h = imax(CELL_Y, SEL_Y) - imin(CELL_Y, SEL_Y) + 1;
@@ -689,11 +693,11 @@ paste_rows(const Rows* rows, int y, int x, PasteKind line_paste){
             // LOG("diff: %d\n", diff);
             if(diff < 0){
                 diff = -diff;
-                ud = note_nested_change(&SHEET->undo);
+                ud = note_nested_change(&sheet->undo);
                 for(int dy = 0; dy < diff; dy++){
                     int iy = y + dy;
-                    if(iy >= SHEET->data.count) break;
-                    const Row* row = &SHEET->data.data[iy];
+                    if(iy >= sheet->data.count) break;
+                    const Row* row = &sheet->data.data[iy];
                     for(size_t x = 0; x < row->count; x++){
                         if(row->data[x] != nil_atom){
                             *append(&ud->nested) = (Undoable){
@@ -707,27 +711,27 @@ paste_rows(const Rows* rows, int y, int x, PasteKind line_paste){
                     .kind = UNDO_DELETE_ROWS,
                     .delete_rows = {.y=y, .n=diff,},
                 };
-                delete_row(y, diff);
+                delete_row(sheet, y, diff);
             }
             else if(diff > 0){
-                ud = note_nested_change(&SHEET->undo);
+                ud = note_nested_change(&sheet->undo);
                 *append(&ud->nested) = (Undoable){
                     .kind = UNDO_INSERT_ROWS,
                     .insert_rows = { .y=y, .n=diff, },
                 };
                 // LOG("insert_row(%d, %d)\n", y, diff);
-                insert_row(y, diff);
+                insert_row(sheet, y, diff);
             }
             else
-                ud = note_nested_change(&SHEET->undo);
+                ud = note_nested_change(&sheet->undo);
         }break;
     }
     for(int dy = 0; dy < rows->count; dy++){
         const Row* row = &rows->data[dy];
         for(int dx = 0; dx < row->count; dx++){
-            DrspAtom before = get_rc_a(&SHEET->data, y+dy, x+dx);
+            DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
             if(before == row->data[dx]) continue;
-            update_cell_no_eval_a(y+dy, x+dx, row->data[dx]);
+            update_cell_no_eval_a(sheet, y+dy, x+dx, row->data[dx]);
             DrspAtom after = row->data[dx];
             *append(&ud->nested) = (Undoable){
                 .kind = UNDO_CHANGE_CELL,
@@ -742,7 +746,7 @@ void cleanup_row(Row* deleted){
     free(deleted->data);
 }
 
-void copy_cells(int y, int x, int h, int w){
+void copy_cells(Sheet* sheet, int y, int x, int h, int w){
     while(PASTEBOARD.rows.count > h){
         Row* last = &PASTEBOARD.rows.data[PASTEBOARD.rows.count-1];
         cleanup_row(last);
@@ -754,41 +758,41 @@ void copy_cells(int y, int x, int h, int w){
     for(int iy = 0; iy < h; iy++){
         PASTEBOARD.rows.data[iy].count = 0;
         for(int ix = 0; ix < w; ix++){
-            DrspAtom a = get_rc_a(&SHEET->data, y+iy, x+ix);
+            DrspAtom a = get_rc_a(&sheet->data, y+iy, x+ix);
             *append(&PASTEBOARD.rows.data[iy]) = a;
         }
     }
     PASTEBOARD.line_paste = 0;
 }
 
-void copy_rows(int y, int h){
+void copy_rows(Sheet* sheet, int y, int h){
     int w = 0;
-    for(size_t iy = y; iy < y+h && iy < SHEET->data.count; iy++){
-        const Row* row = &SHEET->data.data[iy];
+    for(size_t iy = y; iy < y+h && iy < sheet->data.count; iy++){
+        const Row* row = &sheet->data.data[iy];
         if(row->count > w)
             w = row->count;
     }
-    copy_cells(y, 0, h, w);
+    copy_cells(sheet, y, 0, h, w);
     PASTEBOARD.line_paste = 1;
 }
 
-void delete_cells(int y, int x, int h, int w){
-    copy_cells(y, x, h, w);
+void delete_cells(Sheet* sheet, int y, int x, int h, int w){
+    copy_cells(sheet, y, x, h, w);
     for(int dy = 0; dy < h; dy++){
         for(int dx = 0; dx < w; dx++){
-            DrspAtom a  = get_rc_a(&SHEET->data, y+dy, x+dx);
+            DrspAtom a  = get_rc_a(&sheet->data, y+dy, x+dx);
             if(a == nil_atom) continue;
             goto did_change;
         }
     }
     return;
     did_change:;
-    Undoable* u = note_nested_change(&SHEET->undo);
+    Undoable* u = note_nested_change(&sheet->undo);
     for(int dy = 0; dy < h; dy++){
         for(int dx = 0; dx < w; dx++){
-            DrspAtom before = get_rc_a(&SHEET->data, y+dy, x+dx);
+            DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
             if(before == nil_atom) continue;
-            update_cell_a(y+dy, x+dx, nil_atom);
+            update_cell_a(sheet, y+dy, x+dx, nil_atom);
             DrspAtom after = nil_atom;
             *append(&u->nested) = (Undoable){
                 .kind = UNDO_CHANGE_CELL,
@@ -804,21 +808,21 @@ void delete_cells(int y, int x, int h, int w){
     recalc();
 }
 
-void paste(int y, int x, PasteKind pastekind){
-    paste_rows(&PASTEBOARD.rows, y, x, pastekind);
+void paste(Sheet* sheet, int y, int x, PasteKind pastekind){
+    paste_rows(sheet, &PASTEBOARD.rows, y, x, pastekind);
 }
 
 void
-change_col_width(int x, int dw){
-    while(x >= SHEET->columns.count){
-        size_t i = SHEET->columns.count;
-        Column* col = append(&SHEET->columns);
+change_col_width(Sheet* sheet, int x, int dw){
+    while(x >= sheet->columns.count){
+        size_t i = sheet->columns.count;
+        Column* col = append(&sheet->columns);
         *col = (Column){0};
         col->name = xsprintf("%c", 'a'+(int)i);
         col->calc_width = strlen(col->name);
         col->width = 12;
     }
-    Column* col = &SHEET->columns.data[x];
+    Column* col = &sheet->columns.data[x];
     if(!col->explicit_width){
         // XXX: can go too low
         col->explicit_width = col->width;
@@ -830,13 +834,13 @@ change_col_width(int x, int dw){
 }
 
 void
-change_col_width_fill(int x){
-    if(x >= SHEET->columns.count)
+change_col_width_fill(Sheet* sheet, int x){
+    if(x >= sheet->columns.count)
         return;
-    const Column* col = &SHEET->columns.data[x];
+    const Column* col = &sheet->columns.data[x];
     int w = col->name?strlen(col->name):-1;
-    for(size_t iy = 0; iy < SHEET->disp.count; iy++){
-        const Row* row = &SHEET->disp.data[iy];
+    for(size_t iy = 0; iy < sheet->disp.count; iy++){
+        const Row* row = &sheet->disp.data[iy];
         if(x >= row->count)
             continue;
         size_t len;
@@ -852,35 +856,35 @@ change_col_width_fill(int x){
         w = MAX_FILL_WIDTH;
     if(col->width == w)
         return;
-    change_col_width(x, w-col->width);
+    change_col_width(sheet, x, w-col->width);
 }
 
 void
-rename_column(int x, const char* p){
+rename_column(Sheet* sheet, int x, const char* p){
     char* name = xstrdup(p);
-    while(x >= SHEET->columns.count){
-        size_t i = SHEET->columns.count;
-        Column* col = append(&SHEET->columns);
+    while(x >= sheet->columns.count){
+        size_t i = sheet->columns.count;
+        Column* col = append(&sheet->columns);
         *col = (Column){0};
         col->name = xsprintf("%c", 'a'+(int)i);
         col->calc_width = strlen(col->name);
         col->width = 12;
     }
-    Column* col = &SHEET->columns.data[x];
+    Column* col = &sheet->columns.data[x];
     free(col->name);
     col->name = name;
     col->calc_width = strlen(name); // XXX: unicode
-    int err = drsp_set_col_name(CTX, (SheetHandle)SHEET, x, name, strlen(name));
+    int err = drsp_set_col_name(CTX, (SheetHandle)sheet, x, name, strlen(name));
     (void)err;
     recalc();
 }
 
-void line_select_bounds(int* x0, int* x1){
+void line_select_bounds(Sheet* sheet, int* x0, int* x1){
     *x0 = 0;
     size_t max = 0;
-    for(size_t i = 0; i < SHEET->data.count; i++)
-        if(SHEET->data.data[i].count > max)
-            max = SHEET->data.data[i].count;
+    for(size_t i = 0; i < sheet->data.count; i++)
+        if(sheet->data.data[i].count > max)
+            max = sheet->data.data[i].count;
     *x1 = max;
 }
 
@@ -901,7 +905,7 @@ void move(int dx, int dy){
     if(BASE_Y < 0) BASE_Y = 0;
     CELL_X+=dx;
     if(CELL_X < 0) CELL_X = 0;
-    if(CELL_X >= 26) CELL_X = 25;
+    if(CELL_X >= 52) CELL_X = 51;
     while(CELL_X-BASE_X >= COLS/13){
         BASE_X++;
         base_changed = 1;
@@ -928,11 +932,11 @@ void begin_line_edit_buff(const char* txt, size_t len){
     EDIT.buff_len = len;
 }
 
-void begin_line_edit(void){
+void begin_line_edit(Sheet* sheet){
     if(mode == CHANGE_MODE)
         begin_line_edit_buff("", 0);
     else {
-        DrspAtom a = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
+        DrspAtom a = get_rc_a(&sheet->data, CELL_Y, CELL_X);
         size_t len;
         const char* txt = drsp_atom_get_str(CTX, a, &len);
         begin_line_edit_buff(txt, len);
@@ -1012,17 +1016,17 @@ void handle_edit_key(int c){
 
 
 
-void draw_grid(void){
+void draw_grid(Sheet* sheet){
     int advance = 12;
     printf("\033[H\033[2K");
     const int borderless_ = borderless;
-    for(int x = 5, ix=BASE_X; x < COLS && ix < 27;x+=advance, ix++){
+    for(int x = 5, ix=BASE_X; x < COLS && ix < 52;x+=advance, ix++){
         const char* colname;
         char buff[2];
         size_t len;
         int width = DEFAULT_WIDTH;
-        if(ix < SHEET->columns.count){
-            const Column* col = &SHEET->columns.data[ix];
+        if(ix < sheet->columns.count){
+            const Column* col = &sheet->columns.data[ix];
             colname = col->name;
             len = strlen(colname);
             width = col->width;
@@ -1045,7 +1049,7 @@ void draw_grid(void){
         advance = width+1;
     }
     printf("\033[2;0H────");
-    for(int x = 5, ix=BASE_X; x < COLS && ix < 27;x+=advance, ix++){
+    for(int x = 5, ix=BASE_X; x < COLS && ix < 52;x+=advance, ix++){
         const char* border =
             "─────────────────────────────────"
             "─────────────────────────────────"
@@ -1056,8 +1060,8 @@ void draw_grid(void){
             "─────────────────────────────────"
             "─────────────────────────────────";
         int width = DEFAULT_WIDTH;
-        if(ix < SHEET->columns.count){
-            const Column* col = &SHEET->columns.data[ix];
+        if(ix < sheet->columns.count){
+            const Column* col = &sheet->columns.data[ix];
             width = col->width;
         }
         printf("\033[%d;%dH─%.*s", 2, x, 3*width, border);
@@ -1082,10 +1086,10 @@ void draw_grid(void){
     for(int iy = BASE_Y, y = 3; y < ROWS-1;y++, iy++){
         // int x;
         printf("\033[38;5;240m\033[%d;0H%4d\033[39m", y, iy+1);
-        for(int ix = BASE_X, x = 5; x < COLS && ix < 27;x+=advance, ix++){
+        for(int ix = BASE_X, x = 5; x < COLS && ix < 52;x+=advance, ix++){
             int width = DEFAULT_WIDTH;
-            if(ix < SHEET->columns.count){
-                const Column* col = &SHEET->columns.data[ix];
+            if(ix < sheet->columns.count){
+                const Column* col = &sheet->columns.data[ix];
                 width = col->width;
             }
             _Bool selected =
@@ -1114,7 +1118,7 @@ void draw_grid(void){
                 printf("\033[%d;%dH ", y, x);
             else
                 printf("\033[%d;%dH│", y, x);
-            TextChunk chunk = get_rc_val(&SHEET->disp, iy, ix);
+            TextChunk chunk = get_rc_val(&sheet->disp, iy, ix);
             if(chunk.vis_width < width){
                 printf("%*.*s ", width-1, imin((int)chunk._byte_len,width-1), chunk._txt);
             }
@@ -1336,7 +1340,7 @@ struct CellCoord {
 };
 
 CellCoord
-screen_to_cell(int x, int y){
+screen_to_cell(Sheet* sheet, int x, int y){
     if(x < 4)
         x = 0;
     else
@@ -1354,8 +1358,8 @@ screen_to_cell(int x, int y){
             break;
         }
         int advance = DEFAULT_WIDTH+1;
-        if(ix < SHEET->columns.count){
-            advance = 1 + SHEET->columns.data[ix].width;
+        if(ix < sheet->columns.count){
+            advance = 1 + sheet->columns.data[ix].width;
         }
         screen_x += advance;
     }
@@ -1368,16 +1372,16 @@ screen_to_cell(int x, int y){
 
 
 CellLoc
-cell_to_screen(int x, int y){
+cell_to_screen(Sheet* sheet, int x, int y){
     int screen_x = 1+4;
     for(int ix = BASE_X; ix < x; ix++){
         int advance = DEFAULT_WIDTH+1;
-        if(ix < SHEET->columns.count){
-            advance = 1 + SHEET->columns.data[ix].width;
+        if(ix < sheet->columns.count){
+            advance = 1 + sheet->columns.data[ix].width;
         }
         screen_x += advance;
     }
-    int width = x >= SHEET->columns.count?DEFAULT_WIDTH:SHEET->columns.data[x].width;
+    int width = x >= sheet->columns.count?DEFAULT_WIDTH:sheet->columns.data[x].width;
     CellLoc loc = {
         screen_x,
         // x*12+1+4,
@@ -1390,9 +1394,9 @@ cell_to_screen(int x, int y){
 }
 
 void
-insert_row(int y, int n){
+insert_row(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
-    Rows* rows = &SHEET->data;
+    Rows* rows = &sheet->data;
     if(y >= rows->count)
         return; // virtual cells handle this.
     // fixup the ctx's representation of our data.
@@ -1418,30 +1422,30 @@ insert_row(int y, int n){
         const Row* old_row = iy+n<rows->count?&rows->data[iy+n]:&empty;
         size_t x = 0;
         for(;x < row->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, row->data[x]);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, row->data[x]);
             (void)err;
         }
         for(;x < old_row->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, nil_atom);
             (void)err;
         }
     }
 }
 
 void
-insert_row_with_undo(int y, int n){
+insert_row_with_undo(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
-    Rows* rows = &SHEET->data;
+    Rows* rows = &sheet->data;
     if(y >= rows->count)
         return; // virtual cells handle this.
-    insert_row(y, n);
-    note_insert_rows(&SHEET->undo, y, n);
+    insert_row(sheet, y, n);
+    note_insert_rows(&sheet->undo, y, n);
 }
 
 
-void delete_row(int y, int n){
+void delete_row(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
-    Rows* rows = &SHEET->data;
+    Rows* rows = &sheet->data;
     if(y >= rows->count) return;
     if(y+n > rows->count){
         n = rows->count - y;
@@ -1462,11 +1466,11 @@ void delete_row(int y, int n){
         const Row* new_row = &rows->data[iy+n];
         size_t x = 0;
         for(; x < new_row->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, new_row->data[x]);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, new_row->data[x]);
             (void)err;
         }
         for(; x < deleted->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -1474,7 +1478,7 @@ void delete_row(int y, int n){
         int iy = rows->count-i;
         const Row* last = &rows->data[iy];
         for(size_t x = 0; x < last->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)SHEET, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -1485,18 +1489,18 @@ void delete_row(int y, int n){
     rows->count -= n;
 }
 
-void delete_row_with_undo(int y, int n){
+void delete_row_with_undo(Sheet* sheet, int y, int n){
     if(y < 0) y = 0;
-    Rows* rows = &SHEET->data;
+    Rows* rows = &sheet->data;
     if(y >= rows->count) return;
     if(y+n > rows->count){
         n = rows->count - y;
     }
-    Undoable* ud = note_delete_row(&SHEET->undo);
+    Undoable* ud = note_delete_row(&sheet->undo);
     for(int dy = 0; dy < n; dy++){
         int iy = y + dy;
-        assert(iy < SHEET->data.count);
-        const Row* row = &SHEET->data.data[iy];
+        assert(iy < sheet->data.count);
+        const Row* row = &sheet->data.data[iy];
         for(size_t x = 0;x < row->count; x++){
             if(row->data[x] != nil_atom)
                 goto did_change;
@@ -1506,8 +1510,8 @@ void delete_row_with_undo(int y, int n){
     did_change:;
     for(int dy = 0; dy < n; dy++){
         int iy = y + dy;
-        assert(iy < SHEET->data.count);
-        const Row* row = &SHEET->data.data[iy];
+        assert(iy < sheet->data.count);
+        const Row* row = &sheet->data.data[iy];
         for(size_t x = 0;x < row->count; x++){
             if(row->data[x] != nil_atom)
                 *append(&ud->nested) = (Undoable){
@@ -1523,7 +1527,7 @@ void delete_row_with_undo(int y, int n){
         .kind = UNDO_DELETE_ROWS,
         .delete_rows = {.y=y, .n=n},
     };
-    delete_row(y, n);
+    delete_row(sheet, y, n);
 }
 
 static
@@ -1669,10 +1673,10 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
     return result;
 }
 
-void next_sheet(int d){
+Sheet* next_sheet(Sheet* sheet, int d){
     int idx;
     for(idx = 0; idx < SHEETS.count; idx++){
-        if(SHEETS.data[idx] == SHEET)
+        if(SHEETS.data[idx] == sheet)
             break;
     }
     assert(idx < SHEETS.count);
@@ -1681,12 +1685,11 @@ void next_sheet(int d){
         idx = SHEETS.count-1;
     if(idx >= SHEETS.count-1)
         idx = 0;
-    SHEET = SHEETS.data[idx];
+    return SHEETS.data[idx];
 }
 
 void
 apply_undo(Sheet* sheet, Undoable* u){
-    (void)sheet;
     switch(u->kind){
         case UNDO_INVALID:
             abort();
@@ -1699,20 +1702,19 @@ apply_undo(Sheet* sheet, Undoable* u){
             }
             break;
         case UNDO_CHANGE_CELL:
-            update_cell_no_eval_a(u->change_cell.y, u->change_cell.x, u->change_cell.before);
+            update_cell_no_eval_a(sheet, u->change_cell.y, u->change_cell.x, u->change_cell.before);
             break;
         case UNDO_DELETE_ROWS:
-            insert_row(u->delete_rows.y, u->delete_rows.n);
+            insert_row(sheet, u->delete_rows.y, u->delete_rows.n);
             break;
         case UNDO_INSERT_ROWS:
-            delete_row(u->insert_rows.y, u->insert_rows.n);
+            delete_row(sheet, u->insert_rows.y, u->insert_rows.n);
             break;
     }
 
 }
 void
 apply_redo(Sheet* sheet, Undoable* u){
-    (void)sheet;
     switch(u->kind){
         case UNDO_INVALID:
             abort();
@@ -1725,37 +1727,37 @@ apply_redo(Sheet* sheet, Undoable* u){
             }
             break;
         case UNDO_CHANGE_CELL:
-            update_cell_no_eval_a(u->change_cell.y, u->change_cell.x, u->change_cell.after);
+            update_cell_no_eval_a(sheet, u->change_cell.y, u->change_cell.x, u->change_cell.after);
             break;
         case UNDO_DELETE_ROWS:
-            delete_row(u->delete_rows.y, u->delete_rows.n);
+            delete_row(sheet, u->delete_rows.y, u->delete_rows.n);
             break;
         case UNDO_INSERT_ROWS:
-            insert_row(u->insert_rows.y, u->insert_rows.n);
+            insert_row(sheet, u->insert_rows.y, u->insert_rows.n);
             break;
     }
 }
 
 void
-undo(void){
-    UndoStack* ud = &SHEET->undo;
+undo(Sheet* sheet){
+    UndoStack* ud = &sheet->undo;
     LOG("undo cursor: %zu\n", ud->cursor);
     if(!ud->cursor) return;
     Undoable* u = &ud->data[--ud->cursor];
-    apply_undo(SHEET, u);
+    apply_undo(sheet, u);
 }
 
 void
-redo(void){
-    UndoStack* ud = &SHEET->undo;
+redo(Sheet* sheet){
+    UndoStack* ud = &sheet->undo;
     LOG("redo cursor: %zu\n", ud->cursor);
     if(ud->cursor == ud->count) return;
     Undoable* u = &ud->data[ud->cursor++];
-    apply_redo(SHEET, u);
+    apply_redo(sheet, u);
 }
 
 
-void update_display(void){
+void update_display(Sheet* sheet){
     if(need_rescale){
         TermSize sz = get_terminal_size();
         if(ROWS != sz.rows || COLS != sz.columns){
@@ -1769,13 +1771,13 @@ void update_display(void){
     }
     if(need_redisplay){
         need_redisplay = 0;
-        draw_grid();
+        draw_grid(sheet);
     }
     printf("\033[%d;%dH", ROWS-1-1, 0);
     printf("\033[0K%-8s -- ", mode_name(mode));
     for(size_t i = 0; i < SHEETS.count && i < 9; i++){
         Sheet* sh = SHEETS.data[i];
-        if(sh == SHEET)
+        if(sh == sheet)
             printf("\033[90m\033[1m[%zu] %s \033[0m", i+1, sh->name);
         else
             printf("[%zu] %s ", i+1, sh->name);
@@ -1788,7 +1790,7 @@ void update_display(void){
         printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1);
     }
     if(mode == MOVE_MODE){
-        DrspAtom a = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
+        DrspAtom a = get_rc_a(&sheet->data, CELL_Y, CELL_X);
         size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
         printf("\033[2K%.*s", (int)len, txt);
     }
@@ -2076,6 +2078,7 @@ main(int argc, char** argv){
     SheetOps ops = make_ops();
     CTX = drsp_create_ctx(&ops);
     nil_atom = xatomize("", 0);
+    Sheet* SHEET = NULL;
 
     if(!files[0]){
         SHEET = new_sheet("main", NULL);
@@ -2122,7 +2125,7 @@ main(int argc, char** argv){
                     if(!token) continue;
                     if(strcmp(token, "names") == 0){
                         for(;(token = strsep(&line, "\t|"));x++){
-                            rename_column(x, token);
+                            rename_column(SHEET, x, token);
                         }
                         continue;
                     }
@@ -2132,11 +2135,15 @@ main(int argc, char** argv){
                 }
                 for(;(token = strsep(&line, "\t|"));x++){
                     not_drsp:;
-                    update_cell_no_eval_a(y, x, xatomize(token, strlen(token)));
+                    update_cell_no_eval_a(SHEET, y, x, xatomize(token, strlen(token)));
                 }
             }
             free(txt);
         }
+    }
+    assert(SHEET);
+    if(!SHEET) {
+        return 1;
     }
 #if 0 || defined(DRSP_TUI_BENCH)
     int err = drsp_evaluate_formulas(CTX);
@@ -2156,7 +2163,7 @@ main(int argc, char** argv){
             (void)err;
             need_recalc = 0;
         }
-        update_display();
+        update_display(SHEET);
         int c;
         int cx, cy;
         int magnitude;
@@ -2181,19 +2188,19 @@ main(int argc, char** argv){
             case MOVE_MODE:
                 switch(c){
                     case 'u':{
-                        undo();
+                        undo(SHEET);
                         recalc();
                     }break;
                     case CTRL_R:{
-                        redo();
+                        redo(SHEET);
                         recalc();
                     }break;
                     case 'o':{
-                        insert_row_with_undo(CELL_Y+1, 1);
+                        insert_row_with_undo(SHEET, CELL_Y+1, 1);
                         recalc();
                     }break;
                     case 'O':{
-                        insert_row_with_undo(CELL_Y, 1);
+                        insert_row_with_undo(SHEET, CELL_Y, 1);
                         recalc();
                     }break;
                     case 'd':
@@ -2202,8 +2209,8 @@ main(int argc, char** argv){
                         }
                         else {
                             prev_c = 0;
-                            copy_rows(CELL_Y, 1);
-                            delete_row_with_undo(CELL_Y, 1);
+                            copy_rows(SHEET, CELL_Y, 1);
+                            delete_row_with_undo(SHEET, CELL_Y, 1);
                             recalc();
                         }
                         break;
@@ -2219,26 +2226,26 @@ main(int argc, char** argv){
                         break;
                     case 'y':
                         if(prev_c == 'y'){
-                            copy_rows(CELL_Y, 1);
+                            copy_rows(SHEET, CELL_Y, 1);
                             prev_c = 0;
                         }
                         else
                             prev_c = 'y';
                         break;
                     case 'P':
-                        paste(CELL_Y, CELL_X, PASTEBOARD.line_paste?PASTE_ABOVE:PASTE_NORMAL);
+                        paste(SHEET, CELL_Y, CELL_X, PASTEBOARD.line_paste?PASTE_ABOVE:PASTE_NORMAL);
                         break;
                     case 'p':
-                        paste(CELL_Y, CELL_X, PASTEBOARD.line_paste?PASTE_BELOW:PASTE_NORMAL);
+                        paste(SHEET, CELL_Y, CELL_X, PASTEBOARD.line_paste?PASTE_BELOW:PASTE_NORMAL);
                         break;
                     case LCLICK_DOWN: {
-                        CellCoord cc = screen_to_cell(cx, cy);
+                        CellCoord cc = screen_to_cell(SHEET, cx, cy);
                         move(cc.column - CELL_X, cc.row - CELL_Y);
                     } break;
                     case 'x':
                     case BACKSPACE:
                     case DELETE:
-                        delete_cells(CELL_Y, CELL_X, 1, 1);
+                        delete_cells(SHEET, CELL_Y, CELL_X, 1, 1);
                         break;
                     case PAGE_UP:
                         move(0, -ROWS);
@@ -2250,17 +2257,17 @@ main(int argc, char** argv){
                         move(0, -ROWS/2);
                         break;
                     case '=':
-                        change_col_width_fill(CELL_X);
+                        change_col_width_fill(SHEET, CELL_X);
                         redisplay();
                         break;
                     case '-':
                     case '<':
-                        change_col_width(CELL_X, -1);
+                        change_col_width(SHEET, CELL_X, -1);
                         redisplay();
                         break;
                     case '+':
                     case '>':
-                        change_col_width(CELL_X, +1);
+                        change_col_width(SHEET, CELL_X, +1);
                         redisplay();
                         break;
                     case '1':
@@ -2391,7 +2398,7 @@ main(int argc, char** argv){
                         move(0, +1);
                         DrspAtom before = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
                         if(before != a){
-                            update_cell_a(CELL_Y, CELL_X, a);
+                            update_cell_a(SHEET, CELL_Y, CELL_X, a);
                             note_cell_change(&SHEET->undo, CELL_Y, CELL_X, before, a);
                         }
                     } break;
@@ -2400,12 +2407,12 @@ main(int argc, char** argv){
                         break;
                     case 'c':
                         change_mode(CHANGE_MODE);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                         break;
                     case 'e':
                     case 'i':
                         change_mode(INSERT_MODE);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                         break;
                     case ESC:
                         set_status("");
@@ -2445,8 +2452,8 @@ main(int argc, char** argv){
                         int y = imin(CELL_Y, SEL_Y);
                         int y1 = imax(CELL_Y, SEL_Y);
                         int h = y1-y+1;
-                        copy_rows(y, h);
-                        delete_row_with_undo(y, h);
+                        copy_rows(SHEET, y, h);
+                        delete_row_with_undo(SHEET, y, h);
                         recalc();
                         change_mode(MOVE_MODE);
                     }break;
@@ -2456,13 +2463,13 @@ main(int argc, char** argv){
                         int y1 = imax(CELL_Y, SEL_Y);
                         int h = y1-y+1;
                         if(mode == LINE_SELECT_MODE){
-                            copy_rows(y, h);
+                            copy_rows(SHEET, y, h);
                         }
                         else {
                             int x = imin(CELL_X, SEL_X);
                             int x1 = imax(CELL_X, SEL_X);
                             int w = x1-x+1;
-                            copy_cells(y, x, h, w);
+                            copy_cells(SHEET, y, x, h, w);
                         }
                         change_mode(MOVE_MODE);
                     }break;
@@ -2478,12 +2485,12 @@ main(int argc, char** argv){
                         redisplay();
                     }break;
                     case 'p':
-                        paste(imin(CELL_Y, SEL_Y), imin(CELL_X, SEL_X), PASTEBOARD.line_paste?PASTE_REPLACE:PASTE_NORMAL);
+                        paste(SHEET, imin(CELL_Y, SEL_Y), imin(CELL_X, SEL_X), PASTEBOARD.line_paste?PASTE_REPLACE:PASTE_NORMAL);
                         recalc();
                         change_mode(MOVE_MODE);
                         break;
                     case LCLICK_DOWN: {
-                        CellCoord cc = screen_to_cell(cx, cy);
+                        CellCoord cc = screen_to_cell(SHEET, cx, cy);
                         move(cc.column - CELL_X, cc.row - CELL_Y);
                     } break;
                     case 'x':
@@ -2494,8 +2501,8 @@ main(int argc, char** argv){
                         int y = imin(CELL_Y, SEL_Y);
                         int x1 = imax(CELL_X, SEL_X);
                         int y1 = imax(CELL_Y, SEL_Y);
-                        if(mode == LINE_SELECT_MODE) line_select_bounds(&x, &x1);
-                        delete_cells(y, x, y1-y+1, x1-x+1);
+                        if(mode == LINE_SELECT_MODE) line_select_bounds(SHEET, &x, &x1);
+                        delete_cells(SHEET, y, x, y1-y+1, x1-x+1);
                         change_mode(MOVE_MODE);
                     }break;
                     case PAGE_UP:
@@ -2577,7 +2584,7 @@ main(int argc, char** argv){
                     case CTRL_J:
                     case ENTER:{
                         DrspAtom before = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
-                        update_cell_a(CELL_Y, CELL_X, xatomize(EDIT.buff, EDIT.buff_len));
+                        update_cell_a(SHEET, CELL_Y, CELL_X, xatomize(EDIT.buff, EDIT.buff_len));
                         DrspAtom after = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
                         if(before != after){
                             if(editing_ud.kind != UNDO_NESTED){
@@ -2592,30 +2599,30 @@ main(int argc, char** argv){
                             };
                         }
                         move(0, +1);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                     }break;
                     case CTRL_N:
                     case DOWN:
                         move(0, +1);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                         break;
                     case SHIFT_TAB:
                     case LEFT:
                         move(-1, 0);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                         break;
                     case TAB:
                     case RIGHT:
                         move(+1, 0);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                         break;
                     case CTRL_P:
                     case UP:
                         move(0, -1);
-                        begin_line_edit();
+                        begin_line_edit(SHEET);
                         break;
                     case LCLICK_DOWN:{
-                        CellCoord cc = screen_to_cell(cx, cy);
+                        CellCoord cc = screen_to_cell(SHEET, cx, cy);
                         char buff[24];
                         int n;
                         if(cc.row == CELL_Y){
@@ -2722,7 +2729,7 @@ main(int argc, char** argv){
                                 continue;
                             }
                             if(memcmp(EDIT.buff, "rc ", 3) == 0){
-                                rename_column(CELL_X, EDIT.buff+3);
+                                rename_column(SHEET, CELL_X, EDIT.buff+3);
                                 change_mode(MOVE_MODE);
                                 redisplay();
                                 continue;
@@ -2730,7 +2737,7 @@ main(int argc, char** argv){
                             if(strcmp(EDIT.buff, "ne") == 0
                             || strcmp(EDIT.buff, "nex") == 0
                             || strcmp(EDIT.buff, "next") == 0){
-                                next_sheet(+1);
+                                SHEET = next_sheet(SHEET, +1);
                                 redisplay();
                                 change_mode(MOVE_MODE);
                                 continue;
@@ -2738,7 +2745,7 @@ main(int argc, char** argv){
                             if(strcmp(EDIT.buff, "pr") == 0
                             || strcmp(EDIT.buff, "prev") == 0
                             || strcmp(EDIT.buff, "previous") == 0){
-                                next_sheet(-1);
+                                SHEET = next_sheet(SHEET, -1);
                                 redisplay();
                                 change_mode(MOVE_MODE);
                                 continue;
