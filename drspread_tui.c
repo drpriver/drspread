@@ -19,7 +19,9 @@
 #include "argument_parsing.h"
 
 #ifdef _WIN32
-void* memmem(const void* haystack, size_t hsz, const void* needle, size_t nsz){
+static inline
+void*
+memmem(const void* haystack, size_t hsz, const void* needle, size_t nsz){
     if(nsz > hsz) return NULL;
     char* hay = (char*)haystack;
     for(size_t i = 0; i <= hsz-nsz; i++){
