@@ -569,8 +569,8 @@ note_insert_rows(UndoStack* undos, int y, int n){
     };
 }
 
-typedef struct Sheet Sheet;
-struct Sheet {
+typedef struct _sheet_handle Sheet;
+struct _sheet_handle {
     intptr_t rows, cols;
     Rows data;
     Rows disp;
@@ -628,7 +628,7 @@ clear(Sheet* sheet){
         for(int x = 0; x < row->count; x++){
             if(row->data[x] != nil_atom){
                 row->data[x] = nil_atom;
-                drsp_set_cell_atom(CTX, (SheetHandle)sheet, y, x, nil_atom);
+                drsp_set_cell_atom(CTX, sheet, y, x, nil_atom);
             }
         }
     }
@@ -640,7 +640,7 @@ void
 update_cell_no_eval_a(Sheet* sheet, int y, int x, DrspAtom a){
     set_rc_val_a(&sheet->data, y, x, a);
     int e;
-    e = drsp_set_cell_atom(CTX, (SheetHandle)sheet, y, x, a);
+    e = drsp_set_cell_atom(CTX, sheet, y, x, a);
     (void)e;
     if(x >= sheet->columns.count){
         Column* col = append(&sheet->columns);
@@ -918,7 +918,7 @@ rename_column(Sheet* sheet, int x, const char* p){
     free(col->name);
     col->name = name;
     col->calc_width = strlen(name); // XXX: unicode
-    int err = drsp_set_col_name(CTX, (SheetHandle)sheet, x, name, strlen(name));
+    int err = drsp_set_col_name(CTX, sheet, x, name, strlen(name));
     (void)err;
     recalc();
 }
@@ -1317,7 +1317,7 @@ sighandler(int sig){
 
 static
 int
-display_number(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, double value){
+display_number(void* ctx, Sheet* sh, intptr_t row, intptr_t col, double value){
     (void)ctx;
     Sheet* sheet = (Sheet*)sh;
 
@@ -1354,7 +1354,7 @@ display_number(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, double val
 
 static
 int
-display_error(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char* txt, size_t len){
+display_error(void* ctx, Sheet* sh, intptr_t row, intptr_t col, const char* txt, size_t len){
     (void)ctx;
     Sheet* sheet = (Sheet*)sh;
     DrspAtom a = xaprintf("#ERR: %.*s", (int)len, txt);
@@ -1366,7 +1366,7 @@ display_error(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char*
 
 static
 int
-display_string(void* ctx, SheetHandle sh, intptr_t row, intptr_t col, const char* txt, size_t len){
+display_string(void* ctx, Sheet* sh, intptr_t row, intptr_t col, const char* txt, size_t len){
     (void)ctx;
     Sheet* sheet = (Sheet*)sh;
     if(0)LOG("%zd, %zd: str: %.*s\n", row, col, (int)len, txt);
@@ -1484,11 +1484,11 @@ insert_row(Sheet* sheet, int y, int n){
         const Row* old_row = iy+n<rows->count?&rows->data[iy+n]:&empty;
         size_t x = 0;
         for(;x < row->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, row->data[x]);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, row->data[x]);
             (void)err;
         }
         for(;x < old_row->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -1531,11 +1531,11 @@ delete_row(Sheet* sheet, int y, int n){
         const Row* new_row = &rows->data[iy+n];
         size_t x = 0;
         for(; x < new_row->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, new_row->data[x]);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, new_row->data[x]);
             (void)err;
         }
         for(; x < deleted->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -1543,7 +1543,7 @@ delete_row(Sheet* sheet, int y, int n){
         int iy = rows->count-i;
         const Row* last = &rows->data[iy];
         for(size_t x = 0; x < last->count; x++){
-            int err = drsp_set_cell_atom(CTX, (SheetHandle)sheet, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, nil_atom);
             (void)err;
         }
     }
@@ -2159,7 +2159,7 @@ main(int argc, char** argv){
 
     if(!files[0]){
         SHEET = new_sheet("main", NULL);
-        int e = drsp_set_sheet_name(CTX, (SheetHandle)SHEET, SHEET->name, strlen(SHEET->name));
+        int e = drsp_set_sheet_name(CTX, SHEET, SHEET->name, strlen(SHEET->name));
         if(e) goto finally;
     }
     else {
@@ -2192,7 +2192,7 @@ main(int argc, char** argv){
                 continue;
             }
             SHEET = new_sheet(name, filename);
-            e = drsp_set_sheet_name(CTX, (SheetHandle)SHEET, SHEET->name, strlen(SHEET->name));
+            e = drsp_set_sheet_name(CTX, SHEET, SHEET->name, strlen(SHEET->name));
             if(e) goto finally;
             char* line;
             for(int y =0;(line=strsep(&txt, "\n"));y++){
@@ -2731,7 +2731,7 @@ main(int argc, char** argv){
                     case ENTER:
                         if(mode == QUERY_MODE){
                             DrSpreadResult outval = {0};
-                            int e = drsp_evaluate_string(CTX, (SheetHandle)SHEET, EDIT.buff, EDIT.buff_len, &outval, -1, -1);
+                            int e = drsp_evaluate_string(CTX, SHEET, EDIT.buff, EDIT.buff_len, &outval, -1, -1);
                             if(e){
                                 outval.kind = DRSP_RESULT_STRING;
                                 outval.s.text = "error";
