@@ -275,8 +275,6 @@ enum {
     DRAW_CELLS   = 0x4,
 };
 static TermState TS;
-static int rescaled = 0;
-static int need_redisplay = 1;
 static int need_rescale = 1;
 static int need_recalc = 1;
 static int mode = 0; // MOVE_MODE
@@ -305,12 +303,12 @@ set_status(const char* fmt, ...){
     if(n < 0 || status == NULL)
         abort();
 }
-static void redisplay(void);
+typedef struct SheetView SheetView;
+static void redisplay(SheetView*);
 
 static
 void
 change_mode(int m){
-    redisplay();
     if(m != MOVE_MODE && m != SELECT_MODE && m != LINE_SELECT_MODE){
         printf("\033[?25h\033[6 q");
     }
@@ -337,11 +335,6 @@ mode_name(int mode){
     }
 }
 
-static
-void
-redisplay(void){
-    need_redisplay = 1;
-}
 
 static
 void
@@ -585,9 +578,15 @@ struct SheetView {
     int cell_x, cell_y;
     int sel_x, sel_y;
     int rows, cols;
+    _Bool need_redisplay: 1;
 };
 
 
+static
+void
+redisplay(SheetView* view){
+    view->need_redisplay = 1;
+}
 typedef struct LineEdit LineEdit;
 struct LineEdit {
     char prev_search[1024];
@@ -642,6 +641,7 @@ new_view(Sheet* sheet){
     view->sel_y = -1;
     view->rows = -1;
     view->cols = -1;
+    view->need_redisplay = 1;
     *append(&VIEWS) = view;
     return view;
 }
@@ -1011,9 +1011,9 @@ move(SheetView* view, int dx, int dy){
     if(base_changed) {
         LOG("base_x: %d\n", view->base_x);
         LOG("base_y: %d\n", view->base_y);
-        redisplay();
+        redisplay(view);
     }
-    redisplay();
+    redisplay(view);
 }
 
 static
@@ -1363,9 +1363,8 @@ sighandler(int sig){
 
 static
 int
-display_number(void* ctx, Sheet* sh, intptr_t row, intptr_t col, double value){
+display_number(void* ctx, Sheet* sheet, intptr_t row, intptr_t col, double value){
     (void)ctx;
-    Sheet* sheet = (Sheet*)sh;
 
     char buff[512];
     int n = snprintf(buff, sizeof buff, "%.2f", value);
@@ -1394,30 +1393,31 @@ display_number(void* ctx, Sheet* sh, intptr_t row, intptr_t col, double value){
     }
     if(0)LOG("%zd, %zd: num: %.*s\n", row, col, (int)n, buff);
     set_rc_val(&sheet->disp, row, col, buff, n);
-    redisplay();
+    SheetView* view = find_view(sheet);
+    if(view) redisplay(view);
     return 0;
 }
 
 static
 int
-display_error(void* ctx, Sheet* sh, intptr_t row, intptr_t col, const char* txt, size_t len){
+display_error(void* ctx, Sheet* sheet, intptr_t row, intptr_t col, const char* txt, size_t len){
     (void)ctx;
-    Sheet* sheet = (Sheet*)sh;
     DrspAtom a = xaprintf("#ERR: %.*s", (int)len, txt);
     if(0)LOG("%zd, %zd: #ERR: %.*s\n", row, col, (int)len, txt);
     set_rc_val_a(&sheet->disp, row, col, a);
-    redisplay();
+    SheetView* view = find_view(sheet);
+    if(view) redisplay(view);
     return 0;
 }
 
 static
 int
-display_string(void* ctx, Sheet* sh, intptr_t row, intptr_t col, const char* txt, size_t len){
+display_string(void* ctx, Sheet* sheet, intptr_t row, intptr_t col, const char* txt, size_t len){
     (void)ctx;
-    Sheet* sheet = (Sheet*)sh;
     if(0)LOG("%zd, %zd: str: %.*s\n", row, col, (int)len, txt);
     set_rc_val(&sheet->disp, row, col, txt, len);
-    redisplay();
+    SheetView* view = find_view(sheet);
+    if(view) redisplay(view);
     return 0;
 }
 
@@ -1883,17 +1883,20 @@ void
 update_display(SheetView* view){
     if(need_rescale){
         TermSize sz = get_terminal_size();
+        // sz.rows -= 1;
+        // sz.columns -= 1;
         if(view->rows != sz.rows || view->cols != sz.columns){
             view->rows = sz.rows;
             view->cols = sz.columns;
-            printf("\033[H\033[2J");
+            printf("\033[H" // move to 0,0
+                   "\033[2J" // Erase entire screen
+            );
         }
         need_rescale = 0;
-        need_redisplay = 1;
-        rescaled++;
+        view->need_redisplay = 1;
     }
-    if(need_redisplay){
-        need_redisplay = 0;
+    if(view->need_redisplay){
+        view->need_redisplay = 0;
         draw_grid(view);
     }
     printf("\033[%d;%dH", view->rows-1-1, 0);
@@ -2309,7 +2312,7 @@ main(int argc, char** argv){
             raise(SIGTSTP);
             begin_tui();
             change_mode(mode);
-            redisplay();
+            redisplay(active_view);
             continue;
         }
         if(mode == MOVE_MODE || mode == SELECT_MODE || mode == LINE_SELECT_MODE){
@@ -2349,11 +2352,13 @@ main(int argc, char** argv){
                         break;
                     case 'v':
                         change_mode(SELECT_MODE);
+                        redisplay(active_view);
                         active_view->sel_x = active_view->cell_x;
                         active_view->sel_y = active_view->cell_y;
                         break;
                     case 'V':
                         change_mode(LINE_SELECT_MODE);
+                        redisplay(active_view);
                         active_view->sel_y = active_view->cell_y;
                         active_view->sel_x = 0;
                         break;
@@ -2391,17 +2396,17 @@ main(int argc, char** argv){
                         break;
                     case '=':
                         change_col_width_fill(SHEET, active_view->cell_x);
-                        redisplay();
+                        redisplay(active_view);
                         break;
                     case '-':
                     case '<':
                         change_col_width(SHEET, active_view->cell_x, -1);
-                        redisplay();
+                        redisplay(active_view);
                         break;
                     case '+':
                     case '>':
                         change_col_width(SHEET, active_view->cell_x, +1);
-                        redisplay();
+                        redisplay(active_view);
                         break;
                     case '1':
                     case '2':
@@ -2418,9 +2423,9 @@ main(int argc, char** argv){
                             if(sheet != SHEET){
                                 SHEET = sheet;
                                 active_view = find_or_new_view(SHEET);
-                                need_redisplay = 1;
+                                active_view->need_redisplay = 1;
                                 need_rescale = 1;
-                                redisplay();
+                                redisplay(active_view);
                             }
                         }
                     }break;
@@ -2539,39 +2544,46 @@ main(int argc, char** argv){
                         }
                     } break;
                     case CTRL_C:
-                        redisplay();
+                        redisplay(active_view);
                         break;
                     case 'c':
                         change_mode(CHANGE_MODE);
+                        redisplay(active_view);
                         begin_line_edit(active_view);
                         break;
                     case 'e':
                     case 'i':
                         change_mode(INSERT_MODE);
+                        redisplay(active_view);
                         begin_line_edit(active_view);
                         break;
                     case ESC:
                         set_status("");
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                         break;
                     case ';':
                     case ':':
                         change_mode(COMMAND_MODE);
+                        redisplay(active_view);
                         begin_line_edit_buff("", 0);
                         break;
                     case 'q':
                     case 'Q':
                         change_mode(QUERY_MODE);
+                        redisplay(active_view);
                         begin_line_edit_buff("", 0);
                         break;
                     case '/':
                         search_backward = 0;
                         change_mode(SEARCH_MODE);
+                        redisplay(active_view);
                         begin_line_edit_buff("", 0);
                         break;
                     case '?':
                         search_backward = 1;
                         change_mode(SEARCH_MODE);
+                        redisplay(active_view);
                         begin_line_edit_buff("", 0);
                         break;
                     default:
@@ -2592,6 +2604,7 @@ main(int argc, char** argv){
                         delete_row_with_undo(SHEET, y, h);
                         recalc();
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                     }break;
                     case 'y':{
                         prev_c = 0;
@@ -2608,6 +2621,7 @@ main(int argc, char** argv){
                             copy_cells(SHEET, y, x, h, w);
                         }
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                     }break;
                     case 'o':{
                         int tmp;
@@ -2618,12 +2632,13 @@ main(int argc, char** argv){
                         tmp = active_view->cell_y;
                         active_view->cell_y = active_view->sel_y;
                         active_view->sel_y = tmp;
-                        redisplay();
+                        redisplay(active_view);
                     }break;
                     case 'p':
                         paste(active_view, imin(active_view->cell_y, active_view->sel_y), imin(active_view->cell_x, active_view->sel_x), PASTEBOARD.line_paste?PASTE_REPLACE:PASTE_NORMAL);
                         recalc();
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                         break;
                     case LCLICK_DOWN: {
                         // XXX: this needs to also needs to change the active view
@@ -2641,6 +2656,7 @@ main(int argc, char** argv){
                         if(mode == LINE_SELECT_MODE) line_select_bounds(SHEET, &x, &x1);
                         delete_cells(SHEET, y, x, y1-y+1, x1-x+1);
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                     }break;
                     case PAGE_UP:
                         move(active_view, 0, -active_view->rows);
@@ -2696,9 +2712,11 @@ main(int argc, char** argv){
                         break;
                     case CTRL_C:
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                         break;
                     case ESC:
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                         break;
                     default:
                         break;
@@ -2717,6 +2735,7 @@ main(int argc, char** argv){
                             };
                         }
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                         break;
                     case CTRL_J:
                     case ENTER:{
@@ -2814,6 +2833,7 @@ main(int argc, char** argv){
                             strcpy(EDIT.prev_search, EDIT.buff);
                             prev_search = 1;
                             change_mode(MOVE_MODE);
+                            redisplay(active_view);
                             for(int y = active_view->cell_y; y < SHEET->data.count; y++){
                                 for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
                                     if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.buff, EDIT.buff_len)){
@@ -2831,6 +2851,7 @@ main(int argc, char** argv){
                             if(strcmp(EDIT.buff, "clear") == 0){
                                 clear(SHEET);
                                 change_mode(MOVE_MODE);
+                                redisplay(active_view);
                                 continue;
                             }
                             if(strcmp(EDIT.buff, "bg") == 0){
@@ -2838,7 +2859,7 @@ main(int argc, char** argv){
                                 raise(SIGTSTP);
                                 begin_tui();
                                 change_mode(MOVE_MODE);
-                                redisplay();
+                                redisplay(active_view);
                                 continue;
                             }
                             if(strcmp(EDIT.buff, "wq") == 0 || strcmp(EDIT.buff, "x") == 0){
@@ -2851,31 +2872,34 @@ main(int argc, char** argv){
                                 int err = atomically_write_sheet(SHEET, SHEET->filename);
                                 (void)err; // TODO: report errors
                                 change_mode(MOVE_MODE);
+                                redisplay(active_view);
                                 continue;
                             }
                             if(memcmp(EDIT.buff, "w ", 2) == 0){
                                 int err = atomically_write_sheet(SHEET, EDIT.buff+2);
                                 (void)err; // TODO: report errors
                                 change_mode(MOVE_MODE);
+                                redisplay(active_view);
                                 continue;
                             }
                             if(memcmp(EDIT.buff, "write ", 6) == 0){
                                 int err = atomically_write_sheet(SHEET, EDIT.buff+6);
                                 (void)err; // TODO: report errors
                                 change_mode(MOVE_MODE);
+                                redisplay(active_view);
                                 continue;
                             }
                             if(memcmp(EDIT.buff, "rc ", 3) == 0){
                                 rename_column(SHEET, active_view->cell_x, EDIT.buff+3);
                                 change_mode(MOVE_MODE);
-                                redisplay();
+                                redisplay(active_view);
                                 continue;
                             }
                             if(strcmp(EDIT.buff, "ne") == 0
                             || strcmp(EDIT.buff, "nex") == 0
                             || strcmp(EDIT.buff, "next") == 0){
                                 SHEET = next_sheet(SHEET, +1);
-                                redisplay();
+                                redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
                             }
@@ -2883,7 +2907,7 @@ main(int argc, char** argv){
                             || strcmp(EDIT.buff, "prev") == 0
                             || strcmp(EDIT.buff, "previous") == 0){
                                 SHEET = next_sheet(SHEET, -1);
-                                redisplay();
+                                redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
                             }
@@ -2892,7 +2916,7 @@ main(int argc, char** argv){
                             || strcmp(EDIT.buff, "borderless") == 0
                             ){
                                 borderless = !borderless;
-                                redisplay();
+                                redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
                             }
@@ -2901,6 +2925,7 @@ main(int argc, char** argv){
                     case CTRL_C:
                     case ESC:
                         change_mode(MOVE_MODE);
+                        redisplay(active_view);
                         break;
                     default:
                         handle_edit_key(c);
