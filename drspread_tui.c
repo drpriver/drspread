@@ -2166,8 +2166,6 @@ main(int argc, char** argv){
         int e;
         for(char** f = files; *f; f++){
             char* filename = *f;
-            char* txt = read_file(filename);
-            if(!txt) txt = xstrdup("");
             char* name;
             _Bool is_drsp = 0;
             {
@@ -2194,6 +2192,8 @@ main(int argc, char** argv){
             SHEET = new_sheet(name, filename);
             e = drsp_set_sheet_name(CTX, SHEET, SHEET->name, strlen(SHEET->name));
             if(e) goto finally;
+            char* txt = read_file(filename);
+            if(!txt) txt = xstrdup("");
             char* line;
             for(int y =0;(line=strsep(&txt, "\n"));y++){
                 char* token;
