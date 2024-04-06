@@ -273,14 +273,10 @@ enum {
     DRAW_CELLS   = 0x4,
 };
 static TermState TS;
-static int ROWS=-1, COLS=-1;
-static int BASE_X, BASE_Y;
-static int CELL_X, CELL_Y;
 static int rescaled = 0;
 static int need_redisplay = 1;
 static int need_rescale = 1;
 static int need_recalc = 1;
-static int SEL_X=-1, SEL_Y=-1;
 static int mode = 0; // MOVE_MODE
 static char* status = NULL;
 enum {
@@ -580,6 +576,15 @@ struct _sheet_handle {
     UndoStack undo;
 };
 
+typedef struct SheetView SheetView;
+struct SheetView {
+    Sheet* sheet;
+    int base_x, base_y;
+    int cell_x, cell_y;
+    int sel_x, sel_y;
+    int rows, cols;
+};
+
 
 typedef struct LineEdit LineEdit;
 struct LineEdit {
@@ -618,6 +623,43 @@ new_sheet(const char* name, const char* filename){
     if(filename) result->filename = xstrdup(filename);
     *append(&SHEETS) = result;
     return result;
+}
+
+struct {
+    SheetView** data;
+    size_t count, capacity;
+} VIEWS = {0};
+
+static
+SheetView*
+new_view(Sheet* sheet){
+    SheetView* view = xmalloc(sizeof *view);
+    memset(view, 0, sizeof * view);
+    view->sheet = sheet;
+    view->sel_x = -1;
+    view->sel_y = -1;
+    view->rows = -1;
+    view->cols = -1;
+    *append(&VIEWS) = view;
+    return view;
+}
+
+static
+SheetView* _Nullable
+find_view(Sheet* sheet){
+    for(size_t i = 0; i < VIEWS.count; i++){
+        if(VIEWS.data[i]->sheet == sheet)
+            return VIEWS.data[i];
+    }
+    return NULL;
+}
+
+static
+SheetView*
+find_or_new_view(Sheet* sheet){
+    SheetView* view = find_view(sheet);
+    if(!view) view = new_view(sheet);
+    return view;
 }
 
 static
@@ -682,7 +724,8 @@ typedef enum PasteKind PasteKind;
 
 static
 void
-paste_rows(Sheet* sheet, const Rows* rows, int y, int x, PasteKind line_paste){
+paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste){
+    Sheet* sheet = view->sheet;
     // LOG("line_paste: %d\n", (int)line_paste);
     Undoable* ud = NULL;
     switch(line_paste){
@@ -717,7 +760,7 @@ paste_rows(Sheet* sheet, const Rows* rows, int y, int x, PasteKind line_paste){
             insert_row(sheet, y, rows->count);
             break;
         case PASTE_REPLACE:{
-            int h = imax(CELL_Y, SEL_Y) - imin(CELL_Y, SEL_Y) + 1;
+            int h = imax(view->cell_y, view->sel_y) - imin(view->cell_y, view->sel_y) + 1;
             assert(h > 0);
             int diff = (int)rows->count - h;
             // LOG("h: %d\n", h);
@@ -849,8 +892,8 @@ delete_cells(Sheet* sheet, int y, int x, int h, int w){
 
 static
 void
-paste(Sheet* sheet, int y, int x, PasteKind pastekind){
-    paste_rows(sheet, &PASTEBOARD.rows, y, x, pastekind);
+paste(SheetView* view, int y, int x, PasteKind pastekind){
+    paste_rows(view, &PASTEBOARD.rows, y, x, pastekind);
 }
 
 static
@@ -937,35 +980,35 @@ line_select_bounds(Sheet* sheet, int* x0, int* x1){
 
 static
 void
-move(int dx, int dy){
-    // LOG("dx, dy: %d, %d\n", dx, dy);
-    CELL_Y += dy;
-    if(CELL_Y < 0) CELL_Y = 0;
+move(SheetView* view, int dx, int dy){
+    // log("dx, dy: %d, %d\n", dx, dy);
+    view->cell_y += dy;
+    if(view->cell_y < 0) view->cell_y = 0;
     _Bool base_changed = 0;
-    while(CELL_Y-BASE_Y > ROWS-6){
-        BASE_Y++;
+    while(view->cell_y-view->base_y > view->rows-6){
+        view->base_y++;
         base_changed = 1;
     }
-    while(CELL_Y < BASE_Y){
-        BASE_Y--;
+    while(view->cell_y < view->base_y){
+        view->base_y--;
         base_changed = 1;
     }
-    if(BASE_Y < 0) BASE_Y = 0;
-    CELL_X+=dx;
-    if(CELL_X < 0) CELL_X = 0;
-    if(CELL_X >= 52) CELL_X = 51;
-    while(CELL_X-BASE_X >= COLS/13){
-        BASE_X++;
+    if(view->base_y < 0) view->base_y = 0;
+    view->cell_x+=dx;
+    if(view->cell_x < 0) view->cell_x = 0;
+    if(view->cell_x >= 52) view->cell_x = 51;
+    while(view->cell_x-view->base_x >= view->cols/13){
+        view->base_x++;
         base_changed = 1;
     }
-    while(CELL_X < BASE_X){
-        BASE_X--;
+    while(view->cell_x < view->base_x){
+        view->base_x--;
         base_changed = 1;
     }
-    if(BASE_X <  0) BASE_X = 0;
+    if(view->base_x <  0) view->base_x = 0;
     if(base_changed) {
-        LOG("BASE_X: %d\n", BASE_X);
-        LOG("BASE_Y: %d\n", BASE_Y);
+        LOG("base_x: %d\n", view->base_x);
+        LOG("base_y: %d\n", view->base_y);
         redisplay();
     }
     redisplay();
@@ -984,11 +1027,11 @@ begin_line_edit_buff(const char* txt, size_t len){
 
 static
 void
-begin_line_edit(Sheet* sheet){
+begin_line_edit(SheetView* view){
     if(mode == CHANGE_MODE)
         begin_line_edit_buff("", 0);
     else {
-        DrspAtom a = get_rc_a(&sheet->data, CELL_Y, CELL_X);
+        DrspAtom a = get_rc_a(&view->sheet->data, view->cell_y, view->cell_x);
         size_t len;
         const char* txt = drsp_atom_get_str(CTX, a, &len);
         begin_line_edit_buff(txt, len);
@@ -1071,11 +1114,12 @@ handle_edit_key(int c){
 
 static
 void
-draw_grid(Sheet* sheet){
+draw_grid(SheetView* view){
+    Sheet* sheet = view->sheet;
     int advance = 12;
     printf("\033[H\033[2K");
     const int borderless_ = borderless;
-    for(int x = 5, ix=BASE_X; x < COLS && ix < 52;x+=advance, ix++){
+    for(int x = 5, ix=view->base_x; x < view->cols && ix < 52;x+=advance, ix++){
         const char* colname;
         char buff[2];
         size_t len;
@@ -1104,7 +1148,7 @@ draw_grid(Sheet* sheet){
         advance = width+1;
     }
     printf("\033[2;0H────");
-    for(int x = 5, ix=BASE_X; x < COLS && ix < 52;x+=advance, ix++){
+    for(int x = 5, ix=view->base_x; x < view->cols && ix < 52;x+=advance, ix++){
         const char* border =
             "─────────────────────────────────"
             "─────────────────────────────────"
@@ -1124,24 +1168,24 @@ draw_grid(Sheet* sheet){
         // LOG("%d: \\033[%d;%dH┼%.*s\n", ix, 2, x, 3*width, border);
         advance = width+1;
     }
-    int sel_x0 = CELL_X;
-    int sel_x1 = CELL_X;
-    int sel_y0 = CELL_Y;
-    int sel_y1 = CELL_Y;
+    int sel_x0 = view->cell_x;
+    int sel_x1 = view->cell_x;
+    int sel_y0 = view->cell_y;
+    int sel_y1 = view->cell_y;
     if(mode == SELECT_MODE){
-        sel_x0 = imin(CELL_X, SEL_X);
-        sel_x1 = imax(CELL_X, SEL_X);
-        sel_y0 = imin(CELL_Y, SEL_Y);
-        sel_y1 = imax(CELL_Y, SEL_Y);
+        sel_x0 = imin(view->cell_x, view->sel_x);
+        sel_x1 = imax(view->cell_x, view->sel_x);
+        sel_y0 = imin(view->cell_y, view->sel_y);
+        sel_y1 = imax(view->cell_y, view->sel_y);
     }
     if(mode == LINE_SELECT_MODE){
-        sel_y0 = imin(CELL_Y, SEL_Y);
-        sel_y1 = imax(CELL_Y, SEL_Y);
+        sel_y0 = imin(view->cell_y, view->sel_y);
+        sel_y1 = imax(view->cell_y, view->sel_y);
     }
-    for(int iy = BASE_Y, y = 3; y < ROWS-1;y++, iy++){
+    for(int iy = view->base_y, y = 3; y < view->rows-1;y++, iy++){
         // int x;
         printf("\033[38;5;240m\033[%d;0H%4d\033[39m", y, iy+1);
-        for(int ix = BASE_X, x = 5; x < COLS && ix < 52;x+=advance, ix++){
+        for(int ix = view->base_x, x = 5; x < view->cols && ix < 52;x+=advance, ix++){
             int width = DEFAULT_WIDTH;
             if(ix < sheet->columns.count){
                 const Column* col = &sheet->columns.data[ix];
@@ -1160,12 +1204,12 @@ draw_grid(Sheet* sheet){
 
             if(selected){
                 printf("\033[1;100m");
-                if(ix == CELL_X && iy == CELL_Y){
+                if(ix == view->cell_x && iy == view->cell_y){
                     printf("\033[4m");
                     printf("\033[1;34m");
                 }
             }
-            else if(ix == CELL_X && iy == CELL_Y){
+            else if(ix == view->cell_x && iy == view->cell_y){
                 printf("\033[4m");
                 printf("\033[1;94m");
             }
@@ -1180,7 +1224,7 @@ draw_grid(Sheet* sheet){
             else
                 printf("%*.*s", width, imin((int)chunk._byte_len, width), chunk._txt);
 
-            if(selected || (ix == CELL_X && iy == CELL_Y))
+            if(selected || (ix == view->cell_x && iy == view->cell_y))
                 printf("\033[0m");
 
             advance = width+1;
@@ -1400,7 +1444,8 @@ struct CellCoord {
 
 static
 CellCoord
-screen_to_cell(Sheet* sheet, int x, int y){
+screen_to_cell(SheetView* view, int x, int y){
+    Sheet* sheet = view->sheet;
     if(x < 4)
         x = 0;
     else
@@ -1409,10 +1454,10 @@ screen_to_cell(Sheet* sheet, int x, int y){
         y = 0;
     else
         y -= 2;
-    int cell_y = y + BASE_Y;
+    int cell_y = y + view->base_y;
     int cell_x;
     int screen_x = 0;
-    for(int ix = BASE_X;; ix++){
+    for(int ix = view->base_x;; ix++){
         if(screen_x > x){
             cell_x = ix-1;
             break;
@@ -1433,9 +1478,10 @@ screen_to_cell(Sheet* sheet, int x, int y){
 
 static
 CellLoc
-cell_to_screen(Sheet* sheet, int x, int y){
+cell_to_screen(SheetView* view, int x, int y){
+    Sheet* sheet = view->sheet;
     int screen_x = 1+4;
-    for(int ix = BASE_X; ix < x; ix++){
+    for(int ix = view->base_x; ix < x; ix++){
         int advance = DEFAULT_WIDTH+1;
         if(ix < sheet->columns.count){
             advance = 1 + sheet->columns.data[ix].width;
@@ -1446,7 +1492,7 @@ cell_to_screen(Sheet* sheet, int x, int y){
     CellLoc loc = {
         screen_x,
         // x*12+1+4,
-        y-BASE_Y+3,
+        y-view->base_y+3,
         width,
     };
     // LOG("x, y: %d, %d\n", x, y);
@@ -1832,12 +1878,12 @@ redo(Sheet* sheet){
 
 static
 void
-update_display(Sheet* sheet){
+update_display(SheetView* view){
     if(need_rescale){
         TermSize sz = get_terminal_size();
-        if(ROWS != sz.rows || COLS != sz.columns){
-            ROWS = sz.rows;
-            COLS = sz.columns;
+        if(view->rows != sz.rows || view->cols != sz.columns){
+            view->rows = sz.rows;
+            view->cols = sz.columns;
             printf("\033[H\033[2J");
         }
         need_rescale = 0;
@@ -1846,40 +1892,40 @@ update_display(Sheet* sheet){
     }
     if(need_redisplay){
         need_redisplay = 0;
-        draw_grid(sheet);
+        draw_grid(view);
     }
-    printf("\033[%d;%dH", ROWS-1-1, 0);
+    printf("\033[%d;%dH", view->rows-1-1, 0);
     printf("\033[0K%-8s -- ", mode_name(mode));
     for(size_t i = 0; i < SHEETS.count && i < 9; i++){
         Sheet* sh = SHEETS.data[i];
-        if(sh == sheet)
+        if(sh == view->sheet)
             printf("\033[90m\033[1m[%zu] %s \033[0m", i+1, sh->name);
         else
             printf("[%zu] %s ", i+1, sh->name);
     }
-    printf("\033[%d;0H", ROWS-1);
+    printf("\033[%d;0H", view->rows-1);
     printf("\033[2K%s", status);
-    printf("\033[%d;0H", ROWS);
+    printf("\033[%d;0H", view->rows);
     if(mode == INSERT_MODE || mode == CHANGE_MODE){
         printf("\033[2K%s", EDIT.buff);
-        printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1);
+        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1);
     }
     if(mode == MOVE_MODE){
-        DrspAtom a = get_rc_a(&sheet->data, CELL_Y, CELL_X);
+        DrspAtom a = get_rc_a(&view->sheet->data, view->cell_y, view->cell_x);
         size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
         printf("\033[2K%.*s", (int)len, txt);
     }
     if(mode == COMMAND_MODE){
         printf("\033[2K:%s", EDIT.buff);
-        printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1+1);
+        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
     }
     if(mode == QUERY_MODE){
-        printf("\033[%d;%dH\033[2K> %s", ROWS, 0, EDIT.buff);
-        printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1+1+1);
+        printf("\033[%d;%dH\033[2K> %s", view->rows, 0, EDIT.buff);
+        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1+1);
     }
     if(mode == SEARCH_MODE){
         printf("\033[2K/%s", EDIT.buff);
-        printf("\033[%d;%dH", ROWS, EDIT.buff_cursor+1+1);
+        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
     }
     fflush(stdout);
 }
@@ -2156,6 +2202,7 @@ main(int argc, char** argv){
     CTX = drsp_create_ctx(&ops);
     nil_atom = xatomize("", 0);
     Sheet* SHEET = NULL;
+    SheetView* active_view = NULL;
 
     if(!files[0]){
         SHEET = new_sheet("main", NULL);
@@ -2228,6 +2275,7 @@ main(int argc, char** argv){
     if(!SHEET) {
         return 1;
     }
+    active_view = new_view(SHEET);
 #if 0 || defined(DRSP_TUI_BENCH)
     int err = drsp_evaluate_formulas(CTX);
     return err;
@@ -2246,7 +2294,7 @@ main(int argc, char** argv){
             (void)err;
             need_recalc = 0;
         }
-        update_display(SHEET);
+        update_display(active_view);
         int c;
         int cx, cy;
         int magnitude;
@@ -2279,11 +2327,11 @@ main(int argc, char** argv){
                         recalc();
                     }break;
                     case 'o':{
-                        insert_row_with_undo(SHEET, CELL_Y+1, 1);
+                        insert_row_with_undo(SHEET, active_view->cell_y+1, 1);
                         recalc();
                     }break;
                     case 'O':{
-                        insert_row_with_undo(SHEET, CELL_Y, 1);
+                        insert_row_with_undo(SHEET, active_view->cell_y, 1);
                         recalc();
                     }break;
                     case 'd':
@@ -2292,65 +2340,65 @@ main(int argc, char** argv){
                         }
                         else {
                             prev_c = 0;
-                            copy_rows(SHEET, CELL_Y, 1);
-                            delete_row_with_undo(SHEET, CELL_Y, 1);
+                            copy_rows(SHEET, active_view->cell_y, 1);
+                            delete_row_with_undo(SHEET, active_view->cell_y, 1);
                             recalc();
                         }
                         break;
                     case 'v':
                         change_mode(SELECT_MODE);
-                        SEL_X = CELL_X;
-                        SEL_Y = CELL_Y;
+                        active_view->sel_x = active_view->cell_x;
+                        active_view->sel_y = active_view->cell_y;
                         break;
                     case 'V':
                         change_mode(LINE_SELECT_MODE);
-                        SEL_Y = CELL_Y;
-                        SEL_X = 0;
+                        active_view->sel_y = active_view->cell_y;
+                        active_view->sel_x = 0;
                         break;
                     case 'y':
                         if(prev_c == 'y'){
-                            copy_rows(SHEET, CELL_Y, 1);
+                            copy_rows(SHEET, active_view->cell_y, 1);
                             prev_c = 0;
                         }
                         else
                             prev_c = 'y';
                         break;
                     case 'P':
-                        paste(SHEET, CELL_Y, CELL_X, PASTEBOARD.line_paste?PASTE_ABOVE:PASTE_NORMAL);
+                        paste(active_view, active_view->cell_y, active_view->cell_x, PASTEBOARD.line_paste?PASTE_ABOVE:PASTE_NORMAL);
                         break;
                     case 'p':
-                        paste(SHEET, CELL_Y, CELL_X, PASTEBOARD.line_paste?PASTE_BELOW:PASTE_NORMAL);
+                        paste(active_view, active_view->cell_y, active_view->cell_x, PASTEBOARD.line_paste?PASTE_BELOW:PASTE_NORMAL);
                         break;
                     case LCLICK_DOWN: {
-                        CellCoord cc = screen_to_cell(SHEET, cx, cy);
-                        move(cc.column - CELL_X, cc.row - CELL_Y);
+                        CellCoord cc = screen_to_cell(active_view, cx, cy);
+                        move(active_view, cc.column - active_view->cell_x, cc.row - active_view->cell_y);
                     } break;
                     case 'x':
                     case BACKSPACE:
                     case DELETE:
-                        delete_cells(SHEET, CELL_Y, CELL_X, 1, 1);
+                        delete_cells(SHEET, active_view->cell_y, active_view->cell_x, 1, 1);
                         break;
                     case PAGE_UP:
-                        move(0, -ROWS);
+                        move(active_view, 0, -active_view->rows);
                         break;
                     case PAGE_DOWN:
-                        move(0, +ROWS);
+                        move(active_view, 0, +active_view->rows);
                         break;
                     case CTRL_U:
-                        move(0, -ROWS/2);
+                        move(active_view, 0, -active_view->rows/2);
                         break;
                     case '=':
-                        change_col_width_fill(SHEET, CELL_X);
+                        change_col_width_fill(SHEET, active_view->cell_x);
                         redisplay();
                         break;
                     case '-':
                     case '<':
-                        change_col_width(SHEET, CELL_X, -1);
+                        change_col_width(SHEET, active_view->cell_x, -1);
                         redisplay();
                         break;
                     case '+':
                     case '>':
-                        change_col_width(SHEET, CELL_X, +1);
+                        change_col_width(SHEET, active_view->cell_x, +1);
                         redisplay();
                         break;
                     case '1':
@@ -2367,23 +2415,26 @@ main(int argc, char** argv){
                             Sheet* sheet = SHEETS.data[idx];
                             if(sheet != SHEET){
                                 SHEET = sheet;
+                                active_view = find_or_new_view(SHEET);
+                                need_redisplay = 1;
+                                need_rescale = 1;
                                 redisplay();
                             }
                         }
                     }break;
                     case '0':
-                        move(-CELL_X, 0);
+                        move(active_view, -active_view->cell_x, 0);
                         break;
                     case '$':
                         if(SHEET->data.count)
-                            move(SHEET->data.data[0].count-CELL_X, 0);
+                            move(active_view, SHEET->data.data[0].count-active_view->cell_x, 0);
                         break;
                     case 'g':
                         if(prev_c != 'g')
                             prev_c = c;
                         else{
                             prev_c = 0;
-                            move(0, -CELL_Y);
+                            move(active_view, 0, -active_view->cell_y);
                         }
                         break;
                     case 'N':
@@ -2392,14 +2443,14 @@ main(int argc, char** argv){
                                 goto forward_search;
                             reverse_search:;
                             if(!SHEET->data.count) break;
-                            int starty = CELL_Y;
+                            int starty = active_view->cell_y;
                             if(starty >= SHEET->data.count)
                                 starty = SHEET->data.count;
 
                             for(int y = starty; y >= 0; y--){
-                                for(int x = y==CELL_Y?CELL_X-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
+                                for(int x = y==active_view->cell_y?active_view->cell_x-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
                                     if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.prev_search, strlen(EDIT.prev_search))){
-                                        move(x-CELL_X, y-CELL_Y);
+                                        move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                         goto break_N;
                                     }
                                 }
@@ -2412,10 +2463,10 @@ main(int argc, char** argv){
                             if(search_backward)
                                 goto reverse_search;
                             forward_search:;
-                            for(int y = CELL_Y; y < SHEET->data.count; y++){
-                                for(int x = y==CELL_Y?CELL_X+1:0;x < SHEET->data.data[y].count; x++){
+                            for(int y = active_view->cell_y; y < SHEET->data.count; y++){
+                                for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
                                     if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.prev_search, strlen(EDIT.prev_search))){
-                                        move(x-CELL_X, y-CELL_Y);
+                                        move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                         goto break_n;
                                     }
                                 }
@@ -2425,10 +2476,10 @@ main(int argc, char** argv){
                         break;
                     case 'B':
                     case 'b':
-                        for(int y = CELL_Y; y >= 0 && y < SHEET->data.count; y--){
-                            for(int x = y==CELL_Y?CELL_X-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
+                        for(int y = active_view->cell_y; y >= 0 && y < SHEET->data.count; y--){
+                            for(int x = y==active_view->cell_y?active_view->cell_x-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
                                 if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != nil_atom){
-                                    move(x-CELL_X, y-CELL_Y);
+                                    move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                     goto break_b;
                                 }
                             }
@@ -2437,10 +2488,10 @@ main(int argc, char** argv){
                         break;
                     case 'W':
                     case 'w':
-                        for(int y = CELL_Y; y < SHEET->data.count; y++){
-                            for(int x = y==CELL_Y?CELL_X+1:0;x < SHEET->data.data[y].count; x++){
+                        for(int y = active_view->cell_y; y < SHEET->data.count; y++){
+                            for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
                                 if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != nil_atom){
-                                    move(x-CELL_X, y-CELL_Y);
+                                    move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                     goto break_w;
                                 }
                             }
@@ -2448,41 +2499,41 @@ main(int argc, char** argv){
                         break_w:;
                         break;
                     case 'G':
-                        move(0, SHEET->data.count-CELL_Y);
+                        move(active_view, 0, SHEET->data.count-active_view->cell_y);
                         break;
                     case 'k':
                     case UP:
                     case CTRL_P:
-                        move(0, -magnitude);
+                        move(active_view, 0, -magnitude);
                         break;
                     case CTRL_D:
-                        move(0, +ROWS/2);
+                        move(active_view, 0, +active_view->rows/2);
                         break;
                     case 'j':
                     case DOWN:
                     case CTRL_N:
-                        move(0, +magnitude);
+                        move(active_view, 0, +magnitude);
                         break;
                     case 'h':
                     case LEFT:
                     case CTRL_B:
                     case SHIFT_TAB:
-                        move(-1, 0);
+                        move(active_view, -1, 0);
                         break;
                     case 'l':
                     case RIGHT:
                     case TAB:
                     case CTRL_F:
-                        move(+1, 0);
+                        move(active_view, +1, 0);
                         break;
                     // case ENTER:
                     case CTRL_J:{
-                        DrspAtom a = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
-                        move(0, +1);
-                        DrspAtom before = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
+                        DrspAtom a = get_rc_a(&SHEET->data, active_view->cell_y, active_view->cell_x);
+                        move(active_view, 0, +1);
+                        DrspAtom before = get_rc_a(&SHEET->data, active_view->cell_y, active_view->cell_x);
                         if(before != a){
-                            update_cell_a(SHEET, CELL_Y, CELL_X, a);
-                            note_cell_change(&SHEET->undo, CELL_Y, CELL_X, before, a);
+                            update_cell_a(SHEET, active_view->cell_y, active_view->cell_x, a);
+                            note_cell_change(&SHEET->undo, active_view->cell_y, active_view->cell_x, before, a);
                         }
                     } break;
                     case CTRL_C:
@@ -2490,12 +2541,12 @@ main(int argc, char** argv){
                         break;
                     case 'c':
                         change_mode(CHANGE_MODE);
-                        begin_line_edit(SHEET);
+                        begin_line_edit(active_view);
                         break;
                     case 'e':
                     case 'i':
                         change_mode(INSERT_MODE);
-                        begin_line_edit(SHEET);
+                        begin_line_edit(active_view);
                         break;
                     case ESC:
                         set_status("");
@@ -2532,8 +2583,8 @@ main(int argc, char** argv){
                         if(mode == SELECT_MODE)
                             goto sel_DELETE;
                         prev_c = 0;
-                        int y = imin(CELL_Y, SEL_Y);
-                        int y1 = imax(CELL_Y, SEL_Y);
+                        int y = imin(active_view->cell_y, active_view->sel_y);
+                        int y1 = imax(active_view->cell_y, active_view->sel_y);
                         int h = y1-y+1;
                         copy_rows(SHEET, y, h);
                         delete_row_with_undo(SHEET, y, h);
@@ -2542,15 +2593,15 @@ main(int argc, char** argv){
                     }break;
                     case 'y':{
                         prev_c = 0;
-                        int y = imin(CELL_Y, SEL_Y);
-                        int y1 = imax(CELL_Y, SEL_Y);
+                        int y = imin(active_view->cell_y, active_view->sel_y);
+                        int y1 = imax(active_view->cell_y, active_view->sel_y);
                         int h = y1-y+1;
                         if(mode == LINE_SELECT_MODE){
                             copy_rows(SHEET, y, h);
                         }
                         else {
-                            int x = imin(CELL_X, SEL_X);
-                            int x1 = imax(CELL_X, SEL_X);
+                            int x = imin(active_view->cell_x, active_view->sel_x);
+                            int x1 = imax(active_view->cell_x, active_view->sel_x);
                             int w = x1-x+1;
                             copy_cells(SHEET, y, x, h, w);
                         }
@@ -2558,87 +2609,88 @@ main(int argc, char** argv){
                     }break;
                     case 'o':{
                         int tmp;
-                        tmp = CELL_X;
-                        CELL_X = SEL_X;
-                        SEL_X = tmp;
+                        tmp = active_view->cell_x;
+                        active_view->cell_x = active_view->sel_x;
+                        active_view->sel_x = tmp;
 
-                        tmp = CELL_Y;
-                        CELL_Y = SEL_Y;
-                        SEL_Y = tmp;
+                        tmp = active_view->cell_y;
+                        active_view->cell_y = active_view->sel_y;
+                        active_view->sel_y = tmp;
                         redisplay();
                     }break;
                     case 'p':
-                        paste(SHEET, imin(CELL_Y, SEL_Y), imin(CELL_X, SEL_X), PASTEBOARD.line_paste?PASTE_REPLACE:PASTE_NORMAL);
+                        paste(active_view, imin(active_view->cell_y, active_view->sel_y), imin(active_view->cell_x, active_view->sel_x), PASTEBOARD.line_paste?PASTE_REPLACE:PASTE_NORMAL);
                         recalc();
                         change_mode(MOVE_MODE);
                         break;
                     case LCLICK_DOWN: {
-                        CellCoord cc = screen_to_cell(SHEET, cx, cy);
-                        move(cc.column - CELL_X, cc.row - CELL_Y);
+                        // XXX: this needs to also needs to change the active view
+                        CellCoord cc = screen_to_cell(active_view, cx, cy);
+                        move(active_view, cc.column - active_view->cell_x, cc.row - active_view->cell_y);
                     } break;
                     case 'x':
                     case BACKSPACE:
                     case DELETE:{
                         sel_DELETE:;
-                        int x = imin(CELL_X, SEL_X);
-                        int y = imin(CELL_Y, SEL_Y);
-                        int x1 = imax(CELL_X, SEL_X);
-                        int y1 = imax(CELL_Y, SEL_Y);
+                        int x =  imin(active_view->cell_x, active_view->sel_x);
+                        int y =  imin(active_view->cell_y, active_view->sel_y);
+                        int x1 = imax(active_view->cell_x, active_view->sel_x);
+                        int y1 = imax(active_view->cell_y, active_view->sel_y);
                         if(mode == LINE_SELECT_MODE) line_select_bounds(SHEET, &x, &x1);
                         delete_cells(SHEET, y, x, y1-y+1, x1-x+1);
                         change_mode(MOVE_MODE);
                     }break;
                     case PAGE_UP:
-                        move(0, -ROWS);
+                        move(active_view, 0, -active_view->rows);
                         break;
                     case PAGE_DOWN:
-                        move(0, +ROWS);
+                        move(active_view, 0, +active_view->rows);
                         break;
                     case CTRL_U:
-                        move(0, -ROWS/2);
+                        move(active_view, 0, -active_view->rows/2);
                         break;
                     case '0':
-                        move(-CELL_X, 0);
+                        move(active_view, -active_view->cell_x, 0);
                         break;
                     case '$':
                         if(SHEET->data.count)
-                            move(SHEET->data.data[0].count-CELL_X, 0);
+                            move(active_view, SHEET->data.data[0].count-active_view->cell_x, 0);
                         break;
                     case 'g':
                         if(prev_c != 'g')
                             prev_c = c;
                         else{
                             prev_c = 0;
-                            move(0, -CELL_Y);
+                            move(active_view, 0, -active_view->cell_y);
                         }
                         break;
                     case 'G':
-                        move(0, SHEET->data.count-CELL_Y);
+                        move(active_view, 0, SHEET->data.count-active_view->cell_y);
                         break;
                     case 'k':
                     case UP:
                     case CTRL_P:
-                        move(0, -magnitude);
+                        move(active_view, 0, -magnitude);
                         break;
                     case CTRL_D:
-                        move(0, +ROWS/2);
+                        move(active_view, 0, +active_view->rows/2);
                         break;
                     case 'j':
                     case DOWN:
                     case CTRL_N:
-                        move(0, +magnitude);
+                        move(active_view, 0, +magnitude);
                         break;
                     case 'h':
                     case LEFT:
                     case CTRL_B:
                     case SHIFT_TAB:
-                        move(-1, 0);
+                        move(active_view, -1, 0);
                         break;
                     case 'l':
                     case RIGHT:
                     case TAB:
                     case CTRL_F:
-                        move(+1, 0);
+                        move(active_view, +1, 0);
                         break;
                     case CTRL_C:
                         change_mode(MOVE_MODE);
@@ -2666,9 +2718,9 @@ main(int argc, char** argv){
                         break;
                     case CTRL_J:
                     case ENTER:{
-                        DrspAtom before = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
-                        update_cell_a(SHEET, CELL_Y, CELL_X, xatomize(EDIT.buff, EDIT.buff_len));
-                        DrspAtom after = get_rc_a(&SHEET->data, CELL_Y, CELL_X);
+                        DrspAtom before = get_rc_a(&SHEET->data, active_view->cell_y, active_view->cell_x);
+                        update_cell_a(SHEET, active_view->cell_y, active_view->cell_x, xatomize(EDIT.buff, EDIT.buff_len));
+                        DrspAtom after = get_rc_a(&SHEET->data, active_view->cell_y, active_view->cell_x);
                         if(before != after){
                             if(editing_ud.kind != UNDO_NESTED){
                                 assert(editing_ud.kind == UNDO_INVALID);
@@ -2678,37 +2730,37 @@ main(int argc, char** argv){
                             }
                             *append(&editing_ud.nested) = (Undoable){
                                 .kind = UNDO_CHANGE_CELL,
-                                .change_cell = {.y=CELL_Y, .x=CELL_X, .before=before, .after=after},
+                                .change_cell = {.y=active_view->cell_y, .x=active_view->cell_x, .before=before, .after=after},
                             };
                         }
-                        move(0, +1);
-                        begin_line_edit(SHEET);
+                        move(active_view, 0, +1);
+                        begin_line_edit(active_view);
                     }break;
                     case CTRL_N:
                     case DOWN:
-                        move(0, +1);
-                        begin_line_edit(SHEET);
+                        move(active_view, 0, +1);
+                        begin_line_edit(active_view);
                         break;
                     case SHIFT_TAB:
                     case LEFT:
-                        move(-1, 0);
-                        begin_line_edit(SHEET);
+                        move(active_view, -1, 0);
+                        begin_line_edit(active_view);
                         break;
                     case TAB:
                     case RIGHT:
-                        move(+1, 0);
-                        begin_line_edit(SHEET);
+                        move(active_view, +1, 0);
+                        begin_line_edit(active_view);
                         break;
                     case CTRL_P:
                     case UP:
-                        move(0, -1);
-                        begin_line_edit(SHEET);
+                        move(active_view, 0, -1);
+                        begin_line_edit(active_view);
                         break;
                     case LCLICK_DOWN:{
-                        CellCoord cc = screen_to_cell(SHEET, cx, cy);
+                        CellCoord cc = screen_to_cell(active_view, cx, cy);
                         char buff[24];
                         int n;
-                        if(cc.row == CELL_Y){
+                        if(cc.row == active_view->cell_y){
                             n = snprintf(buff, sizeof buff, "%c$", 'a'+cc.column);
                         }
                         else
@@ -2760,10 +2812,10 @@ main(int argc, char** argv){
                             strcpy(EDIT.prev_search, EDIT.buff);
                             prev_search = 1;
                             change_mode(MOVE_MODE);
-                            for(int y = CELL_Y; y < SHEET->data.count; y++){
-                                for(int x = y==CELL_Y?CELL_X+1:0;x < SHEET->data.data[y].count; x++){
+                            for(int y = active_view->cell_y; y < SHEET->data.count; y++){
+                                for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
                                     if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.buff, EDIT.buff_len)){
-                                        move(x-CELL_X, y-CELL_Y);
+                                        move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                         goto break_search;
                                     }
                                 }
@@ -2812,7 +2864,7 @@ main(int argc, char** argv){
                                 continue;
                             }
                             if(memcmp(EDIT.buff, "rc ", 3) == 0){
-                                rename_column(SHEET, CELL_X, EDIT.buff+3);
+                                rename_column(SHEET, active_view->cell_x, EDIT.buff+3);
                                 change_mode(MOVE_MODE);
                                 redisplay();
                                 continue;
