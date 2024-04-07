@@ -678,7 +678,31 @@ clear(Sheet* sheet){
     }
     recalc();
 }
+static
+char*
+xint_to_colname(int x){
+    LOG("x %d ", x);
+    // return xstrdup("a");
+    char buff[64];
+    char* p = buff+11;
+    *p = 0;
+    // 0 -> a
+    // 26 -> aa
 
+    // a-z ->   0-25
+    // aa-az -> 26-51
+    // ba-bz -> 52-77
+    do {
+        p--;
+        int c = x % 26;
+        *p = (char)('A' + c);
+        x/=26;
+    }while(x--);
+    LOG(" -> %s\n", p);
+    return xstrdup(p);
+}
+
+static void fill_cols(Sheet* sheet, int x);
 static
 void
 update_cell_no_eval_a(Sheet* sheet, int y, int x, DrspAtom a){
@@ -686,18 +710,7 @@ update_cell_no_eval_a(Sheet* sheet, int y, int x, DrspAtom a){
     int e;
     e = drsp_set_cell_atom(CTX, sheet, y, x, a);
     (void)e;
-    if(x >= sheet->columns.count){
-        Column* col = append(&sheet->columns);
-        *col = (Column){0};
-        if(x > 25){
-            col->name = xsprintf("A%c", 'a' + x-26);
-        }
-        else {
-            col->name = xsprintf("%c", 'a' + x);
-        }
-        col->calc_width = strlen(col->name);
-        col->width = 9;
-    }
+    fill_cols(sheet, x);
 }
 
 static
@@ -947,18 +960,23 @@ change_col_width_fill(Sheet* sheet, int x){
     change_col_width(sheet, x, w-col->width);
 }
 
-static
-void
-rename_column(Sheet* sheet, int x, const char* p){
-    char* name = xstrdup(p);
+static void
+fill_cols(Sheet* sheet, int x){
     while(x >= sheet->columns.count){
         size_t i = sheet->columns.count;
         Column* col = append(&sheet->columns);
         *col = (Column){0};
-        col->name = xsprintf("%c", 'a'+(int)i);
+        col->name = xint_to_colname((int)i);
         col->calc_width = strlen(col->name);
-        col->width = 12;
+        col->width = 8;
     }
+}
+
+static
+void
+rename_column(Sheet* sheet, int x, const char* p){
+    char* name = xstrdup(p);
+    fill_cols(sheet, x);
     Column* col = &sheet->columns.data[x];
     free(col->name);
     col->name = name;
@@ -998,7 +1016,7 @@ move(SheetView* view, int dx, int dy){
     if(view->base_y < 0) view->base_y = 0;
     view->cell_x+=dx;
     if(view->cell_x < 0) view->cell_x = 0;
-    if(view->cell_x >= 52) view->cell_x = 51;
+    if(view->cell_x > 9000) view->cell_x = 9000;
     while(view->cell_x-view->base_x >= view->cols/13){
         view->base_x++;
         base_changed = 1;
@@ -1121,7 +1139,7 @@ draw_grid(SheetView* view){
     int advance = 12;
     printf("\033[H\033[2K");
     const int borderless_ = borderless;
-    for(int x = 5, ix=view->base_x; x < view->cols && ix < 52;x+=advance, ix++){
+    for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
         const char* colname;
         char buff[2];
         size_t len;
@@ -1150,7 +1168,7 @@ draw_grid(SheetView* view){
         advance = width+1;
     }
     printf("\033[2;0H────");
-    for(int x = 5, ix=view->base_x; x < view->cols && ix < 52;x+=advance, ix++){
+    for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
         const char* border =
             "─────────────────────────────────"
             "─────────────────────────────────"
@@ -1187,7 +1205,7 @@ draw_grid(SheetView* view){
     for(int iy = view->base_y, y = 3; y < view->rows-1;y++, iy++){
         // int x;
         printf("\033[38;5;240m\033[%d;0H%4d\033[39m", y, iy+1);
-        for(int ix = view->base_x, x = 5; x < view->cols && ix < 52;x+=advance, ix++){
+        for(int ix = view->base_x, x = 5; x < view->cols;x+=advance, ix++){
             int width = DEFAULT_WIDTH;
             if(ix < sheet->columns.count){
                 const Column* col = &sheet->columns.data[ix];
@@ -1987,9 +2005,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
                 if(read_one(sequence+3, /*block=*/0) == -1) return -1;
                 if(read_one(sequence+4, /*block=*/0) == -1) return -1;
                 // LOG("click?\n");
-                LOG("%d\n", sequence[2]);
-                LOG("%d\n", sequence[3]);
-                LOG("%d\n", sequence[4]);
+                // LOG("ESC [ M %d %d %d\n", sequence[2], sequence[3], sequence[4]);
                 cx = ((int)(unsigned char)sequence[3]) - 32-1;
                 cy = ((int)(unsigned char)sequence[4]) - 32-1;
                 // LOG("x, y: %d,%d\n", cx, cy);
@@ -2899,6 +2915,7 @@ main(int argc, char** argv){
                             || strcmp(EDIT.buff, "nex") == 0
                             || strcmp(EDIT.buff, "next") == 0){
                                 SHEET = next_sheet(SHEET, +1);
+                                active_view = find_view(SHEET);
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
@@ -2907,6 +2924,7 @@ main(int argc, char** argv){
                             || strcmp(EDIT.buff, "prev") == 0
                             || strcmp(EDIT.buff, "previous") == 0){
                                 SHEET = next_sheet(SHEET, -1);
+                                active_view = find_view(SHEET);
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
