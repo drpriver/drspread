@@ -81,8 +81,8 @@ strdup(const char* p){
 #endif
 
 static DrSpreadCtx* CTX;
-static DrspAtom nil_atom;
-static _Bool borderless;
+static DrspAtom NIL_ATOM;
+static _Bool BORDERLESS;
 
 static inline
 _Bool
@@ -364,13 +364,13 @@ Pasteboard PASTEBOARD;
 static
 void
 set_rc_val_a(Rows* rows, int y, int x, DrspAtom a){
-    if(y >= rows->count && a == nil_atom) return;
+    if(y >= rows->count && a == NIL_ATOM) return;
     while(y >= rows->count)
         *append(rows) = (Row){0};
     Row* row = &rows->data[y];
-    if(x >= row->count && a == nil_atom) return;
+    if(x >= row->count && a == NIL_ATOM) return;
     while(x >= row->count)
-        *append(row) = nil_atom;
+        *append(row) = NIL_ATOM;
     row->data[x] = a;
 }
 
@@ -393,7 +393,7 @@ struct TextChunk {
 static
 TextChunk
 get_rc_val(Rows* rows, int y, int x){
-    TextChunk result = {nil_atom, NULL, 0, 0};
+    TextChunk result = {NIL_ATOM, NULL, 0, 0};
     if(y < 0 || x < 0) return result;
     if(y >= rows->count) return result;
     Row* row = &rows->data[y];
@@ -409,7 +409,7 @@ get_rc_val(Rows* rows, int y, int x){
 static
 DrspAtom
 get_rc_a(Rows* rows, int y, int x){
-    DrspAtom result = nil_atom;
+    DrspAtom result = NIL_ATOM;
     if(y < 0 || x < 0) return result;
     if(y >= rows->count) return result;
     Row* row = &rows->data[y];
@@ -670,9 +670,9 @@ clear(Sheet* sheet){
     for(int y = 0; y < sheet->data.count; y++){
         Row* row = &sheet->data.data[y];
         for(int x = 0; x < row->count; x++){
-            if(row->data[x] != nil_atom){
-                row->data[x] = nil_atom;
-                drsp_set_cell_atom(CTX, sheet, y, x, nil_atom);
+            if(row->data[x] != NIL_ATOM){
+                row->data[x] = NIL_ATOM;
+                drsp_set_cell_atom(CTX, sheet, y, x, NIL_ATOM);
             }
         }
     }
@@ -796,10 +796,10 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
                     if(iy >= sheet->data.count) break;
                     const Row* row = &sheet->data.data[iy];
                     for(size_t x = 0; x < row->count; x++){
-                        if(row->data[x] != nil_atom){
+                        if(row->data[x] != NIL_ATOM){
                             *append(&ud->nested) = (Undoable){
                                 .kind = UNDO_CHANGE_CELL,
-                                .change_cell = {.y=iy, .x=x, .before=row->data[x], .after=nil_atom},
+                                .change_cell = {.y=iy, .x=x, .before=row->data[x], .after=NIL_ATOM},
                             };
                         }
                     }
@@ -886,7 +886,7 @@ delete_cells(Sheet* sheet, int y, int x, int h, int w){
     for(int dy = 0; dy < h; dy++){
         for(int dx = 0; dx < w; dx++){
             DrspAtom a  = get_rc_a(&sheet->data, y+dy, x+dx);
-            if(a == nil_atom) continue;
+            if(a == NIL_ATOM) continue;
             goto did_change;
         }
     }
@@ -896,9 +896,9 @@ delete_cells(Sheet* sheet, int y, int x, int h, int w){
     for(int dy = 0; dy < h; dy++){
         for(int dx = 0; dx < w; dx++){
             DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
-            if(before == nil_atom) continue;
-            update_cell_a(sheet, y+dy, x+dx, nil_atom);
-            DrspAtom after = nil_atom;
+            if(before == NIL_ATOM) continue;
+            update_cell_a(sheet, y+dy, x+dx, NIL_ATOM);
+            DrspAtom after = NIL_ATOM;
             *append(&u->nested) = (Undoable){
                 .kind = UNDO_CHANGE_CELL,
                 .change_cell = {
@@ -1139,7 +1139,7 @@ draw_grid(SheetView* view){
     Sheet* sheet = view->sheet;
     int advance = 12;
     printf("\033[H\033[2K");
-    const int borderless_ = borderless;
+    const int borderless = BORDERLESS;
     for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
         const char* colname;
         char buff[12];
@@ -1161,7 +1161,7 @@ draw_grid(SheetView* view){
         // LOG("colname[%zu]: '%s'\n", i, colname);
         // LOG("lpad: %d\n", lpad);
         // LOG("pwidth: %d\n", pwidth);
-        if(borderless_)
+        if(borderless)
             printf("\033[%d;%dH %*s%.*s", 1, x, lpad, "", pwidth, colname);
         else
             printf("\033[%d;%dH│%*s%.*s", 1, x, lpad, "", pwidth, colname);
@@ -1233,7 +1233,7 @@ draw_grid(SheetView* view){
                 printf("\033[4m");
                 printf("\033[1;94m");
             }
-            if(borderless_)
+            if(borderless)
                 printf("\033[%d;%dH ", y, x);
             else
                 printf("\033[%d;%dH│", y, x);
@@ -1554,7 +1554,7 @@ insert_row(Sheet* sheet, int y, int n){
             (void)err;
         }
         for(;x < old_row->count; x++){
-            int err = drsp_set_cell_atom(CTX, sheet, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, NIL_ATOM);
             (void)err;
         }
     }
@@ -1601,7 +1601,7 @@ delete_row(Sheet* sheet, int y, int n){
             (void)err;
         }
         for(; x < deleted->count; x++){
-            int err = drsp_set_cell_atom(CTX, sheet, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, NIL_ATOM);
             (void)err;
         }
     }
@@ -1609,7 +1609,7 @@ delete_row(Sheet* sheet, int y, int n){
         int iy = rows->count-i;
         const Row* last = &rows->data[iy];
         for(size_t x = 0; x < last->count; x++){
-            int err = drsp_set_cell_atom(CTX, sheet, iy, x, nil_atom);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, NIL_ATOM);
             (void)err;
         }
     }
@@ -1635,7 +1635,7 @@ delete_row_with_undo(Sheet* sheet, int y, int n){
         assert(iy < sheet->data.count);
         const Row* row = &sheet->data.data[iy];
         for(size_t x = 0;x < row->count; x++){
-            if(row->data[x] != nil_atom)
+            if(row->data[x] != NIL_ATOM)
                 goto did_change;
         }
     }
@@ -1646,10 +1646,10 @@ delete_row_with_undo(Sheet* sheet, int y, int n){
         assert(iy < sheet->data.count);
         const Row* row = &sheet->data.data[iy];
         for(size_t x = 0;x < row->count; x++){
-            if(row->data[x] != nil_atom)
+            if(row->data[x] != NIL_ATOM)
                 *append(&ud->nested) = (Undoable){
                     .kind = UNDO_CHANGE_CELL,
-                    .change_cell = {.y=iy, .x=x, .before=row->data[x], .after=nil_atom},
+                    .change_cell = {.y=iy, .x=x, .before=row->data[x], .after=NIL_ATOM},
                 };
         }
 
@@ -1762,7 +1762,7 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
                     goto cleanup;
                 }
             }
-            if(r->data[x] != nil_atom){
+            if(r->data[x] != NIL_ATOM){
                 size_t len; const char* txt = drsp_atom_get_str(CTX, r->data[x], &len);
                 size_t writ = fwrite(txt, len, 1, fp);
                 if(writ != 1){
@@ -2141,7 +2141,7 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64]){
     ArgToParse kw_args[] = {
         {
             .name = SV("--borderless"),
-            .dest = ARGDEST(&borderless),
+            .dest = ARGDEST(&BORDERLESS),
             .help = "Don't draw separators between cells",
         },
         {
@@ -2221,7 +2221,7 @@ main(int argc, char** argv){
 
     SheetOps ops = make_ops();
     CTX = drsp_create_ctx(&ops);
-    nil_atom = xatomize("", 0);
+    NIL_ATOM = xatomize("", 0);
     Sheet* SHEET = NULL;
     SheetView* active_view = NULL;
 
@@ -2501,7 +2501,7 @@ main(int argc, char** argv){
                     case 'b':
                         for(int y = active_view->cell_y; y >= 0 && y < SHEET->data.count; y--){
                             for(int x = y==active_view->cell_y?active_view->cell_x-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
-                                if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != nil_atom){
+                                if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != NIL_ATOM){
                                     move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                     goto break_b;
                                 }
@@ -2513,7 +2513,7 @@ main(int argc, char** argv){
                     case 'w':
                         for(int y = active_view->cell_y; y < SHEET->data.count; y++){
                             for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
-                                if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != nil_atom){
+                                if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != NIL_ATOM){
                                     move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                     goto break_w;
                                 }
@@ -2939,7 +2939,7 @@ main(int argc, char** argv){
                             || strcmp(EDIT.buff, "bo") == 0
                             || strcmp(EDIT.buff, "borderless") == 0
                             ){
-                                borderless = !borderless;
+                                BORDERLESS = !BORDERLESS;
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
