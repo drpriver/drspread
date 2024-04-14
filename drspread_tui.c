@@ -678,13 +678,13 @@ clear(Sheet* sheet){
     }
     recalc();
 }
+
 static
-char*
-xint_to_colname(int x){
-    LOG("x %d ", x);
-    // return xstrdup("a");
-    char buff[64];
-    char* p = buff+11;
+ptrdiff_t
+int_to_colname(char* buff, size_t buffsz, int x){
+    assert(buffsz > 1);
+    char* end = buff+buffsz;
+    char* p = end-1;
     *p = 0;
     // 0 -> a
     // 26 -> aa
@@ -697,9 +697,17 @@ xint_to_colname(int x){
         int c = x % 26;
         *p = (char)('A' + c);
         x/=26;
-    }while(x--);
-    LOG(" -> %s\n", p);
-    return xstrdup(p);
+    }while(x-- && p != buff);
+    __builtin_memmove(buff, p, end-p);
+    return end-p;
+}
+static
+char*
+xint_to_colname(int x){
+    char buff[64];
+    int n = int_to_colname(buff, sizeof buff, x);
+    assert(n < sizeof buff);
+    return xstrdup(buff);
 }
 
 static void fill_cols(Sheet* sheet, int x);
@@ -914,14 +922,7 @@ paste(SheetView* view, int y, int x, PasteKind pastekind){
 static
 void
 change_col_width(Sheet* sheet, int x, int dw){
-    while(x >= sheet->columns.count){
-        size_t i = sheet->columns.count;
-        Column* col = append(&sheet->columns);
-        *col = (Column){0};
-        col->name = xsprintf("%c", 'a'+(int)i);
-        col->calc_width = strlen(col->name);
-        col->width = 12;
-    }
+    fill_cols(sheet, x);
     Column* col = &sheet->columns.data[x];
     if(!col->explicit_width){
         // XXX: can go too low
@@ -1141,7 +1142,7 @@ draw_grid(SheetView* view){
     const int borderless_ = borderless;
     for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
         const char* colname;
-        char buff[2];
+        char buff[12];
         size_t len;
         int width = DEFAULT_WIDTH;
         if(ix < sheet->columns.count){
@@ -1151,8 +1152,7 @@ draw_grid(SheetView* view){
             width = col->width;
         }
         else {
-            buff[0] = ix < 26? 'A' + ix: ' ';
-            buff[1] = 0;
+            len = int_to_colname(buff, sizeof buff, ix)-1;
             colname = buff;
             len = 1;
         }
@@ -2796,12 +2796,18 @@ main(int argc, char** argv){
                     case LCLICK_DOWN:{
                         CellCoord cc = screen_to_cell(active_view, cx, cy);
                         char buff[24];
-                        int n;
+                        int n = int_to_colname(buff, sizeof buff, cc.column);
+                        n--;
                         if(cc.row == active_view->cell_y){
-                            n = snprintf(buff, sizeof buff, "%c$", 'a'+cc.column);
+                            buff[n++] = '$';
                         }
-                        else
-                            n = snprintf(buff, sizeof buff, "%c%d", 'a'+cc.column, cc.row+1);
+                        else{
+                            int n2 = snprintf(buff+n, (sizeof buff)-n, "%d", cc.row+1);
+                            if(n2 > 0)
+                                n += n2;
+                            else
+                                n = -1;
+                        }
                         if(n > 0)
                             insert_text(buff, n);
                     }break;
