@@ -330,7 +330,7 @@ mode_name(int mode){
         case QUERY_MODE:       return "QUERY";
         case SEARCH_MODE:      return "SEARCH";
         case SELECT_MODE:      return "SELECT";
-        case LINE_SELECT_MODE: return "SEL LINE";
+        case LINE_SELECT_MODE: return "SELECT LINE";
         default:               return "????";
     }
 }
