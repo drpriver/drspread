@@ -19,13 +19,15 @@
 #include "argument_parsing.h"
 
 #ifdef _WIN32
+static inline _Bool memeq(const void* a, const void* b, size_t sz);
+
 static inline
 void*
 memmem(const void* haystack, size_t hsz, const void* needle, size_t nsz){
     if(nsz > hsz) return NULL;
     char* hay = (char*)haystack;
     for(size_t i = 0; i <= hsz-nsz; i++){
-        if(memcmp(hay+i, needle, nsz) == 0)
+        if(memeq(hay+i, needle, nsz))
             return hay+i;
     }
     return NULL;
@@ -79,6 +81,18 @@ strdup(const char* p){
 }
 
 #endif
+
+static inline
+_Bool
+streq(const char* a, const char* b){
+    return strcmp(a, b) == 0;
+}
+
+static inline
+_Bool
+memeq(const void* a, const void* b, size_t sz){
+    return memcmp(a, b, sz) == 0;
+}
 
 static DrSpreadCtx* CTX;
 static DrspAtom NIL_ATOM;
@@ -608,7 +622,7 @@ static
 Sheet*
 find_sheet(const char* name){
     for(size_t i = 0; i < SHEETS.count; i++){
-        if(strcmp(SHEETS.data[i]->name, name) == 0)
+        if(streq(SHEETS.data[i]->name, name))
             return SHEETS.data[i];
     }
     return NULL;
@@ -1715,7 +1729,7 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
 
     {
         const char* dot = strrchr(filename, '.');
-        if(dot && strcmp(dot, ".drsp") == 0){
+        if(dot && streq(dot, ".drsp")){
             // write header
             int put;
             put = fputs("names", fp);
@@ -2250,7 +2264,7 @@ main(int argc, char** argv){
                     name = xstrdup2(name, dot-name);
                 else
                     name = xstrdup(name);
-                if(dot && strcmp(dot, ".drsp") == 0)
+                if(dot && streq(dot, ".drsp"))
                     is_drsp = 1;
             }
             if(find_sheet(name)){
@@ -2268,13 +2282,13 @@ main(int argc, char** argv){
                 int x = 0;
                 if(is_drsp){
                     y = -1;
-                    if(strcmp(line, "---") == 0 || !strlen(line)){
+                    if(streq(line, "---") || !strlen(line)){
                         is_drsp = 0;
                         continue;
                     }
                     token = strsep(&line, "\t|");
                     if(!token) continue;
-                    if(strcmp(token, "names") == 0){
+                    if(streq(token, "names")){
                         for(;(token = strsep(&line, "\t|"));x++){
                             rename_column(SHEET, x, token);
                         }
@@ -2868,15 +2882,15 @@ main(int argc, char** argv){
                         }
                         else {
                             // TODO
-                            if(strcmp(EDIT.buff, "q") == 0 || strcmp(EDIT.buff, "quit") == 0 || strcmp(EDIT.buff, "exit") == 0)
+                            if(streq(EDIT.buff, "q") || streq(EDIT.buff, "quit") || streq(EDIT.buff, "exit"))
                                 goto finally;
-                            if(strcmp(EDIT.buff, "clear") == 0){
+                            if(streq(EDIT.buff, "clear")){
                                 clear(SHEET);
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
                                 continue;
                             }
-                            if(strcmp(EDIT.buff, "bg") == 0){
+                            if(streq(EDIT.buff, "bg")){
                                 end_tui();
                                 raise(SIGTSTP);
                                 begin_tui();
@@ -2884,60 +2898,60 @@ main(int argc, char** argv){
                                 redisplay(active_view);
                                 continue;
                             }
-                            if(strcmp(EDIT.buff, "wq") == 0 || strcmp(EDIT.buff, "x") == 0){
+                            if(streq(EDIT.buff, "wq") || streq(EDIT.buff, "x")){
                                 int err = atomically_write_sheet(SHEET, SHEET->filename);
                                 // TODO: report errors
                                 if(!err) goto finally;
                                 continue;
                             }
-                            if(strcmp(EDIT.buff, "w") == 0 || strcmp(EDIT.buff, "write") == 0){
+                            if(streq(EDIT.buff, "w") || streq(EDIT.buff, "write")){
                                 int err = atomically_write_sheet(SHEET, SHEET->filename);
                                 (void)err; // TODO: report errors
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
                                 continue;
                             }
-                            if(memcmp(EDIT.buff, "w ", 2) == 0){
+                            if(memeq(EDIT.buff, "w ", 2)){
                                 int err = atomically_write_sheet(SHEET, EDIT.buff+2);
                                 (void)err; // TODO: report errors
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
                                 continue;
                             }
-                            if(memcmp(EDIT.buff, "write ", 6) == 0){
+                            if(memeq(EDIT.buff, "write ", 6)){
                                 int err = atomically_write_sheet(SHEET, EDIT.buff+6);
                                 (void)err; // TODO: report errors
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
                                 continue;
                             }
-                            if(memcmp(EDIT.buff, "rc ", 3) == 0){
+                            if(memeq(EDIT.buff, "rc ", 3)){
                                 rename_column(SHEET, active_view->cell_x, EDIT.buff+3);
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
                                 continue;
                             }
-                            if(strcmp(EDIT.buff, "ne") == 0
-                            || strcmp(EDIT.buff, "nex") == 0
-                            || strcmp(EDIT.buff, "next") == 0){
+                            if(streq(EDIT.buff, "ne")
+                            || streq(EDIT.buff, "nex")
+                            || streq(EDIT.buff, "next")){
                                 SHEET = next_sheet(SHEET, +1);
                                 active_view = find_view(SHEET);
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
                             }
-                            if(strcmp(EDIT.buff, "pr") == 0
-                            || strcmp(EDIT.buff, "prev") == 0
-                            || strcmp(EDIT.buff, "previous") == 0){
+                            if(streq(EDIT.buff, "pr")
+                            || streq(EDIT.buff, "prev")
+                            || streq(EDIT.buff, "previous")){
                                 SHEET = next_sheet(SHEET, -1);
                                 active_view = find_view(SHEET);
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
                             }
-                            if(strcmp(EDIT.buff, "border") == 0
-                            || strcmp(EDIT.buff, "bo") == 0
-                            || strcmp(EDIT.buff, "borderless") == 0
+                            if(streq(EDIT.buff, "border")
+                            || streq(EDIT.buff, "bo")
+                            || streq(EDIT.buff, "borderless")
                             ){
                                 BORDERLESS = !BORDERLESS;
                                 redisplay(active_view);
