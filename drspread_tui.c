@@ -291,7 +291,7 @@ enum {
 static TermState TS;
 static int need_rescale = 1;
 static int need_recalc = 1;
-static int mode = 0; // MOVE_MODE
+static int MODE = 0; // MOVE_MODE
 static char* status = NULL;
 enum {
     MOVE_MODE = 0,
@@ -330,7 +330,7 @@ change_mode(int m){
         printf("\033[?25l\033[2 q");
     }
     fflush(stdout);
-    mode = m;
+    MODE = m;
 }
 
 static
@@ -582,7 +582,7 @@ struct _sheet_handle {
     Columns columns;
     const char* filename;
     const char* name;
-    UndoStack undo;
+    UndoStack undo_stack;
 };
 
 typedef struct SheetView SheetView;
@@ -593,6 +593,7 @@ struct SheetView {
     int sel_x, sel_y;
     int rows, cols;
     _Bool need_redisplay: 1;
+    int win_x, win_y;
 };
 
 
@@ -777,10 +778,10 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
             }
             return;
             did_change:;
-            ud = note_nested_change(&sheet->undo);
+            ud = note_nested_change(&sheet->undo_stack);
             break;
         case PASTE_BELOW:
-            ud = note_nested_change(&sheet->undo);
+            ud = note_nested_change(&sheet->undo_stack);
             y++;
             *append(&ud->nested) = (Undoable){
                 .kind = UNDO_INSERT_ROWS,
@@ -789,7 +790,7 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
             insert_row(sheet, y, rows->count);
             break;
         case PASTE_ABOVE:
-            ud = note_nested_change(&sheet->undo);
+            ud = note_nested_change(&sheet->undo_stack);
             *append(&ud->nested) = (Undoable){
                 .kind = UNDO_INSERT_ROWS,
                 .insert_rows = { .y=y, .n=rows->count, },
@@ -804,7 +805,7 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
             // LOG("diff: %d\n", diff);
             if(diff < 0){
                 diff = -diff;
-                ud = note_nested_change(&sheet->undo);
+                ud = note_nested_change(&sheet->undo_stack);
                 for(int dy = 0; dy < diff; dy++){
                     int iy = y + dy;
                     if(iy >= sheet->data.count) break;
@@ -825,7 +826,7 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
                 delete_row(sheet, y, diff);
             }
             else if(diff > 0){
-                ud = note_nested_change(&sheet->undo);
+                ud = note_nested_change(&sheet->undo_stack);
                 *append(&ud->nested) = (Undoable){
                     .kind = UNDO_INSERT_ROWS,
                     .insert_rows = { .y=y, .n=diff, },
@@ -834,7 +835,7 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
                 insert_row(sheet, y, diff);
             }
             else
-                ud = note_nested_change(&sheet->undo);
+                ud = note_nested_change(&sheet->undo_stack);
         }break;
     }
     for(int dy = 0; dy < rows->count; dy++){
@@ -906,7 +907,7 @@ delete_cells(Sheet* sheet, int y, int x, int h, int w){
     }
     return;
     did_change:;
-    Undoable* u = note_nested_change(&sheet->undo);
+    Undoable* u = note_nested_change(&sheet->undo_stack);
     for(int dy = 0; dy < h; dy++){
         for(int dx = 0; dx < w; dx++){
             DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
@@ -1063,7 +1064,7 @@ begin_line_edit_buff(const char* txt, size_t len){
 static
 void
 begin_line_edit(SheetView* view){
-    if(mode == CHANGE_MODE)
+    if(MODE == CHANGE_MODE)
         begin_line_edit_buff("", 0);
     else {
         DrspAtom a = get_rc_a(&view->sheet->data, view->cell_y, view->cell_x);
@@ -1206,13 +1207,13 @@ draw_grid(SheetView* view){
     int sel_x1 = view->cell_x;
     int sel_y0 = view->cell_y;
     int sel_y1 = view->cell_y;
-    if(mode == SELECT_MODE){
+    if(MODE == SELECT_MODE){
         sel_x0 = imin(view->cell_x, view->sel_x);
         sel_x1 = imax(view->cell_x, view->sel_x);
         sel_y0 = imin(view->cell_y, view->sel_y);
         sel_y1 = imax(view->cell_y, view->sel_y);
     }
-    if(mode == LINE_SELECT_MODE){
+    if(MODE == LINE_SELECT_MODE){
         sel_y0 = imin(view->cell_y, view->sel_y);
         sel_y1 = imax(view->cell_y, view->sel_y);
     }
@@ -1226,13 +1227,13 @@ draw_grid(SheetView* view){
                 width = col->width;
             }
             _Bool selected =
-                (mode == SELECT_MODE
+                (MODE == SELECT_MODE
                  && ix >= sel_x0
                  && ix <= sel_x1
                  && iy >= sel_y0
                  && iy <= sel_y1)
                 ||
-                (mode == LINE_SELECT_MODE
+                (MODE == LINE_SELECT_MODE
                  && iy >= sel_y0
                  && iy <= sel_y1);
 
@@ -1582,7 +1583,7 @@ insert_row_with_undo(Sheet* sheet, int y, int n){
     if(y >= rows->count)
         return; // virtual cells handle this.
     insert_row(sheet, y, n);
-    note_insert_rows(&sheet->undo, y, n);
+    note_insert_rows(&sheet->undo_stack, y, n);
 }
 
 
@@ -1643,7 +1644,7 @@ delete_row_with_undo(Sheet* sheet, int y, int n){
     if(y+n > rows->count){
         n = rows->count - y;
     }
-    Undoable* ud = note_delete_row(&sheet->undo);
+    Undoable* ud = note_delete_row(&sheet->undo_stack);
     for(int dy = 0; dy < n; dy++){
         int iy = y + dy;
         assert(iy < sheet->data.count);
@@ -1892,7 +1893,7 @@ apply_redo(Sheet* sheet, Undoable* u){
 static
 void
 undo(Sheet* sheet){
-    UndoStack* ud = &sheet->undo;
+    UndoStack* ud = &sheet->undo_stack;
     LOG("undo cursor: %zu\n", ud->cursor);
     if(!ud->cursor) return;
     Undoable* u = &ud->data[--ud->cursor];
@@ -1902,7 +1903,7 @@ undo(Sheet* sheet){
 static
 void
 redo(Sheet* sheet){
-    UndoStack* ud = &sheet->undo;
+    UndoStack* ud = &sheet->undo_stack;
     LOG("redo cursor: %zu\n", ud->cursor);
     if(ud->cursor == ud->count) return;
     Undoable* u = &ud->data[ud->cursor++];
@@ -1932,7 +1933,7 @@ update_display(SheetView* view){
         draw_grid(view);
     }
     printf("\033[%d;%dH", view->rows-1-1, 0);
-    printf("\033[0K%-8s -- ", mode_name(mode));
+    printf("\033[0K%-8s -- ", mode_name(MODE));
     for(size_t i = 0; i < SHEETS.count && i < 9; i++){
         Sheet* sh = SHEETS.data[i];
         if(sh == view->sheet)
@@ -1943,24 +1944,24 @@ update_display(SheetView* view){
     printf("\033[%d;0H", view->rows-1);
     printf("\033[2K%s", status);
     printf("\033[%d;0H", view->rows);
-    if(mode == INSERT_MODE || mode == CHANGE_MODE){
+    if(MODE == INSERT_MODE || MODE == CHANGE_MODE){
         printf("\033[2K%s", EDIT.buff);
         printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1);
     }
-    if(mode == MOVE_MODE){
+    if(MODE == MOVE_MODE){
         DrspAtom a = get_rc_a(&view->sheet->data, view->cell_y, view->cell_x);
         size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
         printf("\033[2K%.*s", (int)len, txt);
     }
-    if(mode == COMMAND_MODE){
+    if(MODE == COMMAND_MODE){
         printf("\033[2K:%s", EDIT.buff);
         printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
     }
-    if(mode == QUERY_MODE){
+    if(MODE == QUERY_MODE){
         printf("\033[%d;%dH\033[2K> %s", view->rows, 0, EDIT.buff);
         printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1+1);
     }
-    if(mode == SEARCH_MODE){
+    if(MODE == SEARCH_MODE){
         printf("\033[2K/%s", EDIT.buff);
         printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
     }
@@ -2341,16 +2342,16 @@ main(int argc, char** argv){
             end_tui();
             raise(SIGTSTP);
             begin_tui();
-            change_mode(mode);
+            change_mode(MODE);
             redisplay(active_view);
             continue;
         }
-        if(mode == MOVE_MODE || mode == SELECT_MODE || mode == LINE_SELECT_MODE){
+        if(MODE == MOVE_MODE || MODE == SELECT_MODE || MODE == LINE_SELECT_MODE){
             if(c != 'g' && c != 'd' && c != 'y'){
                 prev_c = 0;
             }
         }
-        switch(mode){
+        switch(MODE){
             case MOVE_MODE:
                 switch(c){
                     case 'u':{
@@ -2570,7 +2571,7 @@ main(int argc, char** argv){
                         DrspAtom before = get_rc_a(&SHEET->data, active_view->cell_y, active_view->cell_x);
                         if(before != a){
                             update_cell_a(SHEET, active_view->cell_y, active_view->cell_x, a);
-                            note_cell_change(&SHEET->undo, active_view->cell_y, active_view->cell_x, before, a);
+                            note_cell_change(&SHEET->undo_stack, active_view->cell_y, active_view->cell_x, before, a);
                         }
                     } break;
                     case CTRL_C:
@@ -2624,7 +2625,7 @@ main(int argc, char** argv){
             case SELECT_MODE:
                 switch(c){
                     case 'd':{
-                        if(mode == SELECT_MODE)
+                        if(MODE == SELECT_MODE)
                             goto sel_DELETE;
                         prev_c = 0;
                         int y = imin(active_view->cell_y, active_view->sel_y);
@@ -2641,7 +2642,7 @@ main(int argc, char** argv){
                         int y = imin(active_view->cell_y, active_view->sel_y);
                         int y1 = imax(active_view->cell_y, active_view->sel_y);
                         int h = y1-y+1;
-                        if(mode == LINE_SELECT_MODE){
+                        if(MODE == LINE_SELECT_MODE){
                             copy_rows(SHEET, y, h);
                         }
                         else {
@@ -2683,7 +2684,7 @@ main(int argc, char** argv){
                         int y =  imin(active_view->cell_y, active_view->sel_y);
                         int x1 = imax(active_view->cell_x, active_view->sel_x);
                         int y1 = imax(active_view->cell_y, active_view->sel_y);
-                        if(mode == LINE_SELECT_MODE) line_select_bounds(SHEET, &x, &x1);
+                        if(MODE == LINE_SELECT_MODE) line_select_bounds(SHEET, &x, &x1);
                         delete_cells(SHEET, y, x, y1-y+1, x1-x+1);
                         change_mode(MOVE_MODE);
                         redisplay(active_view);
@@ -2759,7 +2760,7 @@ main(int argc, char** argv){
                     case ESC:
                     case CTRL_C:
                         if(editing_ud.kind != UNDO_INVALID){
-                            push_undo_event(&SHEET->undo, editing_ud);
+                            push_undo_event(&SHEET->undo_stack, editing_ud);
                             editing_ud = (Undoable){
                                 .kind = UNDO_INVALID,
                             };
@@ -2838,7 +2839,7 @@ main(int argc, char** argv){
                 switch(c){
                     case CTRL_J:
                     case ENTER:
-                        if(mode == QUERY_MODE){
+                        if(MODE == QUERY_MODE){
                             DrSpreadResult outval = {0};
                             int e = drsp_evaluate_string(CTX, SHEET, EDIT.buff, EDIT.buff_len, &outval, -1, -1);
                             if(e){
@@ -2865,7 +2866,7 @@ main(int argc, char** argv){
                                 default: assert(0);
                             }
                         }
-                        else if(mode == SEARCH_MODE){
+                        else if(MODE == SEARCH_MODE){
                             strcpy(EDIT.prev_search, EDIT.buff);
                             prev_search = 1;
                             change_mode(MOVE_MODE);
