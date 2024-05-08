@@ -1914,6 +1914,7 @@ redo(Sheet* sheet){
 static
 void
 update_display(SheetView* view){
+    printf("\033[?2026h");
     if(need_rescale){
         TermSize sz = get_terminal_size();
         // sz.rows -= 1;
@@ -1965,6 +1966,7 @@ update_display(SheetView* view){
         printf("\033[2K/%s", EDIT.buff);
         printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
     }
+    printf("\033[?2026l");
     fflush(stdout);
 }
 
