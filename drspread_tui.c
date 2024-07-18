@@ -373,6 +373,7 @@ struct Pasteboard {
     Rows rows;
     _Bool line_paste;
 };
+static
 Pasteboard PASTEBOARD;
 
 static
@@ -610,6 +611,7 @@ struct LineEdit {
     char buff[1024];
 };
 
+static
 LineEdit EDIT;
 
 typedef struct Sheets Sheets;
@@ -617,6 +619,7 @@ struct Sheets {
     Sheet** data;
     size_t count, capacity;
 };
+static
 Sheets SHEETS = {0};
 
 static
@@ -641,6 +644,7 @@ new_sheet(const char* name, const char* filename){
     return result;
 }
 
+static
 struct {
     SheetView** data;
     size_t count, capacity;
@@ -713,7 +717,7 @@ int_to_colname(char* buff, size_t buffsz, int x){
         *p = (char)('A' + c);
         x/=26;
     }while(x-- && p != buff);
-    __builtin_memmove(buff, p, end-p);
+    memmove(buff, p, end-p);
     return end-p;
 }
 static
