@@ -41,8 +41,15 @@ struct AllocationRecord {
 };
 
 enum {N_RECORDS=10000};
-static AllocationRecord records[N_RECORDS];
-static size_t n_records = 0;
+#if !defined(drsp_thread_local)
+#if defined(__wasm__)
+#define drsp_thread_local
+#else
+#define drsp_thread_local _Thread_local
+#endif
+#endif
+drsp_thread_local static AllocationRecord records[N_RECORDS];
+drsp_thread_local static size_t n_records = 0;
 #endif
 
 static inline

@@ -827,6 +827,7 @@ run_the_tests(size_t*_Nonnull which_tests, int test_count, struct TestResults* r
 #ifndef SUPPRESS_TEST_MAIN
 #include "argument_parsing.h"
 #include "term_util.h"
+#include "thread_utils.h"
 
 // shuffling stuff
 #ifdef __linux__
@@ -908,6 +909,102 @@ shuffle_tests(size_t*_Nonnull which_tests, int test_count){
     }
 }
 
+struct TestJobData {
+    size_t* _Nonnull which_tests;
+    int test_count;
+    int*_Nonnull test_idx;
+    struct TestResults result;
+};
+
+
+#if defined(__GNUC__)
+force_inline
+int
+test_atomic_increment(int*_Nonnull p){
+    return __atomic_fetch_add(p, 1, __ATOMIC_SEQ_CST);
+}
+
+#elif defined(_MSC_VER)
+force_inline
+int
+test_atomic_increment(int*_Nonnull p){
+    return InterlockedIncrement((LONG volatile*)p)-1;
+}
+#else
+#include <stdatomic.h>
+force_inline
+int
+test_atomic_increment(int*_Nonnull p){
+    _Static_assert(ATOMIC_INT_LOCK_FREE, "");
+    return atomic_fetch_add((_Atomic(int)*)p, 1);
+}
+#endif
+
+static
+ThreadReturnValue
+test_thread_worker(void*_Nonnull thread_arg){
+    struct TestJobData* jd = thread_arg;
+    for(;;){
+        int idx = test_atomic_increment(jd->test_idx);
+        if(idx >= jd->test_count)
+            break;
+        size_t which_test = jd->which_tests[idx];
+        TestFunc* func = test_funcs[which_test].test_func;
+        assert(func);
+        struct TestStats func_result = func();
+        jd->result.funcs_executed++;
+        jd->result.failures += func_result.failures;
+        jd->result.executed += func_result.executed;
+        jd->result.assert_failures += func_result.assert_failures;
+        if(func_result.assert_failures || func_result.failures)
+            jd->result.failed_tests[jd->result.n_failed_tests++] = idx;
+    }
+    return 0;
+}
+
+static
+void
+run_the_tests_multithreaded(size_t*_Nonnull which_tests, int test_count, struct TestResults*_Nonnull result, int num_threads){
+    struct TestJobData jds[32];
+    ThreadHandle handles[32];
+    if(num_threads > 32) num_threads = 32;
+    if(num_threads < 1) num_threads = 1;
+    int test_idx = 0;
+    for(int i = 0; i < num_threads-1; i++){
+        jds[i] = (struct TestJobData){
+            .which_tests = which_tests,
+            .test_count = test_count,
+            .test_idx = &test_idx,
+            .result = {0},
+        };
+        int err = create_thread(&handles[i], &test_thread_worker, &jds[i]);
+        if(err) {
+            fprintf(stderr, "error spawning thread\n");
+            abort();
+        }
+    }
+    jds[num_threads-1] = (struct TestJobData){
+        .which_tests = which_tests,
+        .test_count = test_count,
+        .test_idx = &test_idx,
+        .result = {0},
+    };
+    test_thread_worker(&jds[num_threads-1]);
+    for(int i = 0 ;i < num_threads-1; i++){
+        join_thread(handles[i]);
+    }
+    for(int i = 0; i < num_threads; i++){
+        struct TestResults* r = &jds[i].result;
+        result->funcs_executed += r->funcs_executed;
+        result->failures += r->failures;
+        result->executed += r->executed;
+        result->assert_failures += r->assert_failures;
+        for(size_t n = 0; n < r->n_failed_tests; n++){
+            result->failed_tests[result->n_failed_tests++] = r->failed_tests[n];
+        }
+    }
+}
+
 //
 // test_main
 // ------------------
@@ -952,6 +1049,13 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     #else
     enum {TARGET_INDEX=2};
     #endif
+    #if !defined(__wasm__)
+    _Bool multithreaded = 0;
+    #endif
+    int n_threads = 0;
+    int n_cpus = num_cpus();
+    char j_help[128];
+    snprintf(j_help, sizeof j_help, "Use as many threads as cpus (%d)", n_cpus);
 
     ArgToParse kw_args[] = {
         #ifndef __wasm__
@@ -1046,6 +1150,19 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
             .dest = ARGDEST(&seed),
             .show_default = 1,
         },
+        #if !defined(__wasm__)
+            {
+                .name = SV("-j"),
+                .altname1 = SV("--multithreaded"),
+                .dest = ARGDEST(&multithreaded),
+                .help = j_help,
+            },
+            {
+                .name = SV("--num-threads"),
+                .dest = ARGDEST(&n_threads),
+                .help = "Run the tests in this many threads.",
+            },
+        #endif
     };
     enum {HELP=0, LIST=1};
     ArgToParse early_args[] = {
@@ -1104,6 +1221,18 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
         fprintf(stderr, "Reps must be >= 0\n");
         return 1;
     }
+    #if defined(__wasm__)
+        n_threads = 1;
+    #else
+        if(n_threads < 0)
+            n_threads = num_cpus();
+        if(n_threads == 0){
+            if(multithreaded)
+                n_threads = num_cpus();
+            else
+                n_threads = 1;
+        }
+    #endif
     #ifndef __wasm__
     // Register primary output file
     if(outfile.length){
@@ -1190,7 +1319,10 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
     struct TestResults result = {0};
     for(int i = 0; i < nreps; i++){
         if(shuffle) shuffle_tests(tests_to_run, num_to_run);
-        run_the_tests(tests_to_run, num_to_run, &result);
+        if(n_threads > 1)
+            run_the_tests_multithreaded(tests_to_run, num_to_run, &result, n_threads);
+        else
+            run_the_tests(tests_to_run, num_to_run, &result);
         if(result.assert_failures || result.failures)
             break;
     }

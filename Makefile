@@ -13,6 +13,7 @@ WCC?=clang
 ifeq ($(OS),Windows_NT)
 EXE=.exe
 LM=
+LTHREADS=
 CC=clang
 OPEN=start
 else
@@ -20,11 +21,13 @@ EXE=
 UNAME := $(shell uname)
 ifeq ($(UNAME),Darwin)
 LM=
+LTHREADS=
 CC=clang
 OPEN=open
 else
 CC=gcc
 LM=-lm
+LTHREADS=-lpthread
 OPEN=xdg-open
 endif
 endif
@@ -73,25 +76,25 @@ Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(TSC) $< --noImplicitAny --strict --noUnusedLocals --noImplicitReturns --removeComments --target es2020 --strictFunctionTypes --noEmitOnError
 
 Bin/TestDrSpread_O0$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) $(LTHREADS) -O0
 Bin/TestDrSpread_O0_leaks$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_leaks.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O0 -DRECORD_ALLOCATIONS=1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_leaks.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) $(LTHREADS) -O0 -DRECORD_ALLOCATIONS=1
 Bin/TestDrSpread_O0_leaks_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_leaks_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O0 -DRECORD_ALLOCATIONS=1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_leaks_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) $(LTHREADS) -O0 -DRECORD_ALLOCATIONS=1
 Bin/TestDrSpread_O1$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) $(LTHREADS) -O1
 Bin/TestDrSpread_O2$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O2.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O2
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O2.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) $(LTHREADS) -O2
 Bin/TestDrSpread_O3$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) -O3
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3.c.dep $(WFLAGS) -Wno-unused-function -g -std=gnu2x $(LM) $(LTHREADS) -O3
 Bin/TestDrSpread_O0_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O0
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O0_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) $(LTHREADS) -O0
 Bin/TestDrSpread_O1_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O1
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O1_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) $(LTHREADS) -O1
 Bin/TestDrSpread_O2_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O2_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O2
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O2_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) $(LTHREADS) -O2
 Bin/TestDrSpread_O3_san$(EXE): TestDrSpread.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) -O3
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpread_O3_san.c.dep $(WFLAGS) -Wno-unused-function -g $(SANITIZE) -std=gnu2x $(LM) $(LTHREADS) -O3
 
 Bin/TestDrSpread.wasm: TestDrSpreadWasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/TestDrSpreadWasm.c.dep $(WWFLAGS) -Wno-unused-function -iquote . $(WASMCFLAGS) -O3 -g -std=gnu2x
@@ -105,7 +108,7 @@ fuzz: Bin/drspread_fuzz$(EXE) | FuzzDir
 	$< FuzzDir -fork=6 -only_ascii=1 -max_len=8000
 
 TestResults/TestDrSpread%: Bin/TestDrSpread%$(EXE) | TestResults
-	$< --tee $@ -s
+	$< --tee $@ -s -j
 TestResults/TestDrSpread_O0: Bin/TestDrSpread_O0$(EXE) | TestResults
 	$< --tee $@
 tests: \

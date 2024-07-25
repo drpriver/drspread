@@ -13,6 +13,15 @@ fwrite_(const void* restrict buff, size_t sz, FILE* restrict fp);
 
 static inline
 int
+snprintf(char* buff, size_t bufflen, const char* fmt, ...){
+    __builtin_va_list vap;
+    __builtin_va_start(vap, fmt);
+    return stbsp_vsnprintf(buff, bufflen, fmt, vap);
+    __builtin_va_end(vap);
+}
+
+static inline
+int
 vfprintf(FILE* fp, const char*_Nonnull fmt, va_list vargs){
     char buff[1024];
     int ret = stbsp_vsnprintf(buff, sizeof buff, fmt, vargs);
