@@ -1,18 +1,40 @@
 #ifdef __linux__
 #define _GNU_SOURCE
 #endif
+
+#ifdef _WIN32
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+#endif
+
 #include <stdio.h>
+#include <ctype.h>
+#include <assert.h>
+#include <stdarg.h>
+
+#ifdef _WIN32
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+#ifndef _CRT_NONSTDC_NO_DEPRECATE
+#define _CRT_NONSTDC_NO_DEPRECATE
+#endif
+#define WIN32_EXTRA_LEAN
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+typedef long long ssize_t;
+#else
 #include <termios.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <string.h>
-#include <ctype.h>
 #include <errno.h>
-#include <assert.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <stdarg.h>
+#endif
+
 #include "term_util.h"
 #define DRSP_EXPORT static
 #include "drspread.h"
@@ -71,6 +93,7 @@ vasprintf(char*_Nullable*_Nonnull out, const char* fmt, va_list vap){
     return ret;
 }
 
+#if 0
 static inline
 char*
 strdup(const char* p){
@@ -79,6 +102,7 @@ strdup(const char* p){
     memcpy(t, p, len+1);
     return t;
 }
+#endif
 
 #endif
 
@@ -125,7 +149,11 @@ xrealloc(void* p, size_t sz){
 static inline
 char*
 xstrdup(const char* txt){
+#ifdef _WIN32
+    char* p = _strdup(txt);
+#else
     char* p = strdup(txt);
+#endif
     if(!p) abort();
     return p;
 }
@@ -220,7 +248,11 @@ void
 __attribute__((format(printf,1, 2)))
 LOG(const char* fmt, ...){
     if(!LOGFILE) return;
+#ifdef _WIN32
+    if(!LOGFILE_FP) LOGFILE_FP = fopen(LOGFILE, "w");
+#else
     if(!LOGFILE_FP) LOGFILE_FP = fopen(LOGFILE, "wbe");
+#endif
     if(!LOGFILE_FP) return;
 
     va_list va;
@@ -278,8 +310,12 @@ enum {
 typedef struct TermState TermState;
 
 struct TermState {
+#ifdef _WIN32
+    char pad;
+#else
     struct termios raw;
     struct termios orig;
+#endif
 };
 
 enum {
@@ -1276,6 +1312,8 @@ draw_grid(SheetView* view){
 static
 void
 enable_raw(TermState* ts){
+#ifdef _WIN32
+#else
     if(tcgetattr(STDIN_FILENO, &ts->orig) == -1)
         return;
     ts->raw = ts->orig;
@@ -1305,17 +1343,78 @@ enable_raw(TermState* ts){
     // Unread input will be discarded.
     if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &ts->raw) < 0)
         return;
+#endif
 }
 
 static
 void
 disable_raw(struct TermState*ts){
+#ifdef _WIN32
+#else
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &ts->orig);
+#endif
 }
+#ifdef _WIN32
+static HANDLE STDIN;
+static HANDLE STDOUT;
+#endif
 
 static inline
 ssize_t
 read_one(char* buff, _Bool block){
+#ifdef _WIN32
+    if(block){
+        DWORD read = 0;
+        BOOL b = ReadFile(STDIN, buff, 1, &read, NULL);
+        if(!b) return -1;
+        return 1;
+    }
+    else {
+        for(;;){
+            DWORD timeout = 0;
+            DWORD ev = WaitForSingleObject(STDIN, timeout);
+            if(ev == WAIT_TIMEOUT){
+                // LOG("WAIT_TIMEOUT\n");
+                *buff = 0;
+                return 0;
+            }
+            if(ev == WAIT_OBJECT_0){
+                // LOG("WAIT_OBJECT_0\n");
+                DWORD read = 0;
+                if(0){
+                    // LOG("ReadFile\n");
+                    BOOL b = ReadFile(STDIN, buff, 1, &read, NULL);
+                    // LOG("DoneReadFile\n");
+                    if(!b) return -1;
+                    return 1;
+                }
+                else {
+                    INPUT_RECORD record;
+                    DWORD num_read = 0;
+                    // LOG("ReadConsoleInput\n");
+                    BOOL b = ReadConsoleInput(STDIN, &record, 1, &num_read);
+                    // LOG("DoneReadConsoleInput\n");
+                    if(!b) return -1;
+                    if(record.EventType != KEY_EVENT){
+                        // LOG("record.EventType: %d\n", (int)record.EventType);
+                        continue;
+                    }
+                    if(!record.Event.KeyEvent.bKeyDown){
+                        // LOG("!record.Event.KeyEvent.bKeyDown\n");
+                        continue;
+                    }
+                    *buff = record.Event.KeyEvent.uChar.AsciiChar;
+                    return 1;
+                }
+            }
+            if(ev == WAIT_FAILED){
+                // LOG("WAIT_FAILED\n");
+                return -1;
+            }
+        }
+    }
+
+#else
     if(block){
         ssize_t e;
         for(;;){
@@ -1358,6 +1457,7 @@ read_one(char* buff, _Bool block){
         fcntl(STDIN_FILENO, F_SETFL, flags);
         return e;
     }
+#endif
 }
 
 
@@ -1377,6 +1477,11 @@ end_tui(void){
 static
 void
 begin_tui(void){
+#ifdef _WIN32
+    SetConsoleCP(65001);
+    SetConsoleMode(STDIN, ENABLE_VIRTUAL_TERMINAL_INPUT);
+    SetConsoleMode(STDOUT, ENABLE_PROCESSED_OUTPUT|ENABLE_WRAP_AT_EOL_OUTPUT|ENABLE_VIRTUAL_TERMINAL_PROCESSING|DISABLE_NEWLINE_AUTO_RETURN);
+#endif
     printf("\033[?1049h");
     fflush(stdout);
     printf("\033[?25l");
@@ -1385,8 +1490,15 @@ begin_tui(void){
     printf("\033[=7l");
     fflush(stdout);
     enable_raw(&TS);
+#ifdef _WIN32
+    SetConsoleCP(65001);
+    SetConsoleMode(STDIN, ENABLE_VIRTUAL_TERMINAL_INPUT);
+    SetConsoleMode(STDOUT, ENABLE_PROCESSED_OUTPUT|ENABLE_WRAP_AT_EOL_OUTPUT|ENABLE_VIRTUAL_TERMINAL_PROCESSING|DISABLE_NEWLINE_AUTO_RETURN);
+#endif
 }
 
+#ifdef _WIN32
+#else
 static
 void
 sighandler(int sig){
@@ -1396,6 +1508,7 @@ sighandler(int sig){
         return;
     }
 }
+#endif
 
 
 static
@@ -2228,9 +2341,15 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64]){
 
 int
 main(int argc, char** argv){
+    #ifdef _WIN32
+    STDIN = GetStdHandle(STD_INPUT_HANDLE);
+    STDOUT = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
     char* files[64] = {0};
     drsp_parse_args(argc, argv, &files);
     set_status("");
+    #ifdef _WIN32
+    #else
     int pid = getpid();
     LOG("pid: %d\n", pid);
     struct sigaction sa;
@@ -2239,6 +2358,7 @@ main(int argc, char** argv){
     sa.sa_flags = 0;
     sigaction(SIGWINCH, &sa, NULL);
     // signal(SIGWINCH, sighandler);
+    #endif
 
     SheetOps ops = make_ops();
     CTX = drsp_create_ctx(&ops);
@@ -2345,11 +2465,14 @@ main(int argc, char** argv){
         if(!r) continue;
 
         if(c == CTRL_Z){
+            #ifdef _WIN32
+            #else
             end_tui();
             raise(SIGTSTP);
             begin_tui();
             change_mode(MODE);
             redisplay(active_view);
+            #endif
             continue;
         }
         if(MODE == MOVE_MODE || MODE == SELECT_MODE || MODE == LINE_SELECT_MODE){
@@ -2898,11 +3021,14 @@ main(int argc, char** argv){
                                 continue;
                             }
                             if(streq(EDIT.buff, "bg")){
+                                #ifdef _WIN32
+                                #else
                                 end_tui();
                                 raise(SIGTSTP);
                                 begin_tui();
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
+                                #endif
                                 continue;
                             }
                             if(streq(EDIT.buff, "wq") || streq(EDIT.buff, "x")){
