@@ -61,10 +61,10 @@ void vdbg(const char* fmt, va_list args){
 
 __attribute__((format(printf,1, 2)))
 void dbg(const char*fmt, ...){
-    __builtin_va_list args;
-    __builtin_va_start(args, fmt);
+    va_list args;
+    va_start(args, fmt);
     vdbg(fmt, args);
-    __builtin_va_end(args);
+    va_end(args);
 }
 #define DBG(fmt, ...) dbg("%s:%3d | " fmt, __func__, __LINE__, ##__VA_ARGS__)
 #else
@@ -342,7 +342,7 @@ get_line_internal_loop(GetInputCtx* ctx){
         ssize_t nread = read_one(&_c);
         int c = (int)(unsigned char)_c;
         if(nread <= 0)
-            return ctx->buff_count;
+            return ctx->buff_count?ctx->buff_count:-1;
         if(c == ESC){
             DBG("ESC\n");
             if(read_one(sequence) == -1) return -1;
