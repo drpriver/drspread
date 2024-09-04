@@ -2503,7 +2503,7 @@ TestFunction(TestNamedCells){
                 TestAssertFalse(err);
             }
             TestAssertFalse(err);
-            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals((int)val.kind, DRSP_RESULT_NUMBER);
             TestAssertEquals(val.d, 1.);
         }
 
@@ -2514,7 +2514,7 @@ TestFunction(TestNamedCells){
             StringView q = qs[i];
             err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
             TestAssertFalse(err);
-            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals((int)val.kind, DRSP_RESULT_NUMBER);
             TestAssertEquals(val.d, 4.);
         }
 
@@ -2534,7 +2534,7 @@ TestFunction(TestNamedCells){
             StringView q = qs[i];
             err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
             TestAssertFalse(err);
-            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals((int)val.kind, DRSP_RESULT_NUMBER);
             TestAssertEquals(val.d, 2.);
         }
 
@@ -2545,7 +2545,7 @@ TestFunction(TestNamedCells){
             StringView q = qs[i];
             err = drsp_evaluate_string(ctx, handle, q.text, q.length, &val, -1, -1);
             TestAssertFalse(err);
-            TestAssertEquals(val.kind, DRSP_RESULT_NUMBER);
+            TestAssertEquals((int)val.kind, DRSP_RESULT_NUMBER);
             TestAssertEquals(val.d, 2.);
         }
 
