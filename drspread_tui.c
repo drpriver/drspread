@@ -1198,18 +1198,17 @@ draw_grid(SheetView* view){
         else {
             len = int_to_colname(buff, sizeof buff, ix)-1;
             colname = buff;
-            len = 1;
         }
         int lpad = len < width? (width-len)/2: 0;
         int pwidth = width - lpad;
         if(borderless){
             drt_move(drt, x-1, 0);
-            drt_printf(drt, " %.*s%.*s", lpad, "", pwidth, colname);
+            drt_printf(drt, " %*s%.*s", lpad, "", pwidth, colname);
         }
         else{
             drt_move(drt, x-1, 0);
             drt_putc_mb(drt, "│", -1+sizeof "│", 1);
-            drt_printf(drt, " %.*s%.*s", lpad, "", pwidth, colname);
+            drt_printf(drt, "%*s%.*s", lpad, "", pwidth, colname);
         }
         advance = width+1;
     }
