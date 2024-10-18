@@ -483,7 +483,6 @@ get_rc_a(Rows* rows, int y, int x){
 typedef struct Column Column;
 struct Column {
     char* name;
-    int calc_width;
     int width;
     int explicit_width;
 };
@@ -1035,7 +1034,6 @@ fill_cols(Sheet* sheet, int x){
         Column* col = append(&sheet->columns);
         *col = (Column){0};
         col->name = xint_to_colname((int)i);
-        col->calc_width = strlen(col->name);
         col->width = 8;
     }
 }
@@ -1048,7 +1046,8 @@ rename_column(Sheet* sheet, int x, const char* p){
     Column* col = &sheet->columns.data[x];
     free(col->name);
     col->name = name;
-    col->calc_width = strlen(name); // XXX: unicode
+    int w = 2+(int)strlen(name); // XXX: unicode
+    if(col->width < w || !col->explicit_width) col->width = w;
     int err = drsp_set_col_name(CTX, sheet, x, name, strlen(name));
     (void)err;
     recalc();
