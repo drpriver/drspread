@@ -1064,6 +1064,22 @@ line_select_bounds(Sheet* sheet, int* x0, int* x1){
     *x1 = max;
 }
 
+static
+void
+scroll(SheetView* view, int dx, int dy){
+    view->base_y += dy;
+    view->base_x += dx;
+    if(view->base_y < 0) view->base_y = 0;
+    if(view->base_x < 0) view->base_x = 0;
+    if(view->base_x >= DRSP_TUI_MAX_COLUMNS) view->base_x = DRSP_TUI_MAX_COLUMNS-1;
+    view->cell_y += dy;
+    view->cell_x += dx;
+    if(view->cell_y < 0) view->cell_y = 0;
+
+    if(view->cell_x < 0) view->cell_x = 0;
+    if(view->cell_x >= DRSP_TUI_MAX_COLUMNS) view->cell_x = DRSP_TUI_MAX_COLUMNS-1;
+    redisplay(view);
+}
 
 static
 void
@@ -2778,7 +2794,8 @@ main(int argc, char** argv){
                     case 'k':
                     case UP:
                     case CTRL_P:
-                        move(active_view, 0, -magnitude);
+                        if(magnitude != 1) scroll(active_view, 0, -magnitude);
+                        else move(active_view, 0, -magnitude);
                         break;
                     case CTRL_D:
                         move(active_view, 0, +active_view->rows/2);
@@ -2786,7 +2803,8 @@ main(int argc, char** argv){
                     case 'j':
                     case DOWN:
                     case CTRL_N:
-                        move(active_view, 0, +magnitude);
+                        if(magnitude != 1) scroll(active_view, 0, magnitude);
+                        else move(active_view, 0, +magnitude);
                         break;
                     case 'h':
                     case LEFT:
@@ -2955,7 +2973,8 @@ main(int argc, char** argv){
                     case 'k':
                     case UP:
                     case CTRL_P:
-                        move(active_view, 0, -magnitude);
+                        if(magnitude != 1) scroll(active_view, 0, -magnitude);
+                        else move(active_view, 0, -magnitude);
                         break;
                     case CTRL_D:
                         move(active_view, 0, +active_view->rows/2);
@@ -2963,7 +2982,8 @@ main(int argc, char** argv){
                     case 'j':
                     case DOWN:
                     case CTRL_N:
-                        move(active_view, 0, +magnitude);
+                        if(magnitude != 1) scroll(active_view, 0, +magnitude);
+                        else move(active_view, 0, +magnitude);
                         break;
                     case 'h':
                     case LEFT:
