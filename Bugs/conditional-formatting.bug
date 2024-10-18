@@ -1,0 +1,10 @@
+Changelog::kv
+  created: 2024-10-17T20:24:32Z
+  updated: 2024-10-17T20:24:41Z
+Created Oct 17, 2024, 01:24PM::md .update
+Summary::md .summary
+  We have 24 bit color, so we could add conditional formatting to a range of
+  cells.
+
+Updated Oct 17, 2024, 01:24PM::md .update
+  Maybe only add it to a column

@@ -1,0 +1,5 @@
+Changelog::kv
+  created: 2024-10-17T20:21:56Z
+Created Oct 17, 2024, 01:21PM::md.update
+Summary::md.summary
+  We scroll too early, we should only scroll right when we are about to get out of the window.
