@@ -181,7 +181,9 @@ void
 sheet_pop_row(SpreadSheet* sheet){
     if(sheet->rows <= 0) return;
     int end = --sheet->rows;
-    // if(end < 0) __builtin_unreachable(); // GCC spews a weird warning about malloc size otherwise
+    #ifdef __GNUC__
+    if(end < 0) __builtin_unreachable(); // GCC spews a weird warning about malloc size otherwise
+    #endif
     cleanup_row_pair(&sheet->cells[end], &sheet->display[end]);
     sheet->cells = drsp_alloc((end+1)*sizeof *sheet->cells, sheet->cells, end*sizeof *sheet->cells, _Alignof(SheetRow));
     sheet->display = drsp_alloc((end+1)*sizeof *sheet->display, sheet->display, end*sizeof *sheet->display, _Alignof(SheetRow));
