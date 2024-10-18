@@ -335,8 +335,8 @@ enum {
     DRAW_CELLS   = 0x4,
 };
 static TermState TS;
-static int need_rescale = 1;
-static int need_recalc = 1;
+static int needs_rescale = 1;
+static int needs_recalc = 1;
 static int MODE = 0; // MOVE_MODE
 static char* status = NULL;
 enum {
@@ -399,7 +399,7 @@ mode_name(int mode){
 static
 void
 recalc(void){
-    need_recalc = 1;
+    needs_recalc = 1;
 }
 
 typedef struct Row Row;
@@ -635,11 +635,11 @@ struct _sheet_handle {
 typedef struct SheetView SheetView;
 struct SheetView {
     Sheet* sheet;
-    int base_x, base_y;
-    int cell_x, cell_y;
-    int sel_x, sel_y;
+    int base_x, base_y; // in cells
+    int cell_x, cell_y; // in cells
+    int sel_x, sel_y; // in cells
     int rows, cols;
-    _Bool need_redisplay: 1;
+    _Bool needs_redisplay: 1;
     int win_x, win_y;
 };
 
@@ -647,7 +647,7 @@ struct SheetView {
 static
 void
 redisplay(SheetView* view){
-    view->need_redisplay = 1;
+    view->needs_redisplay = 1;
 }
 typedef struct LineEdit LineEdit;
 struct LineEdit {
@@ -706,7 +706,7 @@ new_view(Sheet* sheet){
     view->sel_y = -1;
     view->rows = -1;
     view->cols = -1;
-    view->need_redisplay = 1;
+    view->needs_redisplay = 1;
     *append(&VIEWS) = view;
     return view;
 }
@@ -1092,7 +1092,7 @@ move(SheetView* view, int dx, int dy){
         base_changed = 1;
     }
     if(view->base_x <  0) view->base_x = 0;
-    if(base_changed) {
+    if(base_changed && 0) {
         LOG("base_x: %d\n", view->base_x);
         LOG("base_y: %d\n", view->base_y);
         redisplay(view);
@@ -1452,7 +1452,7 @@ read_one(char* buff, _Bool block){
         for(;;){
             e = read(STDIN_FILENO, buff, 1);
             if(e == -1 && errno == EINTR) {
-                if(need_rescale){
+                if(needs_rescale){
                     *buff = 0;
                     e = 0;
                 }
@@ -1544,7 +1544,7 @@ void
 sighandler(int sig){
     if(sig == SIGWINCH){
         // LOG("SIGWINCH\n");
-        need_rescale = 1;
+        needs_rescale = 1;
         return;
     }
 }
@@ -2071,7 +2071,7 @@ redo(Sheet* sheet){
 static
 void
 update_display(SheetView* view){
-    if(need_rescale){
+    if(needs_rescale){
         TermSize sz = get_terminal_size();
         drt_update_terminal_size(drt, sz.columns, sz.rows);
         drt_update_drawable_area(drt, 0, 0, sz.columns, sz.rows);
@@ -2081,11 +2081,11 @@ update_display(SheetView* view){
             view->rows = sz.rows;
             view->cols = sz.columns;
         }
-        need_rescale = 0;
-        view->need_redisplay = 1;
+        needs_rescale = 0;
+        view->needs_redisplay = 1;
     }
-    if(view->need_redisplay){
-        view->need_redisplay = 0;
+    if(view->needs_redisplay){
+        view->needs_redisplay = 0;
         draw_grid(view);
     }
     drt_move(drt, 0, view->rows-1-1-1);
@@ -2504,10 +2504,10 @@ main(int argc, char** argv){
     int prev_search = 0;
     int search_backward = 0;
     for(;;){
-        if(need_recalc){
+        if(needs_recalc){
             int err = drsp_evaluate_formulas(CTX);
             (void)err;
-            need_recalc = 0;
+            needs_recalc = 0;
         }
         update_display(active_view);
         int c;
@@ -2636,8 +2636,8 @@ main(int argc, char** argv){
                             if(sheet != SHEET){
                                 SHEET = sheet;
                                 active_view = find_or_new_view(SHEET);
-                                active_view->need_redisplay = 1;
-                                need_rescale = 1;
+                                active_view->needs_redisplay = 1;
+                                needs_rescale = 1;
                                 redisplay(active_view);
                             }
                         }
@@ -3145,7 +3145,7 @@ main(int argc, char** argv){
                                 continue;
                             }
                             if(streq(EDIT.buff, "redraw")){
-                                need_rescale = 1;
+                                needs_rescale = 1;
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
