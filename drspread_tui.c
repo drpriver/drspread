@@ -1897,6 +1897,41 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
                 goto cleanup;
             }
         }
+        else {
+            _Bool explicit_names = 0;
+            for(size_t i = 0; i < sheet->columns.count; i++){
+                const Column* col = &sheet->columns.data[i];
+                if(col->name){
+                    explicit_names = 1;
+                    break;
+                }
+            }
+            if(explicit_names){
+                int put;
+                for(size_t i = 0; i < sheet->columns.count; i++){
+                    const Column* col = &sheet->columns.data[i];
+                    if(i != 0) {
+                        put = fputc('\t', fp);
+                        if(put == EOF){
+                            LOG("fputc failed: %s\n", strerror(errno));
+                            goto cleanup;
+                        }
+                    }
+                    if(col->name){
+                        put = fputs(col->name, fp);
+                        if(put == EOF) {
+                            LOG("fputs failed: %s\n", strerror(errno));
+                            goto cleanup;
+                        }
+                    }
+                }
+                put = fputc('\n', fp);
+                if(put == EOF) {
+                    LOG("fputc failed: %s\n", strerror(errno));
+                    goto cleanup;
+                }
+            }
+        }
     }
 
     int put;
@@ -2315,7 +2350,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
 
 static
 void
-drsp_parse_args(int argc, char** argv, char* (*files)[64]){
+drsp_parse_args(int argc, char** argv, char* (*files)[64], _Bool* first_row_is_names){
     ArgToParse pos_args[] = {
         {
             .name = SV("files"),
@@ -2335,7 +2370,13 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64]){
             .name = SV("--logfile"),
             .dest = ARGDEST(&LOGFILE),
             .help = "File to log to.",
-        }
+        },
+        {
+            .name = SV("--first"),
+            .altname1 = SV("--first-row-is-names"),
+            .dest = ARGDEST(first_row_is_names),
+            .help = "Use the first row of the file as column names",
+        },
     };
     enum {HELP=0, FISH=1};
     ArgToParse early_args[] = {
@@ -2399,7 +2440,8 @@ main(int argc, char** argv){
     STDOUT = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
     char* files[64] = {0};
-    drsp_parse_args(argc, argv, &files);
+    _Bool first_row_is_names = 0;
+    drsp_parse_args(argc, argv, &files, &first_row_is_names);
     set_status("");
     #ifdef _WIN32
     #else
@@ -2457,6 +2499,7 @@ main(int argc, char** argv){
             char* txt = read_file(filename);
             if(!txt) txt = xstrdup("");
             char* line;
+            _Bool first_row_as_names = first_row_is_names;
             for(int y =0;(line=strsep(&txt, "\n"));y++){
                 char* token;
                 int x = 0;
@@ -2477,6 +2520,14 @@ main(int argc, char** argv){
                     y = 0;
                     is_drsp = 0;
                     goto not_drsp;
+                }
+                else if(y == 0 && first_row_as_names){
+                    y = -1;
+                    first_row_as_names = 0;
+                    for(;(token = strsep(&line, "\t|"));x++){
+                        rename_column(SHEET, x, token);
+                    }
+                    continue;
                 }
                 for(;(token = strsep(&line, "\t|"));x++){
                     not_drsp:;
