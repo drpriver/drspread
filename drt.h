@@ -1,3 +1,6 @@
+//
+// Copyright © 2024, David Priver <david@davidpriver.com>
+//
 #ifndef DRT_LL_H
 #define DRT_LL_H
 

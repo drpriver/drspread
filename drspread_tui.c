@@ -1,3 +1,6 @@
+//
+// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+//
 #ifdef __linux__
 #define _GNU_SOURCE
 #endif
