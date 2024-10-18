@@ -1,5 +1,6 @@
 project('DrSpread', 'c', version: '1.0.0', default_options:['c_std=gnu17'])
 COMPAT_VERSION='1.0.0' # for macos dylib
+thread_dep = dependency('threads')
 
 # untested
 if host_machine.system() == 'windows'
@@ -51,7 +52,7 @@ test_drspread_dy = executable(
   'TestDrSpread.c',
   link_with: drspread_test_lib,
   c_args: ignore_bogus_deprecations+arches+['-DDRSP_TEST_DYLINK=1'],
-  dependencies:[m_dep]
+  dependencies:[m_dep, thread_dep]
 )
 test('test-drspread-dy', test_drspread_dy)
 
@@ -59,6 +60,6 @@ test_drspread_unity = executable(
   'test-drspread-unity',
   'TestDrSpread.c',
   c_args: ignore_bogus_deprecations+arches,
-  dependencies:[m_dep]
+  dependencies:[m_dep, thread_dep]
 )
 test('test-drspread-unity', test_drspread_unity)

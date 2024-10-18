@@ -4,6 +4,8 @@ project(DrSpread VERSION 1.0.0)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
 
+find_package(Threads REQUIRED)
+
 if(WIN32)
 add_compile_options("-D_CRT_NONSTDC_NO_DEPRECATE" "-D_CRT_SECURE_NO_WARNINGS")
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -66,6 +68,8 @@ set_target_properties(drspread-lib
 
 add_executable(drspread drspread_cli.c)
 add_executable(drsp drspread_tui.c)
+target_link_libraries(drsp ${LIBM_LIBRARIES})
+target_link_libraries(drspread ${LIBM_LIBRARIES})
 target_link_libraries(drspread-lib ${LIBM_LIBRARIES})
 target_link_libraries(drspread-dylib ${LIBM_LIBRARIES})
 target_link_libraries(drspread-test-dylib ${LIBM_LIBRARIES})
@@ -77,8 +81,9 @@ install(TARGETS drspread-dylib
 		PUBLIC_HEADER DESTINATION include/DrSpread)
 
 add_executable(test-drspread TestDrSpread.c)
+target_link_libraries(test-drspread Threads::Threads ${LIBM_LIBRARIES})
 add_executable(test-drspread-dy-link TestDrSpread.c)
-target_link_libraries(test-drspread-dy-link drspread-test-dylib)
+target_link_libraries(test-drspread-dy-link Threads::Threads drspread-test-dylib)
 target_compile_definitions(test-drspread-dy-link 
 	PRIVATE 
 	DRSP_TEST_DYLINK=1
