@@ -316,6 +316,7 @@ enum {
     PAGE_DOWN = -10,
     LCLICK_DOWN = -11,
     LCLICK_UP = -12,
+    LDRAG = -13,
 };
 typedef struct TermState TermState;
 
@@ -348,6 +349,7 @@ enum {
     SEARCH_MODE,
     SELECT_MODE,
     LINE_SELECT_MODE,
+    DRAG_SELECT_MODE,
 };
 enum {DEFAULT_WIDTH=8};
 enum {DRSP_TUI_MAX_FILL_WIDTH=32};
@@ -370,7 +372,7 @@ static void redisplay(SheetView*);
 static
 void
 change_mode(int m){
-    if(m != MOVE_MODE && m != SELECT_MODE && m != LINE_SELECT_MODE){
+    if(m != MOVE_MODE && m != SELECT_MODE && m != LINE_SELECT_MODE && m != DRAG_SELECT_MODE){
         printf("\033[?25h\033[6 q");
     }
     else {
@@ -392,6 +394,7 @@ mode_name(int mode){
         case SEARCH_MODE:      return "SEARCH";
         case SELECT_MODE:      return "SELECT";
         case LINE_SELECT_MODE: return "SELECT LINE";
+        case DRAG_SELECT_MODE: return "SELECT (drag)";
         default:               return "????";
     }
 }
@@ -1244,7 +1247,7 @@ draw_grid(SheetView* view){
     int sel_x1 = view->cell_x;
     int sel_y0 = view->cell_y;
     int sel_y1 = view->cell_y;
-    if(MODE == SELECT_MODE){
+    if(MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE){
         sel_x0 = imin(view->cell_x, view->sel_x);
         sel_x1 = imax(view->cell_x, view->sel_x);
         sel_y0 = imin(view->cell_y, view->sel_y);
@@ -1267,7 +1270,7 @@ draw_grid(SheetView* view){
                 width = col->width;
             }
             _Bool selected =
-                (MODE == SELECT_MODE
+                ((MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE)
                  && ix >= sel_x0
                  && ix <= sel_x1
                  && iy >= sel_y0
@@ -1297,7 +1300,7 @@ draw_grid(SheetView* view){
             else{
                 drt_move(drt, x-1, y-1);
                 _Bool pushed = 0;
-                if(MODE==SELECT_MODE && ix-1 >= sel_x0 && ix-1 <= sel_x1 && iy >= sel_y0 && iy <= sel_y1){
+                if((MODE==SELECT_MODE || MODE==DRAG_SELECT_MODE) && ix-1 >= sel_x0 && ix-1 <= sel_x1 && iy >= sel_y0 && iy <= sel_y1){
                     pushed = 1;
                     drt_push_state(drt);
                     drt_bg_set_8bit_color(drt, 8);
@@ -1484,6 +1487,18 @@ read_one(char* buff, _Bool block){
 #endif
 }
 
+static inline
+ssize_t
+read_one_nb(char* buff){
+    return read_one(buff, /*block=*/0);
+}
+
+static inline
+ssize_t
+read_one_b(char* buff){
+    return read_one(buff, /*block=*/1);
+}
+
 
 static
 void
@@ -1496,7 +1511,7 @@ end_tui(void){
     printf("\033[?1049l");
     fflush(stdout);
     // Normal tracking mode?
-    printf("\033[?1000l");
+    printf("\033[?1006;1002l");
     // enable line wrapping
     printf("\033[=7h");
     fflush(stdout);
@@ -1517,7 +1532,8 @@ begin_tui(void){
     printf("\033[?25l");
     fflush(stdout);
     // X11 Mouse Reporting
-    printf("\033[?1000h");
+    // See https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking
+    printf("\033[?1006;1002h");
     // line wrapping
     printf("\033[=7l");
     fflush(stdout);
@@ -2195,8 +2211,8 @@ static
 int
 get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
     char _c;
-    char sequence[8] = {0};
-    ssize_t nread = read_one(&_c, /*block=*/1);
+    char sequence[32] = {0};
+    ssize_t nread = read_one_b(&_c);
     int c = (int)(unsigned char)_c;
     if(nread < 0)
         return -1;
@@ -2217,7 +2233,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
         }
         ssize_t e = 0;
         for(int i = 1; i < length; i++){
-            e = read_one(sequence+i, /*block=*/0);
+            e = read_one_nb(sequence+i);
             if(e == -1) return -1;
             int val = (int)(unsigned char)sequence[i];
             if(val <= 127){
@@ -2226,7 +2242,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
                 break;
             }
         }
-        for(int i = 1; i < length; i++){
+        for(int i = 0; i < length; i++){
             LOG("seq[%d] = %x\n", i, (int)(unsigned char)sequence[i]);
         }
         LOG("utf-8: %.*s\n", length, sequence);
@@ -2235,15 +2251,65 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
     int cx = 0, cy = 0;
     int magnitude = 1;
     if(c == ESC){
-        if(read_one(sequence, /*block=*/0) == -1) return -1;
-        if(read_one(sequence+1, /*block=*/0) == -1) return -1;
+        if(read_one_nb(sequence) == -1) return -1;
+        if(read_one_nb(sequence+1) == -1) return -1;
+        if(0)LOG("ESC %d %d\n", sequence[0], sequence[1]);
         if(sequence[0] == '['){
-            if(sequence[1] == 'M'){
-                if(read_one(sequence+2, /*block=*/0) == -1) return -1;
-                if(read_one(sequence+3, /*block=*/0) == -1) return -1;
-                if(read_one(sequence+4, /*block=*/0) == -1) return -1;
+            if(sequence[1] == '<'){
+                // See https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Extended-coordinates
+                int i;
+                int mb = 0;
+                for(i = 2; i < sizeof sequence; i++){
+                    if(read_one_nb(sequence+i) == -1) return -1;
+                    if(sequence[i] == 0) return 0; // unexpected end of escape sequence
+                    if(sequence[i] == ';') break;
+                    if(sequence[i] < '0' || sequence[i] > '9') return 0; // out of range, should be decimal
+                    mb *= 10;
+                    mb += sequence[i] - '0';
+                }
+                int x = 0;
+                for(; i < sizeof sequence; i++){
+                    if(read_one_nb(sequence+i) == -1) return -1;
+                    if(sequence[i] == 0) return 0; // unexpected end of escape sequence
+                    if(sequence[i] == ';') break;
+                    if(sequence[i] < '0' || sequence[i] > '9') return 0; // out of range, should be decimal
+                    x *= 10;
+                    x += sequence[i] - '0';
+                }
+                int y = 0;
+                for(; i < sizeof sequence; i++){
+                    if(read_one_nb(sequence+i) == -1) return -1;
+                    if(sequence[i] == 0) return 0; // unexpected end of escape sequence
+                    if(sequence[i] == 'm' || sequence[i] == 'M') break;
+                    if(sequence[i] < '0' || sequence[i] > '9') return 0; // out of range, should be decimal
+                    y *= 10;
+                    y += sequence[i] - '0';
+                }
+                _Bool up = sequence[i] == 'm';
+                if(0){LOG("ESC [ <");
+                for(int s = 2; s <= i; s++)
+                    LOG(" %d", sequence[s]);
+                LOG("\n");
+                LOG("mb: %d\n", mb);
+                LOG("x: %d\n", x);
+                LOG("y: %d\n", y);
+                LOG("up: %s\n", up?"true":"false");
+                }
+                cx = x -1;
+                cy = y -1;
+                switch(mb){
+                    case 0: c = up?LCLICK_UP:LCLICK_DOWN; break;
+                    case 32: c = LDRAG; break;
+                    case 64: c = UP; magnitude = 3; break;
+                    case 65: c = DOWN; magnitude = 3; break;
+                    default: LOG("Unknown mb: %d\n", mb);
+                }
+            }
+            else if(sequence[1] == 'M'){
+                if(read_one_nb(sequence+2) == -1) return -1;
+                if(read_one_nb(sequence+3) == -1) return -1;
                 // LOG("click?\n");
-                // LOG("ESC [ M %d %d %d\n", sequence[2], sequence[3], sequence[4]);
+                if(0)LOG("ESC [ M %d %d %d\n", sequence[2], sequence[3], sequence[4]);
                 cx = ((int)(unsigned char)sequence[3]) - 32-1;
                 cy = ((int)(unsigned char)sequence[4]) - 32-1;
                 // LOG("x, y: %d,%d\n", cx, cy);
@@ -2266,7 +2332,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
             }
             else if (sequence[1] >= '0' && sequence[1] <= '9'){
                 // Extended escape, read additional byte.
-                if (read_one(sequence+2, /*block=*/0) == -1) return -1;
+                if (read_one_nb(sequence+2) == -1) return -1;
                 if (sequence[2] == '~') {
                     switch(sequence[1]) {
                     case '1':
@@ -2346,6 +2412,8 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
             }
         }
     }
+    else
+        if(0)LOG("c: %d\n", c);
     if(0)
     LOG("%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
             (int)(unsigned char)_c,
@@ -2595,7 +2663,7 @@ main(int argc, char** argv){
             #endif
             continue;
         }
-        if(MODE == MOVE_MODE || MODE == SELECT_MODE || MODE == LINE_SELECT_MODE){
+        if(MODE == MOVE_MODE || MODE == SELECT_MODE || MODE == LINE_SELECT_MODE || MODE==DRAG_SELECT_MODE){
             if(c != 'g' && c != 'd' && c != 'y'){
                 prev_c = 0;
             }
@@ -2657,6 +2725,14 @@ main(int argc, char** argv){
                         paste(active_view, active_view->cell_y, active_view->cell_x, PASTEBOARD.line_paste?PASTE_BELOW:PASTE_NORMAL);
                         break;
                     case LCLICK_DOWN: {
+                        CellCoord cc = screen_to_cell(active_view, cx, cy);
+                        move(active_view, cc.column - active_view->cell_x, cc.row - active_view->cell_y);
+                    } break;
+                    case LDRAG: {
+                        change_mode(DRAG_SELECT_MODE);
+                        redisplay(active_view);
+                        active_view->sel_x = active_view->cell_x;
+                        active_view->sel_y = active_view->cell_y;
                         CellCoord cc = screen_to_cell(active_view, cx, cy);
                         move(active_view, cc.column - active_view->cell_x, cc.row - active_view->cell_y);
                     } break;
@@ -2875,11 +2951,18 @@ main(int argc, char** argv){
                         break;
                 }
                 break;
+            case DRAG_SELECT_MODE:
             case LINE_SELECT_MODE:
             case SELECT_MODE:
                 switch(c){
+                    case 'V':
+                        if(MODE != LINE_SELECT_MODE){
+                            change_mode(LINE_SELECT_MODE);
+                            redisplay(active_view);
+                        }
+                        break;
                     case 'd':{
-                        if(MODE == SELECT_MODE)
+                        if(MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE)
                             goto sel_DELETE;
                         prev_c = 0;
                         int y = imin(active_view->cell_y, active_view->sel_y);
@@ -2925,10 +3008,14 @@ main(int argc, char** argv){
                         change_mode(MOVE_MODE);
                         redisplay(active_view);
                         break;
-                    case LCLICK_DOWN: {
+                    case LDRAG:
+                    case LCLICK_DOWN:
+                        {
                         // XXX: this needs to also needs to change the active view
                         CellCoord cc = screen_to_cell(active_view, cx, cy);
                         move(active_view, cc.column - active_view->cell_x, cc.row - active_view->cell_y);
+                        if(MODE == DRAG_SELECT_MODE && c == LCLICK_DOWN)
+                            change_mode(MOVE_MODE);
                     } break;
                     case 'x':
                     case BACKSPACE:
