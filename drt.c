@@ -16,7 +16,7 @@ struct DrtLLColor {
     union {
         struct {
             _Bool is_24bit:1;
-            _Bool is_reset:1;
+            _Bool is_not_reset:1;
             union {
                 unsigned char _8bit;
                 unsigned char r;
@@ -152,8 +152,8 @@ drt_paint_update(DrtLL* ll, DrtPaint* p, int x, int y, DrtLLCell* new){
         // set style
         drt_sprintf(ll, "\x1b[0;");
         started = 1;
-        p->state.color = (DrtLLColor){.is_reset=1};
-        p->state.bg_color = (DrtLLColor){.is_reset=1};
+        p->state.color = (DrtLLColor){0};
+        p->state.bg_color = (DrtLLColor){0};
         if(new->style & DRT_STYLE_BOLD){
             drt_sprintf(ll, "1;");
         }
@@ -174,7 +174,7 @@ drt_paint_update(DrtLL* ll, DrtPaint* p, int x, int y, DrtLLCell* new){
             drt_sprintf(ll, "\x1b[");
         }
         // set color
-        if(new->color.is_reset){
+        if(!new->color.is_not_reset){
             drt_sprintf(ll, "39;");
         }
         else if(new->color.is_24bit){
@@ -189,7 +189,7 @@ drt_paint_update(DrtLL* ll, DrtPaint* p, int x, int y, DrtLLCell* new){
             started = 1;
             drt_sprintf(ll, "\x1b[");
         }
-        if(new->bg_color.is_reset){
+        if(!new->bg_color.is_not_reset){
             drt_sprintf(ll, "49;");
         }
         else if(new->bg_color.is_24bit){
@@ -357,39 +357,39 @@ drt_set_style(DrtLL* ll, unsigned style){
 DRT_API
 void
 drt_set_8bit_color(DrtLL* ll, unsigned color){
-    drt_current_state(ll)->color = (DrtLLColor){._8bit=color};
+    drt_current_state(ll)->color = (DrtLLColor){._8bit=color, .is_not_reset=1};
 }
 
 DRT_API
 void
 drt_clear_color(DrtLL* ll){
-    drt_current_state(ll)->color = (DrtLLColor){.is_reset=1};
+    drt_current_state(ll)->color = (DrtLLColor){0};
 }
 
 
 DRT_API
 void
 drt_set_24bit_color(DrtLL* ll, unsigned char r, unsigned char g, unsigned char b){
-    drt_current_state(ll)->color = (DrtLLColor){.r=r, .g=g, .b=b, .is_24bit=1};
+    drt_current_state(ll)->color = (DrtLLColor){.r=r, .g=g, .b=b, .is_24bit=1, .is_not_reset=1};
 }
 
 DRT_API
 void
 drt_bg_set_8bit_color(DrtLL* ll, unsigned color){
-    drt_current_state(ll)->bg_color = (DrtLLColor){._8bit=color};
+    drt_current_state(ll)->bg_color = (DrtLLColor){._8bit=color, .is_not_reset=1};
 }
 
 DRT_API
 void
 drt_bg_clear_color(DrtLL* ll){
-    drt_current_state(ll)->bg_color = (DrtLLColor){.is_reset=1};
+    drt_current_state(ll)->bg_color = (DrtLLColor){0};
 }
 
 
 DRT_API
 void
 drt_bg_set_24bit_color(DrtLL* ll, unsigned char r, unsigned char g, unsigned char b){
-    drt_current_state(ll)->bg_color = (DrtLLColor){.r=r, .g=g, .b=b, .is_24bit=1};
+    drt_current_state(ll)->bg_color = (DrtLLColor){.r=r, .g=g, .b=b, .is_24bit=1, .is_not_reset=1};
 }
 
 DRT_API

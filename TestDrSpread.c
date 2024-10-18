@@ -6,6 +6,10 @@
 #define _CRT_SECURE_NO_WARNINGS 1
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 #ifndef DRSP_TEST_DYLINK
 #define DRSP_EXPORT static
 #else
