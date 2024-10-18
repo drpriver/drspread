@@ -350,7 +350,8 @@ enum {
     LINE_SELECT_MODE,
 };
 enum {DEFAULT_WIDTH=8};
-enum {MAX_FILL_WIDTH=16};
+enum {DRSP_TUI_MAX_FILL_WIDTH=32};
+enum {DRSP_TUI_MAX_COLUMNS=4000};
 
 static
 void
@@ -1005,7 +1006,7 @@ change_col_width_fill(Sheet* sheet, int x){
     if(x >= sheet->columns.count)
         return;
     const Column* col = &sheet->columns.data[x];
-    int w = col->name?strlen(col->name):-1;
+    ssize_t w = -1;
     for(size_t iy = 0; iy < sheet->disp.count; iy++){
         const Row* row = &sheet->disp.data[iy];
         if(x >= row->count)
@@ -1014,13 +1015,14 @@ change_col_width_fill(Sheet* sheet, int x){
         drsp_atom_get_str(CTX, row->data[x], &len);
         if(!len) continue;
         len += 2;
-        if(len > w) w = len;
+        if((ssize_t)len > w) w = (ssize_t)len;
     }
-
+    if(w == -1 && col->name)
+        w = strlen(col->name) + 2;
     if(w == -1)
         w = DEFAULT_WIDTH;
-    if(w > MAX_FILL_WIDTH)
-        w = MAX_FILL_WIDTH;
+    if(w > DRSP_TUI_MAX_FILL_WIDTH)
+        w = DRSP_TUI_MAX_FILL_WIDTH;
     if(col->width == w)
         return;
     change_col_width(sheet, x, w-col->width);
@@ -1067,36 +1069,12 @@ line_select_bounds(Sheet* sheet, int* x0, int* x1){
 static
 void
 move(SheetView* view, int dx, int dy){
-    // log("dx, dy: %d, %d\n", dx, dy);
     view->cell_y += dy;
-    if(view->cell_y < 0) view->cell_y = 0;
-    _Bool base_changed = 0;
-    while(view->cell_y-view->base_y > view->rows-6){
-        view->base_y++;
-        base_changed = 1;
-    }
-    while(view->cell_y < view->base_y){
-        view->base_y--;
-        base_changed = 1;
-    }
-    if(view->base_y < 0) view->base_y = 0;
     view->cell_x+=dx;
+    if(view->cell_y < 0) view->cell_y = 0;
+
     if(view->cell_x < 0) view->cell_x = 0;
-    if(view->cell_x > 9000) view->cell_x = 9000;
-    while(view->cell_x-view->base_x >= view->cols/13){
-        view->base_x++;
-        base_changed = 1;
-    }
-    while(view->cell_x < view->base_x){
-        view->base_x--;
-        base_changed = 1;
-    }
-    if(view->base_x <  0) view->base_x = 0;
-    if(base_changed && 0) {
-        LOG("base_x: %d\n", view->base_x);
-        LOG("base_y: %d\n", view->base_y);
-        redisplay(view);
-    }
+    if(view->cell_x >= DRSP_TUI_MAX_COLUMNS) view->cell_x = DRSP_TUI_MAX_COLUMNS-1;
     redisplay(view);
 }
 
@@ -2086,6 +2064,30 @@ update_display(SheetView* view){
     }
     if(view->needs_redisplay){
         view->needs_redisplay = 0;
+        int cell_rows = view->rows - 2 - 3;
+        if(view->cell_y < view->base_y)
+            view->base_y = view->cell_y;
+        if(view->cell_y - view->base_y >= cell_rows)
+            view->base_y = view->cell_y - cell_rows + 1;
+        if(view->base_y < 0) view->base_y = 0;
+        if(view->cell_x < view->base_x)
+            view->base_x = view->cell_x;
+        int screen_x = 1 + 4;
+        for(int ix = view->base_x; ix < view->cell_x; ix++){
+            int advance = DEFAULT_WIDTH+1;
+            if(ix < view->sheet->columns.count){
+                advance = 1 + view->sheet->columns.data[ix].width;
+            }
+            screen_x += advance;
+        }
+        while(screen_x+1 >= view->cols){
+            int advance = DEFAULT_WIDTH+1;
+            if(view->base_x < view->sheet->columns.count){
+                advance = 1 + view->sheet->columns.data[view->base_x].width;
+            }
+            screen_x -= advance;
+            view->base_x++;
+        }
         draw_grid(view);
     }
     drt_move(drt, 0, view->rows-1-1-1);
@@ -2646,8 +2648,11 @@ main(int argc, char** argv){
                         move(active_view, -active_view->cell_x, 0);
                         break;
                     case '$':
-                        if(SHEET->data.count)
-                            move(active_view, SHEET->data.data[0].count-active_view->cell_x, 0);
+                        if(active_view->cell_y < SHEET->data.count){
+                            int end = SHEET->data.data[active_view->cell_y].count;
+                            int dx = end - active_view->cell_x-1;
+                            if(dx) move(active_view, dx, 0);
+                        }
                         break;
                     case 'g':
                         if(prev_c != 'g')

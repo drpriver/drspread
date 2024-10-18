@@ -12,7 +12,7 @@
 #pragma clang assume_nonnull begin
 #endif
 
-enum {MAX_LINES=200, MAX_COLUMNS=400};
+enum {DRT_MAX_LINES=200, DRT_MAX_COLUMNS=400};
 
 typedef struct DrtLLColor DrtLLColor;
 struct DrtLLColor {
@@ -56,12 +56,12 @@ struct DrtLL {
         int x, y, w, h;
     } draw_area;
     int x, y;
-    DrtLLCell cells[2][MAX_LINES*MAX_COLUMNS];
+    DrtLLCell cells[2][DRT_MAX_LINES*DRT_MAX_COLUMNS];
     _Bool active_cells;
     _Bool dirty;
     _Bool force_paint;
     _Bool cursor_visible;
-    char buff[32*MAX_LINES*MAX_COLUMNS];
+    char buff[32*DRT_MAX_LINES*DRT_MAX_COLUMNS];
     size_t buff_cursor;
     int cur_x, cur_y;
 };
@@ -306,8 +306,8 @@ drt_update_drawable_area(DrtLL* ll, int x, int y, int w, int h){
 DRT_API
 void
 drt_update_terminal_size(DrtLL* ll, int w, int h){
-    if(w > MAX_COLUMNS) w = MAX_COLUMNS;
-    if(h > MAX_LINES) h = MAX_LINES;
+    if(w > DRT_MAX_COLUMNS) w = DRT_MAX_COLUMNS;
+    if(h > DRT_MAX_LINES) h = DRT_MAX_LINES;
     if(ll->term_w == w && ll->term_h == h)
         return;
     ll->force_paint = 1;
