@@ -39,6 +39,10 @@ typedef long long ssize_t;
 #define DRSP_EXPORT static
 #include "drspread.h"
 #include "argument_parsing.h"
+#include "drt.h"
+#include "drt.c"
+
+static DrtLL drt = {.state_stack[0] = {.color.is_reset=1, .bg_color.is_reset=1}};
 
 #ifdef _WIN32
 static inline _Bool memeq(const void* a, const void* b, size_t sz);
@@ -1193,7 +1197,8 @@ void
 draw_grid(SheetView* view){
     Sheet* sheet = view->sheet;
     int advance = 12;
-    printf("\033[H\033[2K");
+    drt_move(&drt, 0, 0);
+    drt_clear_to_end_of_row(&drt);
     const int borderless = BORDERLESS;
     for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
         const char* colname;
@@ -1213,34 +1218,28 @@ draw_grid(SheetView* view){
         }
         int lpad = len < width? (width-len)/2: 0;
         int pwidth = width - lpad;
-        // LOG("colname[%zu]: '%s'\n", i, colname);
-        // LOG("lpad: %d\n", lpad);
-        // LOG("pwidth: %d\n", pwidth);
-        if(borderless)
-            printf("\033[%d;%dH %*s%.*s", 1, x, lpad, "", pwidth, colname);
-        else
-            printf("\033[%d;%dH│%*s%.*s", 1, x, lpad, "", pwidth, colname);
+        if(borderless){
+            drt_move(&drt, x-1, 0);
+            drt_printf(&drt, " %.*s%.*s", lpad, "", pwidth, colname);
+        }
+        else{
+            drt_move(&drt, x-1, 0);
+            drt_putc_mb(&drt, "│", -1+sizeof "│", 1);
+            drt_printf(&drt, " %.*s%.*s", lpad, "", pwidth, colname);
+        }
         advance = width+1;
     }
-    printf("\033[2;0H────");
+    drt_move(&drt, 0, 1);
+    for(int i = 0; i < 4; i++) drt_putc_mb(&drt, "─", -1+sizeof "─", 1);
     for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
-        const char* border =
-            "─────────────────────────────────"
-            "─────────────────────────────────"
-            "─────────────────────────────────"
-            "─────────────────────────────────"
-            "─────────────────────────────────"
-            "─────────────────────────────────"
-            "─────────────────────────────────"
-            "─────────────────────────────────";
         int width = DEFAULT_WIDTH;
         if(ix < sheet->columns.count){
             const Column* col = &sheet->columns.data[ix];
             width = col->width;
         }
-        printf("\033[%d;%dH─%.*s", 2, x, 3*width, border);
-        // printf("\033[%d;%dH┼%.*s", 2, x, 3*width, border);
-        // LOG("%d: \\033[%d;%dH┼%.*s\n", ix, 2, x, 3*width, border);
+        drt_move(&drt, x-1, 1);
+        for(int i = 0; i < 3*width+1; i++)
+            drt_putc_mb(&drt, "─", -1+sizeof "─", 1);
         advance = width+1;
     }
     int sel_x0 = view->cell_x;
@@ -1258,8 +1257,11 @@ draw_grid(SheetView* view){
         sel_y1 = imax(view->cell_y, view->sel_y);
     }
     for(int iy = view->base_y, y = 3; y < view->rows-1;y++, iy++){
-        // int x;
-        printf("\033[38;5;240m\033[%d;0H%4d\033[39m", y, iy+1);
+        drt_push_state(&drt);
+        drt_set_8bit_color(&drt, 240);
+        drt_move(&drt, 0, y-1);
+        drt_printf(&drt, "%4d", iy+1);
+        drt_pop_state(&drt);
         for(int ix = view->base_x, x = 5; x < view->cols;x+=advance, ix++){
             int width = DEFAULT_WIDTH;
             if(ix < sheet->columns.count){
@@ -1277,34 +1279,56 @@ draw_grid(SheetView* view){
                  && iy >= sel_y0
                  && iy <= sel_y1);
 
+            drt_push_state(&drt);
             if(selected){
-                printf("\033[1;100m");
+                drt_set_style(&drt, DRT_STYLE_BOLD);
+                drt_bg_set_8bit_color(&drt, 8);
                 if(ix == view->cell_x && iy == view->cell_y){
-                    printf("\033[4m");
-                    printf("\033[1;34m");
+                    drt_set_style(&drt, DRT_STYLE_UNDERLINE|DRT_STYLE_BOLD);
+                    drt_set_8bit_color(&drt, 4);
                 }
             }
             else if(ix == view->cell_x && iy == view->cell_y){
-                printf("\033[4m");
-                printf("\033[1;94m");
+                drt_set_style(&drt, DRT_STYLE_UNDERLINE|DRT_STYLE_BOLD);
+                drt_set_8bit_color(&drt, 12);
             }
-            if(borderless)
-                printf("\033[%d;%dH ", y, x);
-            else
-                printf("\033[%d;%dH│", y, x);
+            if(borderless){
+                drt_move(&drt, x-1, y-1);
+                drt_putc(&drt, ' ');
+            }
+            else{
+                drt_move(&drt, x-1, y-1);
+                _Bool pushed = 0;
+                if(MODE==SELECT_MODE && ix-1 >= sel_x0 && ix-1 <= sel_x1 && iy >= sel_y0 && iy <= sel_y1){
+                    pushed = 1;
+                    drt_push_state(&drt);
+                    drt_bg_set_8bit_color(&drt, 8);
+                    if(ix-1==view->cell_x && iy == view->cell_y){
+                        drt_set_style(&drt, DRT_STYLE_UNDERLINE|DRT_STYLE_BOLD);
+                        drt_set_8bit_color(&drt, 4);
+                    }
+                }
+                else if(ix-1==view->cell_x && iy == view->cell_y){
+                    pushed = 1;
+                    drt_push_state(&drt);
+                    drt_set_style(&drt, DRT_STYLE_UNDERLINE|DRT_STYLE_BOLD);
+                    drt_set_8bit_color(&drt, 12);
+                }
+                drt_putc_mb(&drt, "│", -1+sizeof "│", 1);
+                if(pushed) drt_pop_state(&drt);
+            }
             TextChunk chunk = get_rc_val(&sheet->disp, iy, ix);
             if(chunk.vis_width < width){
-                printf("%*.*s ", width-1, imin((int)chunk._byte_len,width-1), chunk._txt);
+                drt_printf(&drt, "%*.*s ", width-1, imin((int)chunk._byte_len,width-1), chunk._txt);
             }
-            else
-                printf("%*.*s", width, imin((int)chunk._byte_len, width), chunk._txt);
+            else{
+                drt_printf(&drt, "%*.*s", width, imin((int)chunk._byte_len, width), chunk._txt);
+            }
 
-            if(selected || (ix == view->cell_x && iy == view->cell_y))
-                printf("\033[0m");
+            drt_pop_state(&drt);
 
             advance = width+1;
         }
-        // printf("\033[%d;%dH│", y, x);
     }
 }
 
@@ -1465,11 +1489,15 @@ static
 void
 end_tui(void){
     disable_raw(&TS);
+    // show cursor
     printf("\033[?25h");
     fflush(stdout);
+    // disable alt buffer
     printf("\033[?1049l");
     fflush(stdout);
+    // Normal tracking mode?
     printf("\033[?1000l");
+    // enable line wrapping
     printf("\033[=7h");
     fflush(stdout);
 }
@@ -1482,11 +1510,15 @@ begin_tui(void){
     SetConsoleMode(STDIN, ENABLE_VIRTUAL_TERMINAL_INPUT);
     SetConsoleMode(STDOUT, ENABLE_PROCESSED_OUTPUT|ENABLE_WRAP_AT_EOL_OUTPUT|ENABLE_VIRTUAL_TERMINAL_PROCESSING|DISABLE_NEWLINE_AUTO_RETURN);
 #endif
+    // alternative buffer
     printf("\033[?1049h");
     fflush(stdout);
+    // hide cursor
     printf("\033[?25l");
     fflush(stdout);
+    // X11 Mouse Reporting
     printf("\033[?1000h");
+    // line wrapping
     printf("\033[=7l");
     fflush(stdout);
     enable_raw(&TS);
@@ -2031,17 +2063,15 @@ redo(Sheet* sheet){
 static
 void
 update_display(SheetView* view){
-    printf("\033[?2026h");
     if(need_rescale){
         TermSize sz = get_terminal_size();
-        // sz.rows -= 1;
-        // sz.columns -= 1;
+        drt_update_terminal_size(&drt, sz.columns, sz.rows);
+        drt_update_drawable_area(&drt, 0, 0, sz.columns, sz.rows);
+        drt_invalidate(&drt);
+        drt_clear_screen(&drt);
         if(view->rows != sz.rows || view->cols != sz.columns){
             view->rows = sz.rows;
             view->cols = sz.columns;
-            printf("\033[H" // move to 0,0
-                   "\033[2J" // Erase entire screen
-            );
         }
         need_rescale = 0;
         view->need_redisplay = 1;
@@ -2050,41 +2080,56 @@ update_display(SheetView* view){
         view->need_redisplay = 0;
         draw_grid(view);
     }
-    printf("\033[%d;%dH", view->rows-1-1, 0);
-    printf("\033[0K%-8s -- ", mode_name(MODE));
+    drt_move(&drt, 0, view->rows-1-1-1);
+    drt_clear_to_end_of_row(&drt);
+    drt_printf(&drt, "%-8s -- ", mode_name(MODE));
     for(size_t i = 0; i < SHEETS.count && i < 9; i++){
         Sheet* sh = SHEETS.data[i];
-        if(sh == view->sheet)
-            printf("\033[90m\033[1m[%zu] %s \033[0m", i+1, sh->name);
+        if(sh == view->sheet){
+            drt_push_state(&drt);
+            drt_set_8bit_color(&drt, 8);
+            drt_set_style(&drt, DRT_STYLE_BOLD);
+            drt_printf(&drt, "[%zu] %s ", i+1, sh->name);
+            drt_pop_state(&drt);
+        }
         else
-            printf("[%zu] %s ", i+1, sh->name);
+            drt_printf(&drt, "[%zu] %s ", i+1, sh->name);
     }
-    printf("\033[%d;0H", view->rows-1);
-    printf("\033[2K%s", status);
-    printf("\033[%d;0H", view->rows);
+    drt_move(&drt, 0, view->rows-1-1);
+    drt_clear_to_end_of_row(&drt);
+    drt_printf(&drt, "%s", status);
+    drt_move(&drt, 0, view->rows-1);
+    drt_set_cursor_visible(&drt, 1);
     if(MODE == INSERT_MODE || MODE == CHANGE_MODE){
-        printf("\033[2K%s", EDIT.buff);
-        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1);
+        drt_clear_to_end_of_row(&drt);
+        drt_printf(&drt, "%s", EDIT.buff);
+        drt_move_cursor(&drt, EDIT.buff_cursor, view->rows-1);
     }
-    if(MODE == MOVE_MODE){
+    else if(MODE == MOVE_MODE){
+        drt_set_cursor_visible(&drt, 0);
         DrspAtom a = get_rc_a(&view->sheet->data, view->cell_y, view->cell_x);
         size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
-        printf("\033[2K%.*s", (int)len, txt);
+        drt_clear_to_end_of_row(&drt);
+        drt_printf(&drt, "%.*s", (int)len, txt);
     }
-    if(MODE == COMMAND_MODE){
-        printf("\033[2K:%s", EDIT.buff);
-        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
+    else if(MODE == COMMAND_MODE){
+        drt_clear_to_end_of_row(&drt);
+        drt_printf(&drt, ":%s", EDIT.buff);
+        drt_move_cursor(&drt, EDIT.buff_cursor+1, view->rows-1);
     }
-    if(MODE == QUERY_MODE){
-        printf("\033[%d;%dH\033[2K> %s", view->rows, 0, EDIT.buff);
-        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1+1);
+    else if(MODE == QUERY_MODE){
+        drt_clear_to_end_of_row(&drt);
+        drt_printf(&drt, "> %s", EDIT.buff);
+        drt_move_cursor(&drt, EDIT.buff_cursor+1+1, view->rows-1);
     }
-    if(MODE == SEARCH_MODE){
-        printf("\033[2K/%s", EDIT.buff);
-        printf("\033[%d;%dH", view->rows, EDIT.buff_cursor+1+1);
+    else if(MODE == SEARCH_MODE){
+        drt_clear_to_end_of_row(&drt);
+        drt_printf(&drt, "/%s", EDIT.buff);
+        drt_move_cursor(&drt, EDIT.buff_cursor+1, view->rows-1);
     }
-    printf("\033[?2026l");
-    fflush(stdout);
+    else
+        drt_set_cursor_visible(&drt, 0);
+    drt_paint(&drt);
 }
 
 static
