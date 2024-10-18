@@ -1343,6 +1343,7 @@ static
 void
 enable_raw(TermState* ts){
 #ifdef _WIN32
+    (void)ts;
 #else
     if(tcgetattr(STDIN_FILENO, &ts->orig) == -1)
         return;
@@ -1380,6 +1381,7 @@ static
 void
 disable_raw(struct TermState*ts){
 #ifdef _WIN32
+    (void)ts;
 #else
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &ts->orig);
 #endif
