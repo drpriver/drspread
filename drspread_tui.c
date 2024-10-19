@@ -1390,14 +1390,10 @@ static inline
 ssize_t
 read_one(char* buff, _Bool block){
 #ifdef _WIN32
-    if(block){
-        DWORD read = 0;
-        BOOL b = ReadFile(STDIN, buff, 1, &read, NULL);
-        if(!b) return -1;
-        return 1;
-    }
-    else {
-        for(;;){
+    for(;;){
+        INPUT_RECORD record;
+        DWORD num_read = 0;
+        if(!block){
             DWORD timeout = 0;
             DWORD ev = WaitForSingleObject(STDIN, timeout);
             if(ev == WAIT_TIMEOUT){
@@ -1405,42 +1401,35 @@ read_one(char* buff, _Bool block){
                 *buff = 0;
                 return 0;
             }
-            if(ev == WAIT_OBJECT_0){
-                // LOG("WAIT_OBJECT_0\n");
-                DWORD read = 0;
-                if(0){
-                    // LOG("ReadFile\n");
-                    BOOL b = ReadFile(STDIN, buff, 1, &read, NULL);
-                    // LOG("DoneReadFile\n");
-                    if(!b) return -1;
-                    return 1;
-                }
-                else {
-                    INPUT_RECORD record;
-                    DWORD num_read = 0;
-                    // LOG("ReadConsoleInput\n");
-                    BOOL b = ReadConsoleInput(STDIN, &record, 1, &num_read);
-                    // LOG("DoneReadConsoleInput\n");
-                    if(!b) return -1;
-                    if(record.EventType != KEY_EVENT){
-                        // LOG("record.EventType: %d\n", (int)record.EventType);
-                        continue;
-                    }
-                    if(!record.Event.KeyEvent.bKeyDown){
-                        // LOG("!record.Event.KeyEvent.bKeyDown\n");
-                        continue;
-                    }
-                    *buff = record.Event.KeyEvent.uChar.AsciiChar;
-                    return 1;
-                }
-            }
-            if(ev == WAIT_FAILED){
-                // LOG("WAIT_FAILED\n");
+            if(ev == WAIT_FAILED)
                 return -1;
+            if(ev != WAIT_OBJECT_0){
+                if(0)LOG("%d WaitForSingleObject returned value other than TIMEOUT, OBJECT_FAILED OR OBJECT_O: %lu\n", __LINE__, ev);
+                continue;
             }
         }
+        // LOG("ReadConsoleInput\n");
+        BOOL b = ReadConsoleInput(STDIN, &record, 1, &num_read);
+        // LOG("DoneReadConsoleInput\n");
+        if(!b) return -1;
+        if(record.EventType == WINDOW_BUFFER_SIZE_EVENT){
+            needs_rescale = 1;
+            if(!block) continue;
+            *buff = 0;
+            if(0)LOG("window size event: %hd, %hd", record.Event.WindowBufferSizeEvent.dwSize.X, record.Event.WindowBufferSizeEvent.dwSize.Y);
+            return 0;
+        }
+        if(record.EventType != KEY_EVENT){
+            // LOG("record.EventType: %d\n", (int)record.EventType);
+            continue;
+        }
+        if(!record.Event.KeyEvent.bKeyDown){
+            // LOG("!record.Event.KeyEvent.bKeyDown\n");
+            continue;
+        }
+        *buff = record.Event.KeyEvent.uChar.AsciiChar;
+        return 1;
     }
-
 #else
     if(block){
         ssize_t e;
@@ -2227,7 +2216,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
         else if((c & 0xf8) == 0xf0)
             length = 4;
         else {
-            LOG("invalid utf-8 starter? %#x\n", c);
+            if(0)LOG("invalid utf-8 starter? %#x\n", c);
             // invalid sequence
              return 0;
         }
@@ -2237,15 +2226,15 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
             if(e == -1) return -1;
             int val = (int)(unsigned char)sequence[i];
             if(val <= 127){
-                LOG("val: %d\n", val);
-                LOG("invalid utf-8? '%.*s'\n", i+1, sequence);
+                if(0)LOG("val: %d\n", val);
+                if(0)LOG("invalid utf-8? '%.*s'\n", i+1, sequence);
                 break;
             }
         }
         for(int i = 0; i < length; i++){
-            LOG("seq[%d] = %x\n", i, (int)(unsigned char)sequence[i]);
+            if(0)LOG("seq[%d] = %x\n", i, (int)(unsigned char)sequence[i]);
         }
-        LOG("utf-8: %.*s\n", length, sequence);
+        if(0)LOG("utf-8: %.*s\n", length, sequence);
         return 0;
     }
     int cx = 0, cy = 0;
