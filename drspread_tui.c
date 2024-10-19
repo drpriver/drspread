@@ -344,6 +344,7 @@ enum {
     MOVE_MODE = 0,
     INSERT_MODE,
     CHANGE_MODE,
+    CHANGE_SINGLE_MODE,
     COMMAND_MODE,
     QUERY_MODE,
     SEARCH_MODE,
@@ -389,6 +390,7 @@ mode_name(int mode){
         case MOVE_MODE:        return "MOVE";
         case INSERT_MODE:      return "EDIT";
         case CHANGE_MODE:      return "CHANGE";
+        case CHANGE_SINGLE_MODE: return "CHANGE (single)";
         case COMMAND_MODE:     return "COMMAND";
         case QUERY_MODE:       return "QUERY";
         case SEARCH_MODE:      return "SEARCH";
@@ -1110,7 +1112,7 @@ begin_line_edit_buff(const char* txt, size_t len){
 static
 void
 begin_line_edit(SheetView* view){
-    if(MODE == CHANGE_MODE)
+    if(MODE == CHANGE_MODE || MODE == CHANGE_SINGLE_MODE)
         begin_line_edit_buff("", 0);
     else {
         DrspAtom a = get_rc_a(&view->sheet->data, view->cell_y, view->cell_x);
@@ -2164,7 +2166,7 @@ update_display(SheetView* view){
     drt_printf(drt, "%s", status);
     drt_move(drt, 0, view->rows-1);
     drt_set_cursor_visible(drt, 1);
-    if(MODE == INSERT_MODE || MODE == CHANGE_MODE){
+    if(MODE == INSERT_MODE || MODE == CHANGE_MODE || MODE == CHANGE_SINGLE_MODE){
         drt_clear_to_end_of_row(drt);
         drt_printf(drt, "%s", EDIT.buff);
         drt_move_cursor(drt, EDIT.buff_cursor, view->rows-1);
@@ -2901,6 +2903,11 @@ main(int argc, char** argv){
                         redisplay(active_view);
                         begin_line_edit(active_view);
                         break;
+                    case 'r':
+                        change_mode(CHANGE_SINGLE_MODE);
+                        redisplay(active_view);
+                        begin_line_edit(active_view);
+                        break;
                     case 'e':
                     case 'i':
                         change_mode(INSERT_MODE);
@@ -3085,6 +3092,7 @@ main(int argc, char** argv){
                         break;
                 }
                 break;
+            case CHANGE_SINGLE_MODE:
             case CHANGE_MODE:
             case INSERT_MODE:
                 switch(c){
@@ -3116,6 +3124,10 @@ main(int argc, char** argv){
                                 .kind = UNDO_CHANGE_CELL,
                                 .change_cell = {.y=active_view->cell_y, .x=active_view->cell_x, .before=before, .after=after},
                             };
+                        }
+                        if(MODE == CHANGE_SINGLE_MODE){
+                            change_mode(MOVE_MODE);
+                            break;
                         }
                         move(active_view, 0, +1);
                         begin_line_edit(active_view);
