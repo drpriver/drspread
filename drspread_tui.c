@@ -130,7 +130,7 @@ memeq(const void* a, const void* b, size_t sz){
 
 static DrSpreadCtx* CTX;
 static DrspAtom NIL_ATOM;
-static _Bool BORDERLESS;
+static _Bool DRAW_BORDERS;
 
 static inline
 _Bool
@@ -1203,7 +1203,7 @@ draw_grid(SheetView* view){
     int advance = 12;
     drt_move(drt, 0, 0);
     drt_clear_to_end_of_row(drt);
-    const int borderless = BORDERLESS;
+    const int borderless = !DRAW_BORDERS;
     for(int x = 5, ix=view->base_x; x < view->cols;x+=advance, ix++){
         const char* colname;
         char buff[12];
@@ -2465,12 +2465,14 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64], _Bool* first_row_is_n
     };
     ArgToParse kw_args[] = {
         {
-            .name = SV("--borderless"),
-            .dest = ARGDEST(&BORDERLESS),
-            .help = "Don't draw separators between cells",
+            .name = SV("--bordered"),
+            .altname1 = SV("-b"),
+            .dest = ARGDEST(&DRAW_BORDERS),
+            .help = "Draw separators between cells",
         },
         {
             .name = SV("--logfile"),
+            .altname1 = SV("-l"),
             .dest = ARGDEST(&LOGFILE),
             .help = "File to log to.",
         },
@@ -3329,7 +3331,7 @@ main(int argc, char** argv){
                             || streq(EDIT.buff, "bo")
                             || streq(EDIT.buff, "borderless")
                             ){
-                                BORDERLESS = !BORDERLESS;
+                                DRAW_BORDERS = !DRAW_BORDERS;
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
                                 continue;
