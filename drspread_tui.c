@@ -1872,16 +1872,23 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
         return 1;
     }
     char* tmpname = NULL;
+    char* bak = NULL;
     FILE* fp = NULL;
     int result = 1;
     int delete_tmp = 0;
     tmpname = xsprintf("%s.tmp", filename);
 
+    #ifdef _WIN32
+    fp = fopen(tmpname, "wb");
+    #else
     fp = fopen(tmpname, "wbxe");
+    #endif
     if(!fp) {
         LOG("fopen failed: %s\n", strerror(errno));
         goto cleanup;
     }
+    else
+        LOG("opened tmp file: %s\n", filename);
     delete_tmp = 1;
 
     {
@@ -1970,6 +1977,7 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
             }
             if(r->data[x] != NIL_ATOM){
                 size_t len; const char* txt = drsp_atom_get_str(CTX, r->data[x], &len);
+                if(0)LOG("%d,%d: %.*s\n", (int)y, (int)x, (int)len, txt);
                 size_t writ = fwrite(txt, len, 1, fp);
                 if(writ != 1){
                     LOG("fwrite failed: %s\n", strerror(errno));
@@ -1990,10 +1998,26 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
         goto cleanup;
     }
 
-    int err = rename(tmpname, filename);
+    int err;
+    #ifdef _WIN32
+    bak = xsprintf("%s.bak", filename);
+    if(!bak) goto cleanup;
+    LOG("backing up %s to %s\n", filename, bak);
+    err = rename(filename, bak);
+    if(err) {
+        LOG("rename %s to %s failed\n", filename, bak);
+        goto cleanup;
+    }
+    #endif
+    LOG("renaming %s to %s\n", tmpname, filename);
+    err = rename(tmpname, filename);
     if(err) {
         LOG("rename failed: %s\n", strerror(errno));
         goto cleanup;
+    }
+    if(bak) {
+        LOG("removing %s\n", bak);
+        remove(bak);
     }
 
     result = 0;
@@ -2001,8 +2025,12 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
 
     cleanup:
     if(fp) fclose(fp);
-    if(delete_tmp) remove(tmpname);
+    if(delete_tmp) {
+        LOG("removing %s\n", tmpname);
+        remove(tmpname);
+    }
     free(tmpname);
+    free(bak);
     if(result == 0){
         set_status("Wrote to '%s'", filename);
     }
