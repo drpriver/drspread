@@ -1,0 +1,10 @@
+Changelog::kv
+  created:  2024-10-17T20:22:36Z
+  resolved: 2024-10-19T05:08:45Z
+Created Oct 17, 2024, 01:22PM::md .update
+Summary::md .summary
+  Add a command line flag to read column names from first line for interop with
+  tsvs
+
+Resolved Oct 18, 2024, 10:08PM::md .update
+  Fixed
