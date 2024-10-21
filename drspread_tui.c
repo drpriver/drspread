@@ -47,6 +47,8 @@ typedef long long ssize_t;
 #include "drspread.h"
 #include "argument_parsing.h"
 #include "drt.h"
+#include "drp_merge_sort.h"
+#include "measure_time.h"
 
 static DrtLL* drt;
 
@@ -408,9 +410,15 @@ recalc(void){
     needs_recalc = 1;
 }
 
+typedef struct RowValue RowValue;
+struct RowValue {
+    DrspAtom atom;
+    double number;
+};
+
 typedef struct Row Row;
 struct Row {
-    DrspAtom* data;
+    RowValue* data;
     size_t count, capacity;
 };
 
@@ -437,8 +445,8 @@ set_rc_val_a(Rows* rows, int y, int x, DrspAtom a){
     Row* row = &rows->data[y];
     if(x >= row->count && a == NIL_ATOM) return;
     while(x >= row->count)
-        *append(row) = NIL_ATOM;
-    row->data[x] = a;
+        *append(row) = (RowValue){NIL_ATOM, NAN};
+    row->data[x] = (RowValue){a, NAN};
 }
 
 static
@@ -465,7 +473,7 @@ get_rc_val(Rows* rows, int y, int x){
     if(y >= rows->count) return result;
     Row* row = &rows->data[y];
     if(x >= row->count) return result;
-    result.atom = row->data[x];
+    result.atom = row->data[x].atom;
     result._txt = drsp_atom_get_str(CTX, result.atom, &result._byte_len);
 
     // XXX vis width is wrong
@@ -481,7 +489,7 @@ get_rc_a(Rows* rows, int y, int x){
     if(y >= rows->count) return result;
     Row* row = &rows->data[y];
     if(x >= row->count) return result;
-    result = row->data[x];
+    result = row->data[x].atom;
     return result;
 }
 
@@ -740,8 +748,8 @@ clear(Sheet* sheet){
     for(int y = 0; y < sheet->data.count; y++){
         Row* row = &sheet->data.data[y];
         for(int x = 0; x < row->count; x++){
-            if(row->data[x] != NIL_ATOM){
-                row->data[x] = NIL_ATOM;
+            if(row->data[x].atom != NIL_ATOM){
+                row->data[x] = (RowValue){NIL_ATOM, NAN};
                 drsp_set_cell_atom(CTX, sheet, y, x, NIL_ATOM);
             }
         }
@@ -827,7 +835,7 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
                 const Row* row = &rows->data[dy];
                 for(int dx = 0; dx < row->count; dx++){
                     DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
-                    if(before == row->data[dx]) continue;
+                    if(before == row->data[dx].atom) continue;
                     goto did_change;
                 }
             }
@@ -866,10 +874,10 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
                     if(iy >= sheet->data.count) break;
                     const Row* row = &sheet->data.data[iy];
                     for(size_t x = 0; x < row->count; x++){
-                        if(row->data[x] != NIL_ATOM){
+                        if(row->data[x].atom != NIL_ATOM){
                             *append(&ud->nested) = (Undoable){
                                 .kind = UNDO_CHANGE_CELL,
-                                .change_cell = {.y=iy, .x=x, .before=row->data[x], .after=NIL_ATOM},
+                                .change_cell = {.y=iy, .x=x, .before=row->data[x].atom, .after=NIL_ATOM},
                             };
                         }
                     }
@@ -897,9 +905,9 @@ paste_rows(SheetView* view, const Rows* rows, int y, int x, PasteKind line_paste
         const Row* row = &rows->data[dy];
         for(int dx = 0; dx < row->count; dx++){
             DrspAtom before = get_rc_a(&sheet->data, y+dy, x+dx);
-            if(before == row->data[dx]) continue;
-            update_cell_no_eval_a(sheet, y+dy, x+dx, row->data[dx]);
-            DrspAtom after = row->data[dx];
+            if(before == row->data[dx].atom) continue;
+            update_cell_no_eval_a(sheet, y+dy, x+dx, row->data[dx].atom);
+            DrspAtom after = row->data[dx].atom;
             *append(&ud->nested) = (Undoable){
                 .kind = UNDO_CHANGE_CELL,
                 .change_cell = {.y=y+dy, .x=x+dx, .before=before, .after=after},
@@ -930,7 +938,7 @@ copy_cells(Sheet* sheet, int y, int x, int h, int w){
         PASTEBOARD.rows.data[iy].count = 0;
         for(int ix = 0; ix < w; ix++){
             DrspAtom a = get_rc_a(&sheet->data, y+iy, x+ix);
-            *append(&PASTEBOARD.rows.data[iy]) = a;
+            *append(&PASTEBOARD.rows.data[iy]) = (RowValue){a, NAN};
         }
     }
     PASTEBOARD.line_paste = 0;
@@ -1016,7 +1024,7 @@ change_col_width_fill(Sheet* sheet, int x){
         if(x >= row->count)
             continue;
         size_t len;
-        drsp_atom_get_str(CTX, row->data[x], &len);
+        drsp_atom_get_str(CTX, row->data[x].atom, &len);
         if(!len) continue;
         len += 2;
         if((ssize_t)len > w) w = (ssize_t)len;
@@ -1582,6 +1590,8 @@ display_number(void* ctx, Sheet* sheet, intptr_t row, intptr_t col, double value
     }
     if(0)LOG("%zd, %zd: num: %.*s\n", row, col, (int)n, buff);
     set_rc_val(&sheet->disp, row, col, buff, n);
+    Row* r = &sheet->disp.data[row];
+    r->data[col].number = value;
     SheetView* view = find_view(sheet);
     if(view) redisplay(view);
     return 0;
@@ -1594,6 +1604,8 @@ display_error(void* ctx, Sheet* sheet, intptr_t row, intptr_t col, const char* t
     DrspAtom a = xaprintf("#ERR: %.*s", (int)len, txt);
     if(0)LOG("%zd, %zd: #ERR: %.*s\n", row, col, (int)len, txt);
     set_rc_val_a(&sheet->disp, row, col, a);
+    Row* r = &sheet->disp.data[row];
+    r->data[col].number = NAN;
     SheetView* view = find_view(sheet);
     if(view) redisplay(view);
     return 0;
@@ -1605,6 +1617,8 @@ display_string(void* ctx, Sheet* sheet, intptr_t row, intptr_t col, const char* 
     (void)ctx;
     if(0)LOG("%zd, %zd: str: %.*s\n", row, col, (int)len, txt);
     set_rc_val(&sheet->disp, row, col, txt, len);
+    Row* r = &sheet->disp.data[row];
+    r->data[col].number = NAN;
     SheetView* view = find_view(sheet);
     if(view) redisplay(view);
     return 0;
@@ -1721,7 +1735,7 @@ insert_row(Sheet* sheet, int y, int n){
         const Row* old_row = iy+n<rows->count?&rows->data[iy+n]:&empty;
         size_t x = 0;
         for(;x < row->count; x++){
-            int err = drsp_set_cell_atom(CTX, sheet, iy, x, row->data[x]);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, row->data[x].atom);
             (void)err;
         }
         for(;x < old_row->count; x++){
@@ -1768,7 +1782,7 @@ delete_row(Sheet* sheet, int y, int n){
         const Row* new_row = &rows->data[iy+n];
         size_t x = 0;
         for(; x < new_row->count; x++){
-            int err = drsp_set_cell_atom(CTX, sheet, iy, x, new_row->data[x]);
+            int err = drsp_set_cell_atom(CTX, sheet, iy, x, new_row->data[x].atom);
             (void)err;
         }
         for(; x < deleted->count; x++){
@@ -1806,7 +1820,7 @@ delete_row_with_undo(Sheet* sheet, int y, int n){
         assert(iy < sheet->data.count);
         const Row* row = &sheet->data.data[iy];
         for(size_t x = 0;x < row->count; x++){
-            if(row->data[x] != NIL_ATOM)
+            if(row->data[x].atom != NIL_ATOM)
                 goto did_change;
         }
     }
@@ -1817,10 +1831,10 @@ delete_row_with_undo(Sheet* sheet, int y, int n){
         assert(iy < sheet->data.count);
         const Row* row = &sheet->data.data[iy];
         for(size_t x = 0;x < row->count; x++){
-            if(row->data[x] != NIL_ATOM)
+            if(row->data[x].atom != NIL_ATOM)
                 *append(&ud->nested) = (Undoable){
                     .kind = UNDO_CHANGE_CELL,
-                    .change_cell = {.y=iy, .x=x, .before=row->data[x], .after=NIL_ATOM},
+                    .change_cell = {.y=iy, .x=x, .before=row->data[x].atom, .after=NIL_ATOM},
                 };
         }
 
@@ -1832,6 +1846,144 @@ delete_row_with_undo(Sheet* sheet, int y, int n){
         .delete_rows = {.y=y, .n=n},
     };
     delete_row(sheet, y, n);
+}
+
+typedef struct SheetSortCtx SheetSortCtx;
+struct SheetSortCtx {
+    Sheet* sheet;
+    intptr_t col;
+    int asc;
+};
+
+int
+sheet_sort_cmp(void* ctx_, const void* a, const void* b){
+    SheetSortCtx* ctx = ctx_;
+    Sheet* sheet = ctx->sheet;
+    intptr_t col = ctx->col;
+    int asc = ctx->asc;
+    const intptr_t* li = a;
+    const intptr_t* ri = b;
+    const Row* l = &sheet->disp.data[*li];
+    const Row* r = &sheet->disp.data[*ri];
+    const RowValue empty = {NIL_ATOM, NAN};
+    const RowValue* left = l->count > col? &l->data[col] : &empty;
+    const RowValue* right = r->count > col? &r->data[col] : &empty;
+    if(0)LOG("left->number, right->number: %f,%f\n", left->number, right->number);
+    if(!isnan(left->number)){
+        if(isnan(right->number))
+            return -1*asc;
+        if(left->number < right->number) return -1*asc;
+        if(left->number > right->number) return 1*asc;
+        return 0;
+    }
+    if(!isnan(right->number)) return 1*asc;
+    if(left->atom == right->atom) return 0;
+    size_t llen, rlen;
+    const char *lstr, *rstr;
+    lstr = drsp_atom_get_str(CTX, left->atom, &llen);
+    rstr = drsp_atom_get_str(CTX, right->atom, &rlen);
+    if(0)LOG("left->atom, right->atom: '%.*s','%.*s'\n", (int)llen, lstr, (int)rlen, rstr);
+    if(!llen) return !rlen?0:1*asc;
+    if(!rlen) return -1*asc;
+    size_t slen = llen < rlen? llen: rlen;
+    if(slen){
+        int diff = memcmp(lstr, rstr, slen);
+        if(diff) return diff*asc;
+    }
+    return llen < rlen? -1*asc : llen > rlen? 1*asc: 0;
+}
+
+static
+void
+sort_sheet(Sheet* sheet, intptr_t col, _Bool ascending){
+    LOG("sorting %zd, %s\n", col, ascending?"ascending":"descending");
+    int asc = ascending?1:-1;
+    SheetSortCtx ctx = {.sheet = sheet, .col=col, .asc=asc};
+    intptr_t* idxes = xmalloc(2*sheet->disp.count * sizeof *idxes);
+    for(intptr_t i = 0; i < sheet->disp.count; i++){
+        idxes[i] = i;
+    }
+    {
+    // uint64_t t0 = get_t();
+    drp_merge_sort(idxes+sheet->disp.count, idxes, sheet->disp.count, sizeof *idxes, &ctx, &sheet_sort_cmp);
+    // mergesort_b(idxes, sheet->disp.count, sizeof *idxes, ^(const void* a, const void* b){ return sheet_sort_cmp((void*)&ctx, a, b); });
+    // uint64_t t1 = get_t();
+    // LOG("%d merge_sort: %lluµs\n", __LINE__, t1-t0);
+    // LOG("%d merge_sort: %.3fs\n", __LINE__, (t1-t0)/1e6);
+    }
+    {
+    // uint64_t t0 = get_t();
+    // Clear out old values
+    for(int y = 0; y < sheet->data.count; y++){
+        const Row* row = &sheet->data.data[y];
+        for(int x = 0; x < row->count; x++){
+            if(row->data[x].atom != NIL_ATOM){
+                drsp_set_cell_atom(CTX, sheet, y, x, NIL_ATOM);
+            }
+        }
+    }
+    // uint64_t t1 = get_t();
+    // LOG("%d clear old values: %lluµs\n", __LINE__, t1-t0);
+    // LOG("%d clear old values: %.3fs\n", __LINE__, (t1-t0)/1e6);
+    }
+    if(0){
+        LOG("Sort: \n");
+        for(intptr_t i = 0; i < sheet->data.count; i++){
+            LOG("  %zd -> %zd\n", idxes[i], i);
+        }
+        LOG("Before:\n");
+        for(intptr_t i = 0; i < sheet->data.count; i++){
+            Row r = sheet->data.data[i];
+            DrspAtom a = r.count > col? r.data[col].atom: NIL_ATOM;
+            size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
+            LOG("  %zd] '%.*s'\n", i, (int)len, txt);
+        }
+    }
+    {
+    // uint64_t t0 = get_t();
+    for(intptr_t i = 0; i < sheet->data.count; i++){
+        intptr_t dst = i;
+        Row clobbered = sheet->data.data[i];
+        for(;;){
+            intptr_t src = idxes[dst];
+            if(dst == src) break;
+            if(src < 0) break;
+            if(0)LOG("%zd) %zd -> %zd\n", i, src, dst);
+            idxes[dst] = -1;
+            Row new = src == i? clobbered: sheet->data.data[src];
+            sheet->data.data[dst] = new;
+            dst = src;
+        }
+    }
+    // uint64_t t1 = get_t();
+    // LOG("%d apply sort: %lluµs\n", __LINE__, t1-t0);
+    // LOG("%d apply sort: %.3fs\n", __LINE__, (t1-t0)/1e6);
+    }
+    if(0){
+        LOG("After:\n");
+        for(intptr_t i = 0; i < sheet->data.count; i++){
+            Row r = sheet->data.data[i];
+            DrspAtom a = r.count > col? r.data[col].atom: NIL_ATOM;
+            size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
+            LOG("  %zd] '%.*s'\n", i, (int)len, txt);
+        }
+    }
+    {
+    // uint64_t t0 = get_t();
+    for(int y = 0; y < sheet->data.count; y++){
+        const Row* row = &sheet->data.data[y];
+        for(int x = 0; x < row->count; x++){
+            if(row->data[x].atom != NIL_ATOM){
+                drsp_set_cell_atom(CTX, sheet, y, x, row->data[x].atom);
+            }
+        }
+    }
+    // uint64_t t1 = get_t();
+    // LOG("%d update cells: %lluµs\n", __LINE__, t1-t0);
+    // LOG("%d update cells: %.3fs\n", __LINE__, (t1-t0)/1e6);
+    }
+    free(idxes);
+    recalc();
 }
 
 static
@@ -1975,8 +2127,8 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
                     goto cleanup;
                 }
             }
-            if(r->data[x] != NIL_ATOM){
-                size_t len; const char* txt = drsp_atom_get_str(CTX, r->data[x], &len);
+            if(r->data[x].atom != NIL_ATOM){
+                size_t len; const char* txt = drsp_atom_get_str(CTX, r->data[x].atom, &len);
                 if(0)LOG("%d,%d: %.*s\n", (int)y, (int)x, (int)len, txt);
                 size_t writ = fwrite(txt, len, 1, fp);
                 if(writ != 1){
@@ -2661,9 +2813,13 @@ main(int argc, char** argv){
     int search_backward = 0;
     for(;;){
         if(needs_recalc){
+            uint64_t t0 = get_t();
             int err = drsp_evaluate_formulas(CTX);
+            uint64_t t1 = get_t();
             (void)err;
             needs_recalc = 0;
+            LOG("%d drsp_evaluate_formulas: %lluµs\n", __LINE__, t1-t0);
+            LOG("%d drsp_evaluate_formulas: %.3fs\n", __LINE__, (t1-t0)/1e6);
         }
         update_display(active_view);
         int c;
@@ -2836,7 +2992,7 @@ main(int argc, char** argv){
 
                             for(int y = starty; y >= 0; y--){
                                 for(int x = y==active_view->cell_y?active_view->cell_x-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
-                                    if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.prev_search, strlen(EDIT.prev_search))){
+                                    if(SHEET->data.data[y].data[x].atom && atom_contains(SHEET->data.data[y].data[x].atom, EDIT.prev_search, strlen(EDIT.prev_search))){
                                         move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                         goto break_N;
                                     }
@@ -2852,7 +3008,7 @@ main(int argc, char** argv){
                             forward_search:;
                             for(int y = active_view->cell_y; y < SHEET->data.count; y++){
                                 for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
-                                    if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.prev_search, strlen(EDIT.prev_search))){
+                                    if(SHEET->data.data[y].data[x].atom && atom_contains(SHEET->data.data[y].data[x].atom, EDIT.prev_search, strlen(EDIT.prev_search))){
                                         move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                         goto break_n;
                                     }
@@ -2865,7 +3021,7 @@ main(int argc, char** argv){
                     case 'b':
                         for(int y = active_view->cell_y; y >= 0 && y < SHEET->data.count; y--){
                             for(int x = y==active_view->cell_y?active_view->cell_x-1:SHEET->data.data[y].count-1;x >= 0 && x < SHEET->data.data[y].count; x--){
-                                if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != NIL_ATOM){
+                                if(SHEET->data.data[y].data[x].atom && SHEET->data.data[y].data[x].atom != NIL_ATOM){
                                     move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                     goto break_b;
                                 }
@@ -2877,7 +3033,7 @@ main(int argc, char** argv){
                     case 'w':
                         for(int y = active_view->cell_y; y < SHEET->data.count; y++){
                             for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
-                                if(SHEET->data.data[y].data[x] && SHEET->data.data[y].data[x] != NIL_ATOM){
+                                if(SHEET->data.data[y].data[x].atom && SHEET->data.data[y].data[x].atom != NIL_ATOM){
                                     move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                     goto break_w;
                                 }
@@ -3247,7 +3403,7 @@ main(int argc, char** argv){
                             redisplay(active_view);
                             for(int y = active_view->cell_y; y < SHEET->data.count; y++){
                                 for(int x = y==active_view->cell_y?active_view->cell_x+1:0;x < SHEET->data.data[y].count; x++){
-                                    if(SHEET->data.data[y].data[x] && atom_contains(SHEET->data.data[y].data[x], EDIT.buff, EDIT.buff_len)){
+                                    if(SHEET->data.data[y].data[x].atom && atom_contains(SHEET->data.data[y].data[x].atom, EDIT.buff, EDIT.buff_len)){
                                         move(active_view, x-active_view->cell_x, y-active_view->cell_y);
                                         goto break_search;
                                     }
@@ -3340,6 +3496,18 @@ main(int argc, char** argv){
                                 needs_rescale = 1;
                                 redisplay(active_view);
                                 change_mode(MOVE_MODE);
+                                continue;
+                            }
+                            if(streq(EDIT.buff, "sort")){
+                                change_mode(MOVE_MODE);
+                                sort_sheet(active_view->sheet, active_view->cell_x, 1);
+                                redisplay(active_view);
+                                continue;
+                            }
+                            if(memeq(EDIT.buff, "sort ", 5)){
+                                // TODO
+                                change_mode(MOVE_MODE);
+                                redisplay(active_view);
                                 continue;
                             }
                         }
