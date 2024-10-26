@@ -498,6 +498,7 @@ struct Column {
     char* name;
     int width;
     int explicit_width;
+    _Bool hidden;
 };
 
 typedef struct Columns Columns;
@@ -1012,6 +1013,7 @@ change_col_width(Sheet* sheet, int x, int dw){
     col->width = w;
 }
 
+
 static
 void
 change_col_width_fill(Sheet* sheet, int x){
@@ -1048,6 +1050,21 @@ fill_cols(Sheet* sheet, int x){
         *col = (Column){0};
         col->name = xint_to_colname((int)i);
         col->width = 8;
+    }
+}
+
+static
+void
+hide_column(Sheet* sheet, int x){
+    fill_cols(sheet, x);
+    Column* col = &sheet->columns.data[x];
+    col->hidden = 1;
+}
+static
+void
+unhide_columns(Sheet* sheet){
+    for(size_t i = 0; i < sheet->columns.count; i++){
+        sheet->columns.data[i].hidden = 0;
     }
 }
 
@@ -1103,6 +1120,23 @@ move(SheetView* view, int dx, int dy){
 
     if(view->cell_x < 0) view->cell_x = 0;
     if(view->cell_x >= DRSP_TUI_MAX_COLUMNS) view->cell_x = DRSP_TUI_MAX_COLUMNS-1;
+    if(dx < 0 && view->cell_x < view->sheet->columns.count){
+        ssize_t x = view->cell_x;
+        while(x >= 0 && view->sheet->columns.data[x].hidden)
+            x--;
+        if(x < 0){
+            x = view->cell_x;
+            while(x < view->sheet->columns.count && view->sheet->columns.data[x].hidden)
+                x++;
+        }
+        view->cell_x = x;
+    }
+    else if (dx > 0){
+        ssize_t x = view->cell_x;
+        while(x < view->sheet->columns.count && view->sheet->columns.data[x].hidden)
+            x++;
+        view->cell_x = x;
+    }
     redisplay(view);
 }
 
@@ -1219,6 +1253,10 @@ draw_grid(SheetView* view){
         int width = DEFAULT_WIDTH;
         if(ix < sheet->columns.count){
             const Column* col = &sheet->columns.data[ix];
+            if(col->hidden){
+                advance = 0;
+                continue;
+            }
             colname = col->name;
             len = strlen(colname);
             width = col->width;
@@ -1246,6 +1284,10 @@ draw_grid(SheetView* view){
         int width = DEFAULT_WIDTH;
         if(ix < sheet->columns.count){
             const Column* col = &sheet->columns.data[ix];
+            if(col->hidden){
+                advance = 0;
+                continue;
+            }
             width = col->width;
         }
         drt_move(drt, x-1, 1);
@@ -1277,6 +1319,10 @@ draw_grid(SheetView* view){
             int width = DEFAULT_WIDTH;
             if(ix < sheet->columns.count){
                 const Column* col = &sheet->columns.data[ix];
+                if(col->hidden){
+                    advance = 0;
+                    continue;
+                }
                 width = col->width;
             }
             _Bool selected =
@@ -3369,6 +3415,7 @@ main(int argc, char** argv){
                 switch(c){
                     case CTRL_J:
                     case ENTER:
+                        set_status("");
                         if(MODE == QUERY_MODE){
                             DrSpreadResult outval = {0};
                             int e = drsp_evaluate_string(CTX, SHEET, EDIT.buff, EDIT.buff_len, &outval, -1, -1);
@@ -3510,6 +3557,20 @@ main(int argc, char** argv){
                                 redisplay(active_view);
                                 continue;
                             }
+                            if(streq(EDIT.buff, "h") || streq(EDIT.buff, "hide") || streq(EDIT.buff, "hi")){
+                                hide_column(active_view->sheet, active_view->cell_x);
+                                move(active_view, 1, 0);
+                                change_mode(MOVE_MODE);
+                                redisplay(active_view);
+                                continue;
+                            }
+                            if(streq(EDIT.buff, "unhide") || streq(EDIT.buff, "unhi")){
+                                unhide_columns(active_view->sheet);
+                                change_mode(MOVE_MODE);
+                                redisplay(active_view);
+                                continue;
+                            }
+                            set_status("Not a recognized command: '%s'", EDIT.buff);
                         }
                         break;
                     case CTRL_C:
