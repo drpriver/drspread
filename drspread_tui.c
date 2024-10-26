@@ -351,6 +351,7 @@ enum {
     QUERY_MODE,
     SEARCH_MODE,
     SELECT_MODE,
+    SELECT_COMMAND_MODE,
     LINE_SELECT_MODE,
     DRAG_SELECT_MODE,
 };
@@ -399,6 +400,7 @@ mode_name(int mode){
         case SELECT_MODE:      return "SELECT";
         case LINE_SELECT_MODE: return "SELECT LINE";
         case DRAG_SELECT_MODE: return "SELECT (drag)";
+        case SELECT_COMMAND_MODE: return "SELECT (command)";
         default:               return "????";
     }
 }
@@ -1055,10 +1057,12 @@ fill_cols(Sheet* sheet, int x){
 
 static
 void
-hide_column(Sheet* sheet, int x){
-    fill_cols(sheet, x);
-    Column* col = &sheet->columns.data[x];
-    col->hidden = 1;
+hide_columns(Sheet* sheet, int x0, int len){
+    fill_cols(sheet, x0+len);
+    for(int x = x0; x < x0 + len; x++){
+        Column* col = &sheet->columns.data[x];
+        col->hidden = 1;
+    }
 }
 static
 void
@@ -1299,7 +1303,7 @@ draw_grid(SheetView* view){
     int sel_x1 = view->cell_x;
     int sel_y0 = view->cell_y;
     int sel_y1 = view->cell_y;
-    if(MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE){
+    if(MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE || MODE == SELECT_COMMAND_MODE){
         sel_x0 = imin(view->cell_x, view->sel_x);
         sel_x1 = imax(view->cell_x, view->sel_x);
         sel_y0 = imin(view->cell_y, view->sel_y);
@@ -1326,7 +1330,7 @@ draw_grid(SheetView* view){
                 width = col->width;
             }
             _Bool selected =
-                ((MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE)
+                ((MODE == SELECT_MODE || MODE == DRAG_SELECT_MODE || MODE == SELECT_COMMAND_MODE)
                  && ix >= sel_x0
                  && ix <= sel_x1
                  && iy >= sel_y0
@@ -1356,7 +1360,7 @@ draw_grid(SheetView* view){
             else{
                 drt_move(drt, x-1, y-1);
                 _Bool pushed = 0;
-                if((MODE==SELECT_MODE || MODE==DRAG_SELECT_MODE) && ix-1 >= sel_x0 && ix-1 <= sel_x1 && iy >= sel_y0 && iy <= sel_y1){
+                if((MODE==SELECT_MODE || MODE==DRAG_SELECT_MODE || MODE == SELECT_COMMAND_MODE) && ix-1 >= sel_x0 && ix-1 <= sel_x1 && iy >= sel_y0 && iy <= sel_y1){
                     pushed = 1;
                     drt_push_state(drt);
                     drt_bg_set_8bit_color(drt, 8);
@@ -2404,7 +2408,7 @@ update_display(SheetView* view){
         drt_clear_to_end_of_row(drt);
         drt_printf(drt, "%.*s", (int)len, txt);
     }
-    else if(MODE == COMMAND_MODE){
+    else if(MODE == COMMAND_MODE || MODE == SELECT_COMMAND_MODE){
         drt_clear_to_end_of_row(drt);
         drt_printf(drt, ":%s", EDIT.buff);
         drt_move_cursor(drt, EDIT.buff_cursor+1, view->rows-1);
@@ -3320,6 +3324,12 @@ main(int argc, char** argv){
                         change_mode(MOVE_MODE);
                         redisplay(active_view);
                         break;
+                    case ';':
+                    case ':':
+                        change_mode(SELECT_COMMAND_MODE);
+                        begin_line_edit_buff("", 0);
+                        redisplay(active_view);
+                        break;
                     default:
                         break;
                 }
@@ -3412,6 +3422,7 @@ main(int argc, char** argv){
             case SEARCH_MODE:
             case QUERY_MODE:
             case COMMAND_MODE:
+            case SELECT_COMMAND_MODE:
                 switch(c){
                     case CTRL_J:
                     case ENTER:
@@ -3457,6 +3468,31 @@ main(int argc, char** argv){
                                 }
                             }
                             break_search:;
+                        }
+                        else if(MODE == SELECT_COMMAND_MODE){
+                            // TODO: use selection here
+                            if(streq(EDIT.buff, "sort")){
+                                change_mode(MOVE_MODE);
+                                sort_sheet(active_view->sheet, active_view->cell_x, 1);
+                                redisplay(active_view);
+                                continue;
+                            }
+                            if(memeq(EDIT.buff, "sort ", 5)){
+                                // TODO
+                                change_mode(MOVE_MODE);
+                                redisplay(active_view);
+                                continue;
+                            }
+                            if(streq(EDIT.buff, "h") || streq(EDIT.buff, "hide") || streq(EDIT.buff, "hi")){
+                                int x0 = imin(active_view->cell_x, active_view->sel_x);
+                                int x1 = imax(active_view->cell_x, active_view->sel_x);
+                                hide_columns(active_view->sheet, x0, x1-x0+1);
+                                move(active_view, 1, 0);
+                                change_mode(MOVE_MODE);
+                                redisplay(active_view);
+                                continue;
+                            }
+                            set_status("Not a recognized command: '%s'", EDIT.buff);
                         }
                         else {
                             // TODO
@@ -3558,7 +3594,7 @@ main(int argc, char** argv){
                                 continue;
                             }
                             if(streq(EDIT.buff, "h") || streq(EDIT.buff, "hide") || streq(EDIT.buff, "hi")){
-                                hide_column(active_view->sheet, active_view->cell_x);
+                                hide_columns(active_view->sheet, active_view->cell_x, 1);
                                 move(active_view, 1, 0);
                                 change_mode(MOVE_MODE);
                                 redisplay(active_view);
@@ -3575,7 +3611,7 @@ main(int argc, char** argv){
                         break;
                     case CTRL_C:
                     case ESC:
-                        change_mode(MOVE_MODE);
+                        change_mode(MODE==SELECT_COMMAND_MODE?SELECT_MODE:MOVE_MODE);
                         redisplay(active_view);
                         break;
                     default:
