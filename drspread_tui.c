@@ -2868,7 +2868,7 @@ main(int argc, char** argv){
             uint64_t t1 = get_t();
             (void)err;
             needs_recalc = 0;
-            LOG("%d drsp_evaluate_formulas: %lluµs\n", __LINE__, t1-t0);
+            LOG("%d drsp_evaluate_formulas: %lluµs\n", __LINE__, (unsigned long long)t1-t0);
             LOG("%d drsp_evaluate_formulas: %.3fs\n", __LINE__, (t1-t0)/1e6);
         }
         update_display(active_view);
