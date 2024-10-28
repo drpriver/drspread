@@ -2660,7 +2660,7 @@ get_input(int* pc, int* pcx, int* pcy, int* pmagnitude){
 
 static
 void
-drsp_parse_args(int argc, char** argv, char* (*files)[64], _Bool* first_row_is_names){
+drsp_parse_args(int argc, char** argv, char* (*files)[64], _Bool* first_row_is_not_names){
     ArgToParse pos_args[] = {
         {
             .name = SV("files"),
@@ -2684,10 +2684,10 @@ drsp_parse_args(int argc, char** argv, char* (*files)[64], _Bool* first_row_is_n
             .help = "File to log to.",
         },
         {
-            .name = SV("--first"),
-            .altname1 = SV("--first-row-is-names"),
-            .dest = ARGDEST(first_row_is_names),
-            .help = "Use the first row of the file as column names",
+            .name = SV("--not-first"),
+            .altname1 = SV("--first-row-is-not-names"),
+            .dest = ARGDEST(first_row_is_not_names),
+            .help = "Don't use the first row of the file as column names",
         },
     };
     enum {HELP=0, FISH=1};
@@ -2752,8 +2752,8 @@ main(int argc, char** argv){
     STDOUT = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
     char* files[64] = {0};
-    _Bool first_row_is_names = 0;
-    drsp_parse_args(argc, argv, &files, &first_row_is_names);
+    _Bool first_row_is_not_names = 0;
+    drsp_parse_args(argc, argv, &files, &first_row_is_not_names);
     set_status("");
     #ifdef _WIN32
     #else
@@ -2811,7 +2811,7 @@ main(int argc, char** argv){
             char* txt = read_file(filename);
             if(!txt) txt = xstrdup("");
             char* line;
-            _Bool first_row_as_names = first_row_is_names;
+            _Bool first_row_as_names = !first_row_is_not_names;
             for(int y =0;(line=strsep(&txt, "\n"));y++){
                 char* token;
                 int x = 0;
