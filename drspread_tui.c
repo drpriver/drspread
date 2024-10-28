@@ -1719,7 +1719,11 @@ screen_to_cell(SheetView* view, int x, int y){
         }
         int advance = DEFAULT_WIDTH+1;
         if(ix < sheet->columns.count){
-            advance = 1 + sheet->columns.data[ix].width;
+            Column* col = &sheet->columns.data[ix];
+            if(col->hidden)
+                advance = 0;
+            else
+                advance = 1 + sheet->columns.data[ix].width;
         }
         screen_x += advance;
     }
@@ -1739,11 +1743,15 @@ cell_to_screen(SheetView* view, int x, int y){
     for(int ix = view->base_x; ix < x; ix++){
         int advance = DEFAULT_WIDTH+1;
         if(ix < sheet->columns.count){
-            advance = 1 + sheet->columns.data[ix].width;
+            Column* col = &sheet->columns.data[ix];
+            if(col->hidden)
+                advance = 0;
+            else
+                advance = 1 + sheet->columns.data[ix].width;
         }
         screen_x += advance;
     }
-    int width = x >= sheet->columns.count?DEFAULT_WIDTH:sheet->columns.data[x].width;
+    int width = x >= sheet->columns.count?DEFAULT_WIDTH:sheet->columns.data[x].hidden?0:sheet->columns.data[x].width;
     CellLoc loc = {
         screen_x,
         // x*12+1+4,
@@ -2367,14 +2375,22 @@ update_display(SheetView* view){
         for(int ix = view->base_x; ix < view->cell_x; ix++){
             int advance = DEFAULT_WIDTH+1;
             if(ix < view->sheet->columns.count){
-                advance = 1 + view->sheet->columns.data[ix].width;
+                Column* col = &view->sheet->columns.data[ix];
+                if(col->hidden)
+                    advance = 0;
+                else
+                    advance = 1 + col->width;
             }
             screen_x += advance;
         }
         while(screen_x+1 >= view->cols){
             int advance = DEFAULT_WIDTH+1;
             if(view->base_x < view->sheet->columns.count){
-                advance = 1 + view->sheet->columns.data[view->base_x].width;
+                Column* col = &view->sheet->columns.data[view->base_x];
+                if(col->hidden)
+                    advance = 0;
+                else
+                    advance = 1 + col->width;
             }
             screen_x -= advance;
             view->base_x++;
