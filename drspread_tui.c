@@ -1943,11 +1943,16 @@ sheet_sort_cmp(void* ctx_, const void* a, const void* b){
     return llen < rlen? -1*asc : llen > rlen? 1*asc: 0;
 }
 
+enum {
+    SORT_DESCENDING = 0x0,
+    SORT_ASCENDING = 0x1,
+};
+
 static
 void
-sort_sheet(Sheet* sheet, intptr_t col, _Bool ascending){
-    LOG("sorting %zd, %s\n", col, ascending?"ascending":"descending");
-    int asc = ascending?1:-1;
+sort_sheet(Sheet* sheet, intptr_t col, unsigned flags){
+    LOG("sorting %zd, %s\n", col, flags & SORT_ASCENDING?"ascending":"descending");
+    int asc = flags & SORT_ASCENDING?1:-1;
     SheetSortCtx ctx = {.sheet = sheet, .col=col, .asc=asc};
     intptr_t* idxes = xmalloc(2*sheet->disp.count * sizeof *idxes);
     for(intptr_t i = 0; i < sheet->disp.count; i++){
@@ -3109,6 +3114,16 @@ main(int argc, char** argv){
                         if(magnitude != 1) scroll(active_view, 0, magnitude);
                         else move(active_view, 0, +magnitude);
                         break;
+                    case 'H':
+                        hide_columns(active_view->sheet, active_view->cell_x, 1);
+                        move(active_view, 1, 0);
+                        break;
+                    case 's':
+                        sort_sheet(active_view->sheet, active_view->cell_x, SORT_ASCENDING);
+                        break;
+                    case 'S':
+                        sort_sheet(active_view->sheet, active_view->cell_x, SORT_DESCENDING);
+                        break;
                     case 'h':
                     case LEFT:
                     case CTRL_B:
@@ -3473,7 +3488,7 @@ main(int argc, char** argv){
                             // TODO: use selection here
                             if(streq(EDIT.buff, "sort")){
                                 change_mode(MOVE_MODE);
-                                sort_sheet(active_view->sheet, active_view->cell_x, 1);
+                                sort_sheet(active_view->sheet, active_view->cell_x, SORT_ASCENDING);
                                 redisplay(active_view);
                                 continue;
                             }
@@ -3583,7 +3598,7 @@ main(int argc, char** argv){
                             }
                             if(streq(EDIT.buff, "sort")){
                                 change_mode(MOVE_MODE);
-                                sort_sheet(active_view->sheet, active_view->cell_x, 1);
+                                sort_sheet(active_view->sheet, active_view->cell_x, SORT_ASCENDING);
                                 redisplay(active_view);
                                 continue;
                             }
