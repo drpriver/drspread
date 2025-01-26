@@ -2143,10 +2143,12 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
             }
         }
         else {
+            char buff[32];
             _Bool explicit_names = 0;
             for(size_t i = 0; i < sheet->columns.count; i++){
                 const Column* col = &sheet->columns.data[i];
-                if(col->name){
+                int_to_colname(buff, sizeof buff, i);
+                if(col->name && strcmp(buff, col->name) != 0){
                     explicit_names = 1;
                     break;
                 }
@@ -2162,7 +2164,8 @@ atomically_write_sheet(Sheet* sheet, const char* filename){
                             goto cleanup;
                         }
                     }
-                    if(col->name){
+                    int_to_colname(buff, sizeof buff, i);
+                    if(col->name && strcmp(buff, col->name) != 0){
                         put = fputs(col->name, fp);
                         if(put == EOF) {
                             LOG("fputs failed: %s\n", strerror(errno));
@@ -2841,7 +2844,7 @@ main(int argc, char** argv){
                     if(!token) continue;
                     if(streq(token, "names")){
                         for(;(token = strsep(&line, "\t|"));x++){
-                            rename_column(SHEET, x, token);
+                            if(*token) rename_column(SHEET, x, token);
                         }
                         continue;
                     }
@@ -2853,7 +2856,7 @@ main(int argc, char** argv){
                     y = -1;
                     first_row_as_names = 0;
                     for(;(token = strsep(&line, "\t|"));x++){
-                        rename_column(SHEET, x, token);
+                        if(*token) rename_column(SHEET, x, token);
                     }
                     continue;
                 }
