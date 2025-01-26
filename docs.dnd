@@ -382,6 +382,8 @@
           A string identifying the column the cell is in.
         row::def
           A number identifying the row the cell is in.
+    column::def
+      See [col].
     col::def
       ::pre
         col(sheetname, colname, rowstart, rowend)

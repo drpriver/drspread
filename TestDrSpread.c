@@ -1222,6 +1222,7 @@ TestFunction(TestFuncsRowArray){
         "=find('b', row('m', 'p', 2))\n"
         "=find('', row('m', 'z', 2))\n"
         "=find('', col('p', 2))\n"
+        "=find('', column('p', 2))\n"
 
         "=f(row('b', 'c', 4)+row('f', 'g', 4))\n"
         "=sum(row('b', 'c', 4)+row('f', 'g', 4))\n"
@@ -1289,9 +1290,10 @@ TestFunction(TestFuncsRowArray){
         [44] = ROW("2"),
         [45] = ROW("5"),
         [46] = ROW("2"),
+        [47] = ROW("2"),
 
-        [47] = ROW("3"),
-        [48] = ROW("7"),
+        [48] = ROW("3"),
+        [49] = ROW("7"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 0);
 }

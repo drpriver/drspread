@@ -2273,6 +2273,10 @@ const FuncInfo FUNC5[] = {
     // log10, log2 don't parse atm
     // {SVI("log10"), &drsp_log10},
 };
+DRSP_INTERNAL
+const FuncInfo FUNC6[] = {
+    {SVI("column"), &drsp_col},
+};
 
 
 DRSP_INTERNAL
@@ -2314,6 +2318,13 @@ lookup_func(DrspAtom a){
             for(size_t i = 0; i < arrlen(FUNC5); i++){
                 if(sv_equals(FUNC5[i].name, name)){
                     return FUNC5[i].func;
+                }
+            }
+            return NULL;
+        case 6:
+            for(size_t i = 0; i < arrlen(FUNC6); i++){
+                if(sv_equals(FUNC6[i].name, name)){
+                    return FUNC6[i].func;
                 }
             }
             return NULL;
