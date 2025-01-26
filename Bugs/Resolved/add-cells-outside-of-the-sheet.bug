@@ -1,0 +1,10 @@
+Changelog::kv
+  created:  2023-08-11T05:04:51Z
+  resolved: 2025-01-26T04:13:54Z
+Created Aug 10, 2023, 10:04PM::md .update
+Summary::md .summary
+  This sounds weird, but sometimes you want formulas that will get auto-recalled
+  without them being part of the sheet itself.
+
+Resolved Jan 25, 2025, 08:13PM::md .update
+  This was done a long time ago.
