@@ -2075,7 +2075,7 @@ read_file(const char* filename){
 
     fail:
     if(txt) free(txt);
-    fclose(fp);
+    if(fp) fclose(fp);
     return NULL;
 }
 
