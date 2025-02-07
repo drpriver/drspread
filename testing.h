@@ -35,6 +35,25 @@
 #define _Nullable
 #endif
 
+#ifndef TestDebugBreak
+    #if defined(__clang__)
+        #define TestDebugBreak() __builtin_debugtrap()
+    #elif defined(_MSC_VER)
+        #define __builtin_debugtrap() __debugbreak()
+    #elif defined(__GNUC__)
+        #if defined(__x86_64__) || defined(__i386__)
+            #define TestDebugBreak() asm("int $3")
+        // This is untested, as it requires gcc + arm64
+        #elif defined(__aarch64__ )
+            #define TestDebugBreak() asm("brk #0xf000")
+        #else
+            #define TestDebugBreak() __builtin_trap()
+        #endif
+    #else
+        #define TestDebugBreak()
+    #endif
+#endif
+
 
 // BUGS
 // ----
@@ -53,6 +72,7 @@ static const char* _test_color_gray  = "";
 static const char* _test_color_reset = "";
 static const char* _test_color_green = "";
 static const char* _test_color_red   = "";
+_Bool _test_do_debugbreak_on_fail = 0;
 #if 0 // Currently these are unused.
 static const char* _test_color_blue  = "";
 #endif
@@ -408,8 +428,10 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("%s == %s", #lhs, #rhs); \
               TestPrintValue(#lhs, _lhs);\
               TestPrintValue(#rhs, _rhs);\
-              }\
-          }while(0)
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
+          }\
+      }while(0)
 #else
   #define TestExpectEquals(lhs, rhs) do {\
           TEST_stats.executed++;\
@@ -419,8 +441,10 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("%s == %s", #lhs, #rhs); \
               TestPrintValue(#lhs, lhs);\
               TestPrintValue(#rhs, rhs);\
-              }\
-          }while(0)
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
+          }\
+      }while(0)
 #endif
   //
   // TestExpectEquals2
@@ -438,6 +462,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("!%s(%s, %s)", #func, #lhs, #rhs); \
               TestPrintValue(#lhs, _lhs);\
               TestPrintValue(#rhs, _rhs);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       } while(0)
 #else
@@ -449,6 +475,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("!%s(%s, %s)", #func, #lhs, #rhs); \
               TestPrintValue(#lhs, lhs);\
               TestPrintValue(#rhs, rhs);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       } while(0)
 #endif
@@ -469,6 +497,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("%s != %s", #lhs, #rhs); \
               TestPrintValue(#lhs, _lhs);\
               TestPrintValue(#rhs, _rhs);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       }while(0)
 #else
@@ -480,6 +510,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("%s != %s", #lhs, #rhs); \
               TestPrintValue(#lhs, lhs);\
               TestPrintValue(#rhs, rhs);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       }while(0)
 #endif
@@ -500,6 +532,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("%s(%s, %s)", #func, #lhs, #rhs); \
               TestPrintValue(#lhs, _lhs);\
               TestPrintValue(#rhs, _rhs);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
               }\
           }while(0)
 #else
@@ -511,6 +545,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TestReport("%s(%s, %s)", #func, #lhs, #rhs); \
               TestPrintValue(#lhs, lhs);\
               TestPrintValue(#rhs, rhs);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
               }\
           }while(0)
 #endif
@@ -527,6 +563,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TEST_stats.failures++; \
               TestReport("Test condition failed");\
               TestReport("%s", #cond);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       }while(0)
 
@@ -542,6 +580,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TEST_stats.failures++; \
               TestReport("Test condition failed (expected falsey)");\
               TestPrintValue(#cond, cond);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       }while(0)
 
@@ -556,6 +596,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TEST_stats.failures++; \
               TestReport("Test condition failed");\
               TestReport("%s = %d", #cond, (cond).errored);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
           }\
       }while(0)
 
@@ -570,8 +612,57 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
               TEST_stats.failures++; \
               TestReport("Test condition failed");\
               TestReport("%s = %d", #cond, (cond).errored);\
+              if(_test_do_debugbreak_on_fail) \
+                  TestDebugBreak(); \
               }\
           }while(0)
+
+  //
+  // TestArrayContains
+  // -----------------
+  // Check that a value is in an array, using `==`.
+  //
+  #define TestArrayContains(type, begin, end, item) do {\
+      _Bool found = 0; \
+      type item_ = item; \
+      for(type* it = begin; it != end; it++){ \
+          if(*it == item_){ \
+              found = 1; \
+              break; \
+          } \
+      } \
+      TEST_stats.executed++; \
+      if(!found){ \
+          TEST_stats.failures++; \
+          TestReport("Test condition failed"); \
+          TestReport("%s not in [%s, %s)\n", #item, #begin, #end); \
+          if(_test_do_debugbreak_on_fail) \
+              TestDebugBreak(); \
+      } \
+  }while(0)
+  //
+  // TestArrayContains2
+  // -----------------
+  // Check that a value is in an array, using provided func
+  //
+  #define TestArrayContains2(func, type, begin, end, item) do {\
+      _Bool found = 0; \
+      type item_ = item; \
+      for(type* it = begin; it != end; it++){ \
+          if(func(*it, item_)){ \
+              found = 1; \
+              break; \
+          } \
+      } \
+      TEST_stats.executed++; \
+      if(!found){ \
+          TEST_stats.failures++; \
+          TestReport("Test condition failed"); \
+          TestReport("%s not in [%s, %s)\n", #item, #begin, #end); \
+          if(_test_do_debugbreak_on_fail) \
+              TestDebugBreak(); \
+      } \
+  }while(0)
 
 // TestAsserts
 // -----------
@@ -604,6 +695,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("Test condition failed");\
             TestReport("%s prematurely ended", __func__);\
             TestReport("%s", #cond); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -620,6 +713,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("Test condition failed");\
             TestReport("%s prematurely ended", __func__);\
             TestReport("%s", #cond); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -642,6 +737,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("%s == %s", #lhs, #rhs); \
             TestPrintValue(#lhs, _lhs);\
             TestPrintValue(#rhs, _rhs); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -656,6 +753,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("%s == %s", #lhs, #rhs); \
             TestPrintValue(#lhs, lhs);\
             TestPrintValue(#rhs, rhs); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -678,6 +777,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("%s != %s", #lhs, #rhs); \
             TestPrintValue(#lhs, _lhs);\
             TestPrintValue(#rhs, _rhs); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -692,6 +793,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("%s != %s", #lhs, #rhs); \
             TestPrintValue(#lhs, lhs);\
             TestPrintValue(#rhs, rhs); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -714,6 +817,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("%s == %s", #lhs, #rhs); \
             TestPrintValue(#lhs, _lhs);\
             TestPrintValue(#rhs, _rhs); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -728,6 +833,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("%s == %s", #lhs, #rhs); \
             TestPrintValue(#lhs, lhs);\
             TestPrintValue(#rhs, rhs); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -746,6 +853,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("Test condition failed");\
             TestReport("%s prematurely ended", __func__);\
             TestReport("%s = %d", #cond, (cond).errored); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -763,6 +872,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
             TestReport("Test condition failed");\
             TestReport("%s prematurely ended", __func__);\
             TestReport("%s = %d", #cond, (cond).errored); \
+            if(_test_do_debugbreak_on_fail) \
+                TestDebugBreak(); \
             return TEST_stats;\
         }\
     }while(0)
@@ -1163,6 +1274,12 @@ test_main(int argc, char*_Nonnull *_Nonnull argv, const ArgParseKwParams*_Nullab
                 .help = "Run the tests in this many threads.",
             },
         #endif
+        {
+            .name = SV("-d"),
+            .altname1 = SV("--break-on-failure"),
+            .dest = ARGDEST(&_test_do_debugbreak_on_fail),
+            .help = "Do a debugbreak on failed test.",
+        },
     };
     enum {HELP=0, LIST=1};
     ArgToParse early_args[] = {
