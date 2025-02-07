@@ -1,5 +1,5 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifndef SPREADSHEET_H
 #define SPREADSHEET_H

@@ -85,7 +85,7 @@ parse(DrSpreadCtx* ctx, DrspAtom a){
     Expression* root = parse_comparison(ctx, &sv);
     if(!root || root->kind == EXPR_ERROR) {
         // XXX: free what we can
-        if(root->kind == EXPR_ERROR)
+        if(root && root->kind == EXPR_ERROR)
             cache_parse(ctx, a, root);
         return root;
     }

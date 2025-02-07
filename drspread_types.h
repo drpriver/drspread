@@ -1,5 +1,5 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifndef DRSPREAD_TYPES_H
 #define DRSPREAD_TYPES_H
@@ -531,6 +531,10 @@ DRSP_INTERNAL
 CachedResult*_Nullable
 has_cached_output_result(const OutputResultCache* cache, intptr_t row, intptr_t col);
 
+DRSP_INTERNAL
+void
+clear_cached_output_result(OutputResultCache* cache);
+
 
 typedef struct UserDefinedFunctionParameter UserDefinedFunctionParameter;
 struct UserDefinedFunctionParameter {
@@ -576,6 +580,21 @@ DRSP_INTERNAL
 void
 cleanup_named_cells(NamedCells* cells);
 
+typedef struct UniqueSheets UniqueSheets;
+// Dynamic array, but
+struct UniqueSheets {
+    SheetHandle _Null_unspecified*_Null_unspecified data;
+    size_t count, capacity;
+};
+
+DRSP_INTERNAL
+void
+unique_cleanup(UniqueSheets* u);
+
+DRSP_INTERNAL
+int
+unique_add(UniqueSheets* u, SheetHandle h);
+
 typedef struct SheetData SheetData;
 struct SheetData {
     DrspAtom name;
@@ -587,9 +606,7 @@ struct SheetData {
     intptr_t width, height;
     OutputResultCache output_result_cache;
     NamedCells named_cells;
-#if 0
     OutputResultCache result_cache;
-#endif
     unsigned flags;
     int paramc;
     UserDefinedFunctionParameter params[4];
@@ -600,11 +617,21 @@ struct SheetData {
         intptr_t col;
         Expression* e;
     }hacky_func_args[4];
+    UniqueSheets dependants;
+    _Bool dirty : 1;
 };
 
 DRSP_INTERNAL
 void
 cleanup_sheet_data(SheetData*);
+
+DRSP_INTERNAL
+int
+sheet_add_dependant(DrSpreadCtx* ctx, SheetData* sd, SheetHandle h);
+
+DRSP_INTERNAL
+void
+sheet_mark_dirty(DrSpreadCtx* ctx, SheetData* h);
 
 // Note: this is just a dynamic array, it is not a hash table.
 // It could be turned into a hash table though, idk.
@@ -793,7 +820,7 @@ expr_size(ExpressionKind kind){
         case EXPR_STRING:                 sz = sizeof(String); break;
         case EXPR_BLANK:                  sz = sizeof(Expression); break;
         case EXPR_COMPUTED_ARRAY: __builtin_trap();
-        case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
+        case EXPR_USER_DEFINED_FUNC_CALL: sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();
     }
     return sz;

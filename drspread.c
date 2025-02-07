@@ -1,5 +1,5 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifndef DRSPREAD_C
 #define DRSPREAD_C
@@ -76,6 +76,8 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* sd = &ctx->map.data[i];
+        if(!sd->dirty) continue;
+        sd->dirty = 0;
         RowColSv* items = (RowColSv*)sd->cell_cache.data;
         for(size_t j = 0; j < sd->cell_cache.n; j++){
             intptr_t row = items[j].rc.row;
@@ -89,7 +91,6 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
             if(e && e->kind == EXPR_BLANK){
                 if(!has_cached_output_result(&sd->output_result_cache, row, col))
                     continue;
-
             }
             // benchmarking
             #ifdef BENCHMARKING
@@ -215,7 +216,6 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
             nerrs++;
             sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
             // GCOV_EXCL_STOP
-
         }
     }
     buff_set(ctx->a, bc);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifndef DRSPREAD_FORMULA_FUNCS_C
 #define DRSPREAD_FORMULA_FUNCS_C
@@ -897,6 +897,10 @@ FORMULAFUNC(drsp_cell){
             if(!a) return NULL;
             const NamedCell* cell = get_named_cell(&fsd->named_cells, a);
             if(!cell) return Error(ctx, "");
+            if(fsd != sd){
+                int err = sheet_add_dependant(ctx, fsd, sd->handle);
+                if(err) return Error(ctx, "");
+            }
             return evaluate(ctx, fsd, cell->row, cell->col);
         }
         else {
@@ -941,6 +945,10 @@ FORMULAFUNC(drsp_cell){
         row_idx = (intptr_t)((Number*)row)->value;
         row_idx--;
         if(row_idx < 0) return Error(ctx, "");
+    }
+    if(fsd != sd){
+        int err = sheet_add_dependant(ctx, fsd, sd->handle);
+        if(err) return Error(ctx, "");
     }
     return evaluate(ctx, fsd, row_idx, col_idx);
 }

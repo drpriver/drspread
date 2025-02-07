@@ -3663,4 +3663,5 @@ main(int argc, char** argv){
 #define DRSP_INTRINS 1
 #include "drspread.c"
 #include "drt.c"
-static DrtLL* drt = &(DrtLL){0};
+static DrtLL _drt;
+static DrtLL* drt = &_drt;

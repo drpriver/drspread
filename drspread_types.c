@@ -1,3 +1,6 @@
+//
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
+//
 #ifndef DRSPREAD_TYPES_C
 #define DRSPREAD_TYPES_C
 #include <stddef.h>
@@ -60,6 +63,7 @@ drsp_set_sheet_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char*rest
     DrspAtom str = drsp_intern_str_lower(ctx, name, length);
     if(!str) return 1;
     sd->name = str;
+    sheet_mark_dirty(ctx, sd);
     return 0;
 }
 
@@ -71,6 +75,7 @@ drsp_set_sheet_alias(DrSpreadCtx*restrict ctx, SheetHandle sheet, const char*res
     DrspAtom str = drsp_intern_str_lower(ctx, name, length);
     if(!str) return 1;
     sd->alias = str;
+    sheet_mark_dirty(ctx, sd);
     return 0;
 }
 
@@ -88,7 +93,10 @@ drsp_set_cell_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, int
     length = sv.length;
     DrspAtom str = drsp_intern_str(ctx, text, length);
     if(!str) return 1;
-    return set_cached_cell(&sd->cell_cache, row, col, str);
+    int err = set_cached_cell(&sd->cell_cache, row, col, str);
+    if(err) return err;
+    sheet_mark_dirty(ctx, sd);
+    return 0;
 }
 
 DRSP_EXPORT
@@ -101,7 +109,10 @@ drsp_set_cell_atom(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t row, in
         sd->height = row+1;
     if(col+1 > sd->width)
         sd->width = col+1;
-    return set_cached_cell(&sd->cell_cache, row, col, str);
+    int err = set_cached_cell(&sd->cell_cache, row, col, str);
+    if(err) return err;
+    sheet_mark_dirty(ctx, sd);
+    return 0;
 }
 
 DRSP_EXPORT
@@ -120,7 +131,10 @@ drsp_set_extra_dimensional_str(DrSpreadCtx*restrict ctx, SheetHandle sheet, intp
     foundit:;
     DrspAtom str = drsp_intern_str(ctx, text, length);
     if(!str) return 1;
-    return set_cached_cell(&sd->cell_cache, IDX_EXTRA_DIMENSIONAL, id, str);
+    int err = set_cached_cell(&sd->cell_cache, IDX_EXTRA_DIMENSIONAL, id, str);
+    if(err) return err;
+    sheet_mark_dirty(ctx, sd);
+    return 0;
 }
 
 DRSP_EXPORT
@@ -130,7 +144,10 @@ drsp_set_col_name(DrSpreadCtx*restrict ctx, SheetHandle sheet, intptr_t idx, con
     if(!sd) return 1;
     DrspAtom str = drsp_intern_str_lower(ctx, text, length);
     if(!str) return 1;
-    return set_cached_col_name(&sd->col_cache, str, idx);
+    int err = set_cached_col_name(&sd->col_cache, str, idx);
+    if(err) return err;
+    sheet_mark_dirty(ctx, sd);
+    return 0;
 }
 
 // Delete all data associated with a sheet.
@@ -140,6 +157,11 @@ drsp_del_sheet(DrSpreadCtx*restrict ctx, SheetHandle sheet){
     for(size_t i = 0; i < ctx->map.n; i++){
         SheetData* d = &ctx->map.data[i];
         if(d->handle != sheet) continue;
+        for(size_t i = 0; i < d->dependants.count; i++){
+            SheetData* dep = sheet_lookup_by_handle(ctx, d->dependants.data[i]);
+            if(!dep) continue;
+            sheet_mark_dirty(ctx, dep);
+        }
         cleanup_sheet_data(d);
         // unordered remove
         if(i != ctx->map.n-1)
@@ -157,7 +179,9 @@ cleanup_sheet_data(SheetData* d){
     drsp_alloc(d->cell_cache.cap*(sizeof(RowColSv)+2*sizeof(uint32_t)), d->cell_cache.data, 0, _Alignof(RowColSv));
     cleanup_col_cache(&d->col_cache);
     drsp_alloc(d->output_result_cache.cap*(sizeof(CachedResult)+2*sizeof(uint32_t)), d->output_result_cache.data, 0, _Alignof(CachedResult));
+    drsp_alloc(d->result_cache.cap*(sizeof(CachedResult)+2*sizeof(uint32_t)), d->result_cache.data, 0, _Alignof(CachedResult));
     cleanup_named_cells(&d->named_cells);
+    unique_cleanup(&d->dependants);
 }
 
 // preload empty string and length 1 strings
@@ -599,6 +623,16 @@ has_cached_output_result(const OutputResultCache* cache, intptr_t row, intptr_t 
 }
 
 DRSP_INTERNAL
+void
+clear_cached_output_result(OutputResultCache* cache){
+    if(cache->n){
+        uint32_t* indexes = (uint32_t*)(cache->data + sizeof(CachedResult)*cache->cap);
+        __builtin_memset(indexes, 0xff, 2*sizeof(*indexes)*cache->cap);
+    }
+    cache->n = 0;
+}
+
+DRSP_INTERNAL
 SheetData*_Nullable
 sheet_lookup_by_handle(const DrSpreadCtx* ctx, SheetHandle handle){
     for(size_t i = 0; i < ctx->map.n; i++){
@@ -814,7 +848,7 @@ set_named_cell(NamedCells* cells, DrspAtom name, intptr_t row, intptr_t col){
     }
     if(cells->count == cells->capacity){
         size_t new_cap = cells->capacity?cells->capacity*2:2;
-        void* p = drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, new_cap * sizeof *cells->data, _Alignof(NamedCell));
+void* p = drsp_alloc(cells->capacity * sizeof *cells->data, cells->data, new_cap * sizeof *cells->data, _Alignof(NamedCell));
         if(!p) return 1;
         cells->data = p;
         cells->capacity = new_cap;
@@ -882,6 +916,59 @@ drsp_clear_named_cell(DrSpreadCtx* restrict ctx, SheetHandle sheet, const char* 
     return 0;
 }
 
+DRSP_INTERNAL
+void
+unique_cleanup(UniqueSheets* u){
+    if(u->data)
+        drsp_alloc(u->capacity* sizeof *u->data, u->data, 0, _Alignof(SheetHandle));
+}
+
+DRSP_INTERNAL
+int
+unique_add(UniqueSheets* u, SheetHandle h){
+    for(size_t i = 0; i < u->count; i++){
+        if(u->data[i] == h) return 0;
+    }
+    if(u->count == u->capacity){
+        size_t new_cap = u->capacity?u->capacity*2:2;
+        void* data = drsp_alloc(u->capacity*sizeof *u->data, u->data, new_cap * sizeof *u->data, _Alignof(SheetHandle));
+        if(!data) return 1;
+        u->data = data;
+        u->capacity = new_cap;
+    }
+    u->data[u->count++] = h;
+    return 0;
+}
+
+DRSP_INTERNAL
+int
+sheet_add_dependant(DrSpreadCtx* ctx, SheetData* sd, SheetHandle h){
+    (void)ctx;
+    if(sd->flags & DRSP_SHEET_FLAGS_IS_FUNCTION) return 0;
+    int err = unique_add(&sd->dependants, h);
+    if(err) return err;
+    return 0;
+}
+
+DRSP_INTERNAL
+void
+sheet_mark_dirty(DrSpreadCtx* ctx, SheetData* d){
+    if(d->flags & DRSP_SHEET_FLAGS_IS_FUNCTION) return;
+    // We could have cached output despite being dirty due to someone
+    // calling evaluate_string or from a single sheet being evaluated.
+    clear_cached_output_result(&d->result_cache);
+    if(d->dirty) return;
+    d->dirty = 1;
+    for(size_t i = 0; i < d->dependants.count; i++){
+        SheetData* s = sheet_lookup_by_handle(ctx, d->dependants.data[i]);
+        if(!s) continue;
+        sheet_mark_dirty(ctx, s);
+    }
+    // Once we've notified all of our dependants that they need to recalc,
+    // we actually don't need to track them anymore. When they get recalc'd,
+    // they'll add themselves back in.
+    d->dependants.count = 0;
+}
 
 #ifdef __clang__
 #pragma clang assume_nonnull end

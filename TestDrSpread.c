@@ -1,5 +1,5 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifdef _WIN32
 #define _CRT_NONSTDC_NO_WARNINGS 1
@@ -34,6 +34,13 @@ DRSP_EXPORT
 int
 drsp_evaluate_function(DrSpreadCtx* ctx, SheetHandle func, size_t nargs, const StringView*_Null_unspecified args, DrSpreadResult* outval);
 
+static
+SheetHandle _Null_unspecified*_Nullable
+drsp_sheet_get_dependants(DrSpreadCtx* ctx, SheetHandle h, size_t* n);
+
+static _Bool drsp_sheet_is_dirty(DrSpreadCtx* ctx, SheetHandle h);
+
+
 #define EXPECT_NO_LEAKS() do { \
     int leaks = drsp_report_leaks(); \
     TestExpectFalse(leaks); \
@@ -67,6 +74,7 @@ static TestFunc TestDeleteColNames;
 static TestFunc TestExtraDimensional;
 static TestFunc TestEditing;
 static TestFunc TestNamedCells;
+static TestFunc TestDependants;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -97,6 +105,9 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestExtraDimensional);
         RegisterTest(TestEditing);
         RegisterTest(TestNamedCells);
+        #ifndef DRSP_TEST_DYLINK
+        RegisterTest(TestDependants);
+        #endif
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -634,10 +645,10 @@ TestFunction(TestBadRanges){
 
 TestFunction(TestSpreadsheet1){
     const char* input =
-        "=sum([c])                     | Axe         | 10\n"
-        "=find('Food', [b])            | Torch       | 1\n"
-        "=tlu('Plate Armor', [b], [c]) | Plate Armor | 50\n"
-        "=min([c, :2])                 | Food        | 1 per potato\n"
+        "=sum(c)                   | Axe         | 10\n"
+        "=find('Food', b)          | Torch       | 1\n"
+        "=tlu('Plate Armor', b, c) | Plate Armor | 50\n"
+        "=min(c:2)                 | Food        | 1 per potato\n"
     ;
     SheetRow expected[] = {
         ROW("61", "Axe",         "10"),
@@ -650,12 +661,12 @@ TestFunction(TestSpreadsheet1){
 
 TestFunction(TestSpreadsheet2){
     const char* input =
-        // a          |     b          |    c            |  d
-        "=[b,1]       | 2              | 3               | =[d, 3]\n"
-        "=[a,1]+[b,1] | = [a,2]+2      | =[a,2]          | 4\n"
-        "2            | =-([a,1] > -1) | 3               | = sum([b, 3:4]) * sum([a,4:1])\n"
-        "=[a,3]*[b,1] | 4              | =1-2---3*4/2-8-1 | = sum([a, :11])\n"
-        "=sum([a,:4]) | = sum([d])     | = sum([b])\n"
+        // a       |     b       |    c             |  d
+        "=b1       | 2           | 3                | =d3\n"
+        "=a1+b1    | = a2+2      | =a2              | 4\n"
+        "2         | =-(a1 > -1) | 3                | = sum(b3:4) * sum(a4:1)\n"
+        "=a3*b1    | 4           | =1-2---3*4/2-8-1 | = sum(a:11)\n"
+        "=sum(a:4) | = sum(d)    | = sum(b)\n"
     ;
     SheetRow expected[] = {
         ROW("2", "2", "3", "36"),
@@ -1071,8 +1082,6 @@ TestFunction(TestFuncsV){
         "=f(if(a1:a2, 1, 2)) | =f(if(a1:a2, 1, a3:a4)) | =f(if(a2:a3, a5:a6, 3))\n"
     ;
     SheetRow expected[] = {
-        // Designated initializers are so you can figure out which row
-        // when a test fails.
         ROW("0"),
         ROW("1"),
         ROW("2"),
@@ -1344,9 +1353,9 @@ TestFunction(TestMod){
 
 TestFunction(TestBugs){
     const char* input =
-        "Plate   | 5 | Plate | =tlu([c,1], [a], [b])\n"
-        "Chain   | 3 |       | =tlu([c,2], [a], [b], 2)\n"
-        "Leather | 1 | =     | =tlu([c,3], [a], [b], 4)\n"
+        "Plate   | 5 | Plate | =tlu(c1, a, b)\n"
+        "Chain   | 3 |       | =tlu(c2, a, b, 2)\n"
+        "Leather | 1 | =     | =tlu(c3, a, b, 4)\n"
     ;
     SheetRow expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
@@ -1357,9 +1366,9 @@ TestFunction(TestBugs){
 }
 TestFunction(TestBugs2){
     const char* input =
-        "Plate   | 5 | Plate | =tlu([c,$], [a], [b])\n"
-        "Chain   | 3 |       | =tlu([c,$], [a], [b], 2)\n"
-        "Leather | 1 | =     | =tlu([c,$], [a], [b], 4)\n"
+        "Plate   | 5 | Plate | =tlu(c$, a, b)\n"
+        "Chain   | 3 |       | =tlu(c$, a, b, 2)\n"
+        "Leather | 1 | =     | =tlu(c$, a, b, 4)\n"
     ;
     SheetRow expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
@@ -1370,7 +1379,7 @@ TestFunction(TestBugs2){
 }
 TestFunction(TestDirectlyRecursiveShouldError){
     const char* input =
-        "=[a,$]\n"
+        "=a$\n"
     ;
     SheetRow expected[] = {
         ROW("error"),
@@ -1379,8 +1388,8 @@ TestFunction(TestDirectlyRecursiveShouldError){
 }
 TestFunction(TestIndirectlyRecursiveShouldError){
     const char* input =
-        "=[a,2]\n"
-        "=[a,1]\n"
+        "=a2\n"
+        "=a1\n"
     ;
     SheetRow expected[] = {
         ROW("error"),
@@ -1600,11 +1609,11 @@ TestFunction(TestMultisheet){
     const char* name1 = "root";
     const char* input1 =
         "=cell('other', 'a', 1)-1\n"
-        "=cell([a,8], 'a', 2)\n"
-        "=cell([a,7], 2)\n"
+        "=cell(a8, 'a', 2)\n"
+        "=cell(a7, 2)\n"
         "=cell('other', 'b', 2)\n"
-        "=cell('other', 'b', find(0, [a, :3]))\n"
-        "=cell('other', 'b', find('0', [a, :3]))\n"
+        "=cell('other', 'b', find(0, a:3))\n"
+        "=cell('other', 'b', find('0', a:3))\n"
         "a\n"
         "other | =[other, a, 1] | =sum([other, a])\n"
     ;
@@ -1906,6 +1915,13 @@ TestFunction(TestCaching){
             }
         }
     }
+    // set a cell to make it think the sheet is dirty
+    {
+        const SheetRow* row = &sheet.cells[4];
+        e = drsp_set_cell_str(ctx, sheethandle, 4, 0, row->data[0], row->lengths[0]);
+        // don't bloat the stats
+        if(e) TestAssertFalse(e);
+    }
     cleanup_sheet(&sheet);
     sheet = (SpreadSheet){0};
     err = read_csv_from_string(&sheet,
@@ -2066,6 +2082,9 @@ TestFunction(TestUserFunctions){
 
     err = drsp_del_sheet(ctx, func);
     TestAssertFalse(err);
+    // deleting twice should fail
+    err = drsp_del_sheet(ctx, func);
+    TestAssert(err);
     cleanup_multisheet(&ms);
 
     drsp_destroy_ctx(ctx);
@@ -2569,6 +2588,205 @@ TestFunction(TestNamedCells){
     TESTEND();
 }
 
+TestFunction(TestDependants){
+    TESTBEGIN();
+    const char* input =
+
+        "Sheet1\n"
+        // -------
+        "\n"
+        "=cell('Sheet2', 'a', 1)\n"
+        "=3\n"
+        "---\n"
+
+        "Sheet2\n"
+        // -------
+        "\n"
+        "2\n"
+        "=cell('Sheet1', 'a', 1)\n"
+        "---\n"
+
+        "Sheet3\n"
+        // -------
+        "\n"
+        "=cell('Sheet1', 'a', 2)\n"
+        " \n"
+        "---\n"
+
+        "Sheet4\n"
+        "\n"
+        "=cell('Sheet2', 'a', 1)\n"
+        "=a1\n"
+        "---\n"
+        ;
+    MultiSpreadSheet ms = {0};
+    {
+        int err = read_multi_csv_from_string(&ms, input);
+        TestAssertFalse(err);
+    }
+    SheetOps ops = multisheet_ops(&ms);
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    for(int i = 0; i < ms.n; i++){
+        SpreadSheet* sheet = &ms.sheets[i];
+        int e = drsp_set_sheet_name(ctx, (SheetHandle)sheet, sheet->name.text, sheet->name.length);
+        TestAssertFalse(e);
+        for(int i = 0; i < sheet->colnames.n; i++){
+            int e = drsp_set_col_name(ctx, (SheetHandle)sheet, i, sheet->colnames.data[i], sheet->colnames.lengths[i]);
+            TestAssertFalse(e);
+        }
+        SheetHandle sheethandle = (SheetHandle)sheet;
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++){
+                e = drsp_set_cell_str(ctx, sheethandle, r, c, row->data[c], row->lengths[c]);
+                if(!row->lengths[c]) continue;
+                if(e){ // don't bloat the stats
+                    TestAssertFalse(e);
+                }
+            }
+        }
+    }
+    {
+        int nerr = drsp_evaluate_formulas(ctx);
+        TestExpectEquals(nerr, 0);
+        for(int i = 0; i < ms.n; i++){
+            SpreadSheet* sheet = &ms.sheets[i];
+            TestAssertFalse(drsp_sheet_is_dirty(ctx, (SheetHandle)sheet));
+        }
+    }
+    {
+        SheetRow expected[4][2] = {
+            {
+                ROW("2"),
+                ROW("3"),
+            },
+            {
+                ROW("2"),
+                ROW("2"),
+            },
+            {
+                ROW("3"),
+                ROW(""),
+            },
+            {
+                ROW("2"),
+                ROW("2"),
+            },
+        };
+        TestAssertEquals(ms.n, sizeof expected / sizeof expected[0]);
+        for(int i = 0; i < ms.n; i++){
+            SpreadSheet* sheet = &ms.sheets[i];
+            if(sizeof expected[i]/ sizeof expected[i][0] != sheet->rows){
+                TestPrintValue("i", i);
+                TestPrintValue("sheet->rows", sheet->rows);
+                for(int r = 0; r < sheet->rows; r++){
+                    TestPrintValue("r", r);
+                    const SheetRow* c =  &sheet->cells[r];
+                    TestPrintValue("c->n", c->n);
+                    for(int j = 0; j < c->n; j++){
+                        TestPrintValue("j", j);
+                        TestPrintValue("c->data[j]", c->data[j]);
+                    }
+                }
+            }
+            TestAssertEquals(sizeof expected[i]/ sizeof expected[i][0], sheet->rows);
+            for(int r = 0; r < sheet->rows; r++){
+                const SheetRow* d = &sheet->display[r];
+                const SheetRow* e = &expected[i][r];
+                TestAssertEquals(d->n, e->n);
+                for(int j = 0; j < d->n; j++){
+                    TestExpectEquals(d->lengths[j], e->lengths[j]);
+                    TestExpectEquals2(streq, d->data[j], e->data[j]);
+                }
+            }
+        }
+        {
+            size_t n = 0;
+            SheetHandle* handles = drsp_sheet_get_dependants(ctx, (SheetHandle)&ms.sheets[0], &n);
+            TestExpectEquals(n, 2);
+            TestArrayContains(SheetHandle, handles, handles+n, (SheetHandle)&ms.sheets[1]);
+            TestArrayContains(SheetHandle, handles, handles+n, (SheetHandle)&ms.sheets[2]);
+        }
+        {
+            size_t n = 0;
+            SheetHandle* handles = drsp_sheet_get_dependants(ctx, (SheetHandle)&ms.sheets[1], &n);
+            TestExpectEquals(n, 2);
+            TestArrayContains(SheetHandle, handles, handles+n, (SheetHandle)&ms.sheets[0]);
+            TestArrayContains(SheetHandle, handles, handles+n, (SheetHandle)&ms.sheets[3]);
+        }
+        {
+            size_t n = 0;
+            SheetHandle* handles = drsp_sheet_get_dependants(ctx, (SheetHandle)&ms.sheets[2], &n);
+            (void)handles;
+            TestExpectEquals(n, 0);
+        }
+        {
+            size_t n = 0;
+            SheetHandle* handles = drsp_sheet_get_dependants(ctx, (SheetHandle)&ms.sheets[3], &n);
+            (void)handles;
+            TestExpectEquals(n, 0);
+        }
+    }
+    {
+        DrspAtom a = drsp_atomize(ctx, "4", 1);
+        TestAssert(a);
+        int err = drsp_set_cell_atom(ctx, (SheetHandle)&ms.sheets[0], 0, 0, a);
+        TestAssertFalse(err);
+        int nerr = drsp_evaluate_formulas(ctx);
+        TestExpectEquals(nerr, 0);
+    }
+    {
+        SheetRow expected[4][2] = {
+            {
+                ROW("4"),
+                ROW("3"),
+            },
+            {
+                ROW("2"),
+                ROW("4"),
+            },
+            {
+                ROW("3"),
+                ROW(""),
+            },
+            {
+                ROW("2"),
+                ROW("2"),
+            },
+        };
+        TestAssertEquals(ms.n, sizeof expected / sizeof expected[0]);
+        for(int i = 0; i < ms.n; i++){
+            SpreadSheet* sheet = &ms.sheets[i];
+            if(sizeof expected[i]/ sizeof expected[i][0] != sheet->rows){
+                TestPrintValue("i", i);
+                TestPrintValue("sheet->rows", sheet->rows);
+                for(int r = 0; r < sheet->rows; r++){
+                    TestPrintValue("r", r);
+                    const SheetRow* c =  &sheet->cells[r];
+                    TestPrintValue("c->n", c->n);
+                    for(int j = 0; j < c->n; j++){
+                        TestPrintValue("j", j);
+                        TestPrintValue("c->data[j]", c->data[j]);
+                    }
+                }
+            }
+            TestAssertEquals(sizeof expected[i]/ sizeof expected[i][0], sheet->rows);
+            for(int r = 0; r < sheet->rows; r++){
+                const SheetRow* d = &sheet->display[r];
+                const SheetRow* e = &expected[i][r];
+                TestAssertEquals(d->n, e->n);
+                for(int j = 0; j < d->n; j++){
+                    TestExpectEquals(d->lengths[j], e->lengths[j]);
+                    TestExpectEquals2(streq, d->data[j], e->data[j]);
+                }
+            }
+        }
+    }
+    drsp_destroy_ctx(ctx);
+    cleanup_multisheet(&ms);
+    EXPECT_NO_LEAKS();
+    TESTEND();
+}
 
 
 #ifdef __clang__
@@ -2586,4 +2804,27 @@ TestFunction(TestNamedCells){
 #include "drspread_allocators.c"
 #else
 #include "drspread.c"
+#ifdef __clang__
+#pragma clang assume_nonnull begin
+#endif
+static
+SheetHandle _Null_unspecified*_Nullable
+drsp_sheet_get_dependants(DrSpreadCtx* ctx, SheetHandle h, size_t* n){
+    SheetData* d = sheet_lookup_by_handle(ctx, h);
+    assert(d);
+
+    if(!d) {*n = 0; return NULL;}
+    *n = d->dependants.count;
+    return d->dependants.data;
+}
+static
+_Bool
+drsp_sheet_is_dirty(DrSpreadCtx* ctx, SheetHandle h){
+    SheetData* d = sheet_lookup_by_handle(ctx, h);
+    assert(d);
+    return d->dirty;
+}
+#ifdef __clang__
+#pragma clang assume_nonnull end
+#endif
 #endif

@@ -45,7 +45,7 @@ WWFLAGS=-Wall -Wextra -Wpedantic -Wno-fixed-enum-extension -Wno-nullability-exte
 
 
 Bin/drspread$(EXE): drspread_cli.c Makefile | Bin Depends
-	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O3  $(LM) $(SANITIZE)
+	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread.dep $(WFLAGS) -g -O0  $(LM)
 Bin/drspread_bench$(EXE): drspread_cli.c Makefile | Bin Depends
 	$(CC) $< -o $@ $(DEPFLAGS) Depends/drspread_bench.dep $(WFLAGS) -g -O3 -DBENCHMARKING=1 $(LM)
 Bin/drspread.o: drspread.c Makefile | Bin Depends

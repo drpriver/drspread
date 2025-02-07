@@ -1,3 +1,6 @@
+//
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
+//
 #ifndef DRSPREAD_UTILS_H
 #define DRSPREAD_UTILS_H
 #include "drspread_types.h"
@@ -172,6 +175,10 @@ convert_to_computed_array(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr
         if(!cc) return NULL;
         Expression** data = cc->data;
         intptr_t i = 0;
+        if(rsd != sd){
+            int err = sheet_add_dependant(ctx, rsd, sd->handle);
+            if(err) return Error(ctx, "oom");
+        }
         for(intptr_t col = colstart; col <= colend; col++){
             Expression* val = evaluate(ctx, rsd, row, col);
             if(!val || val->kind == EXPR_ERROR) return val;
@@ -192,6 +199,10 @@ convert_to_computed_array(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr
     if(!cc) return NULL;
     Expression** data = cc->data;
     intptr_t i = 0;
+    if(rsd != sd){
+        int err = sheet_add_dependant(ctx, rsd, sd->handle);
+        if(err) return Error(ctx, "oom");
+    }
     for(intptr_t row = rstart; row <= rend; row++){
         Expression* val = evaluate(ctx, rsd, row, col);
         if(!val || val->kind == EXPR_ERROR) return val;

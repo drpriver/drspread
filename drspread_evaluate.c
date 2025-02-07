@@ -1,8 +1,9 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifndef DRSPREAD_EVALUATE_C
 #define DRSPREAD_EVALUATE_C
+#include "drspread_types.h"
 #include "drspread_evaluate.h"
 #include "drspread_parse.h"
 #include "drspread_utils.h"
@@ -77,6 +78,10 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
     }
     {
         cell_formula:;
+        if(1 && !(sd->flags & DRSP_SHEET_FLAGS_IS_FUNCTION)){
+            CachedResult* cr = has_cached_output_result(&sd->result_cache, row, col);
+            if(cr) return cached_result_to_expr(ctx, cr);
+        }
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         Expression *root = parse(ctx, a);
         if(!root || root->kind == EXPR_ERROR){
@@ -88,7 +93,7 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
             buff_set(ctx->a, bc);
             return e;
         }
-        unsigned char tmp[sizeof(union ExprU)];
+        _Alignas(union ExprU) unsigned char tmp[sizeof(union ExprU)];
         ExpressionKind kind = e->kind;
         if(kind == EXPR_COMPUTED_ARRAY)
             return e;
@@ -97,6 +102,13 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         buff_set(ctx->a, bc);
         Expression* r = expr_alloc(ctx, kind);
         __builtin_memcpy(r, tmp, sz);
+        if(1 && !(sd->flags & DRSP_SHEET_FLAGS_IS_FUNCTION)){
+            CachedResult* cr = get_cached_output_result(&sd->result_cache, row, col);
+            if(cr){
+                int err = expr_to_cached_result_no_array(ctx, r, cr);
+                (void)err;
+            }
+        }
         return r;
     }
 }
@@ -420,6 +432,10 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
                 // this could be a named cell.
                 SheetData* fsd = sheet_lookup_by_name(ctx, rng->sheet_name);
                 if(fsd){
+                    if(fsd != sd){
+                        int err = sheet_add_dependant(ctx, fsd, sd->handle);
+                        if(err) return Error(ctx, "oom");
+                    }
                     const NamedCell* cell = get_named_cell(&fsd->named_cells, rng->r.col_name);
                     if(cell) return evaluate(ctx, fsd, cell->row, cell->col);
                 }
@@ -434,6 +450,10 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             ForeignRange0D* rng = (ForeignRange0D*)expr;
             SheetData* fsd = sheet_lookup_by_name(ctx, rng->sheet_name);
             if(!fsd) return Error(ctx, "");
+            if(fsd != sd){
+                int err = sheet_add_dependant(ctx, fsd, sd->handle);
+                if(err) return Error(ctx, "oom");
+            }
             intptr_t r = rng->r.row;
             if(r == IDX_DOLLAR) r = caller_row;
             intptr_t c;
@@ -523,11 +543,10 @@ Expression*_Nullable
 call_udf(DrSpreadCtx* ctx, SheetData* func, size_t nargs, Expression*_Nonnull*_Nonnull args){
     if(nargs != (size_t)func->paramc)
         return Error(ctx, "mismatched number of args");
-    // XXX
-    // FIXME
-    // This is not a solution as it doesn't handle recursion
-    // We can ban recursion, but then we need to detect that we are
-    // recursing.
+    for(size_t i = 0; i < arrlen(func->hacky_func_args); i++){
+        if(func->hacky_func_args[i].e)
+            return Error(ctx, "Recursion is not supported in user-defined functions");
+    }
     __builtin_memset(func->hacky_func_args, 0, sizeof func->hacky_func_args);
     for(size_t i = 0; i < nargs; i++){
         func->hacky_func_args[i] = (struct HackyFuncArg){
