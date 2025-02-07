@@ -513,6 +513,18 @@
           sum(if(a, 2, 3))
         Yields 8 (3+2+3).
 
+    log::def
+      ::pre
+        log(num)
+        log(num, base)
+        log(range)
+        log(range, base)
+
+      Returns the natural logarithm of the argument, or applies it to every
+      element in a range.
+
+      If base, is given, the logarithm is calculated with that as the base
+      instead of e.
     max::def
       ::pre
         max(range)
