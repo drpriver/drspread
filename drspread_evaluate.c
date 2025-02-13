@@ -513,10 +513,15 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             // Otherwise we need a goto to the top.
             return evaluate_expr(ctx, sd, g->expr, caller_row, caller_col);
         }
+        // GCOV_EXCL_STOP
         case EXPR_USER_DEFINED_FUNC_CALL:{
             UserFunctionCall* ufc = (UserFunctionCall*)expr;
             SheetData* udf = udf_lookup_by_name(ctx, ufc->name);
             if(!udf) return Error(ctx, "Can't find udf of this name");
+            {
+                int err = sheet_add_dependant(ctx, udf, sd->handle);
+                if(err) return Error(ctx, "oom");
+            }
             if(udf->paramc != ufc->argc){
                 return Error(ctx, "Wrong number of args");
             }
@@ -533,6 +538,7 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             return call_udf(ctx, udf, argc, args);
         }
     }
+    // GCOV_EXCL_START
     // should be unreachable
     return NULL;
     // GCOV_EXCL_STOP

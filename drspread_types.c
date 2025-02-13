@@ -727,6 +727,7 @@ drsp_set_function_params(DrSpreadCtx*restrict ctx, SheetHandle function, size_t 
             udf->width = p->col+1;
     }
     udf->paramc = n_params;
+    sheet_mark_dirty(ctx, udf);
     return 0;
 }
 
@@ -736,6 +737,7 @@ drsp_clear_function_params(DrSpreadCtx* restrict ctx, SheetHandle function){
     SheetData* udf = udf_lookup_by_handle(ctx, function);
     if(!udf) return 1;
     udf->paramc = 0;
+    sheet_mark_dirty(ctx, udf);
     return 0;
 }
 
@@ -750,6 +752,7 @@ drsp_set_function_output(DrSpreadCtx* restrict ctx, SheetHandle function, intptr
         udf->height = row+1;
     if(col+1 > udf->width)
         udf->width = col+1;
+    sheet_mark_dirty(ctx, udf);
     return 0;
 }
 
@@ -944,7 +947,6 @@ DRSP_INTERNAL
 int
 sheet_add_dependant(DrSpreadCtx* ctx, SheetData* sd, SheetHandle h){
     (void)ctx;
-    if(sd->flags & DRSP_SHEET_FLAGS_IS_FUNCTION) return 0;
     int err = unique_add(&sd->dependants, h);
     if(err) return err;
     return 0;
@@ -953,7 +955,6 @@ sheet_add_dependant(DrSpreadCtx* ctx, SheetData* sd, SheetHandle h){
 DRSP_INTERNAL
 void
 sheet_mark_dirty(DrSpreadCtx* ctx, SheetData* d){
-    if(d->flags & DRSP_SHEET_FLAGS_IS_FUNCTION) return;
     // We could have cached output despite being dirty due to someone
     // calling evaluate_string or from a single sheet being evaluated.
     clear_cached_output_result(&d->result_cache);
