@@ -932,8 +932,8 @@ Expression*
 Error_(DrSpreadCtx* ctx, const char* mess, size_t len){
     ErrorExpression* e = &ctx->error;
     if(!len){
-        mess = "error";
-        len = 5;
+        mess = "error (boog)";
+        len = sizeof "error (boog)" - 1;
     }
     e->message = mess;
     e->len = len;

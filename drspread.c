@@ -135,7 +135,18 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                         default: break;
                     }
                     nerrs++;
-                    sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+                    if(e->kind == EXPR_ERROR){
+                        ErrorExpression* err = (ErrorExpression*)e;
+                        const char* mess = err->message;
+                        size_t len = err->len;
+                        if(!len){
+                            mess = "error (unset)";
+                            len = sizeof "error (unset)" - 1;
+                        }
+                        sp_set_display_error(ctx, sd->handle, row, col, mess, len);
+                    }
+                    else
+                        sp_set_display_error(ctx, sd->handle, row, col, "error (unset)", sizeof "error (unset)" - 1);
                     continue;
                 }
             }
@@ -154,7 +165,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 default: break;
             }
             nerrs++;
-            sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+            sp_set_display_error(ctx, sd->handle, row, col, "error (unset)", sizeof "error (unset)" -1 );
             // GCOV_EXCL_STOP
         }
         for(unsigned i = 0; i < sd->extra_dimensional.count; i++){
@@ -195,7 +206,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                         default: break;
                     }
                     nerrs++;
-                    sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+                    sp_set_display_error(ctx, sd->handle, row, col, "error (unset)", sizeof "error (unset)" -1);
                     continue;
                 }
             }
@@ -214,7 +225,7 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                 default: break;
             }
             nerrs++;
-            sp_set_display_error(ctx, sd->handle, row, col, "error", 5);
+            sp_set_display_error(ctx, sd->handle, row, col, "error (unset)", sizeof "error (unset)" -1);
             // GCOV_EXCL_STOP
         }
     }

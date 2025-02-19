@@ -1098,7 +1098,7 @@ FORMULAFUNC(drsp_eval){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_pow){
-    if(argc != 2) return Error(ctx, "");
+    if(argc != 2) return Error(ctx, "pow() requires 2 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -1115,7 +1115,7 @@ FORMULAFUNC(drsp_pow){
                 Expression* e = c->data[i];
                 if(e->kind == EXPR_BLANK) continue;
                 if(e->kind != EXPR_NUMBER)
-                    return Error(ctx, "");
+                    return Error(ctx, "argument 1 to pow() must be a number");
                 Number* n = (Number*)e;
                 n->value = __builtin_pow(n->value, exp);
             }
@@ -1126,23 +1126,23 @@ FORMULAFUNC(drsp_pow){
                 return arg2;
             ComputedArray* exps = (ComputedArray*)arg2;
             if(c->length != exps->length)
-                return Error(ctx, "");
+                return Error(ctx, "both arguments to pow() must have the same length");
             for(intptr_t i = 0; i < c->length; i++){
                 Expression* base = c->data[i];
                 Expression* ex = exps->data[i];
                 if(base->kind == EXPR_BLANK)
                     continue;
                 if(base->kind != EXPR_NUMBER)
-                    return Error(ctx, "");
+                    return Error(ctx, "argument 1 to pow() must be a number");
                 if(ex->kind != EXPR_NUMBER)
-                    return Error(ctx, "");
+                    return Error(ctx, "argument 2 to pow() must be a number");
                 Number* n = (Number*)base;
                 double ex_ = ((Number*)ex)->value;
                 n->value = __builtin_pow(n->value, ex_);
             }
         }
         else {
-            return Error(ctx, "");
+            return Error(ctx, "argument 2 to pow() must be a number");
         }
         buff_set(ctx->a, bc);
         return arg;
@@ -1150,7 +1150,7 @@ FORMULAFUNC(drsp_pow){
     else {
         if(arg->kind != EXPR_NUMBER) {
             buff_set(ctx->a, bc);
-            return Error(ctx, "");
+            return Error(ctx, "argument 1 to pow() must be a number");
         }
         Expression* arg2 = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
         if(!arg2 || arg2 -> kind == EXPR_ERROR){
@@ -1159,7 +1159,7 @@ FORMULAFUNC(drsp_pow){
         }
         if(arg2->kind != EXPR_NUMBER){
             buff_set(ctx->a, bc);
-            return Error(ctx, "");
+            return Error(ctx, "argument 2 to pow() must be a number");
         }
         double val = __builtin_pow(((Number*)arg)->value, ((Number*)arg2)->value);
         buff_set(ctx->a, bc);
@@ -1172,7 +1172,7 @@ FORMULAFUNC(drsp_pow){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_cat){
-    if(argc < 2) return Error(ctx, "Too few arguments to cat()");
+    if(argc < 2) return Error(ctx, "cat() requires at least 2 arguments");
     DrspAtom catbuff[4];
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     if(argc == 2){
@@ -1190,7 +1190,7 @@ FORMULAFUNC(drsp_cat){
                     Expression* e = c->data[i];
                     if(e->kind == EXPR_BLANK || e->kind == EXPR_STRING)
                         continue;
-                    return Error(ctx, "");
+                    return Error(ctx, "argument 1 to cat() must be a string");
                 }
             }
             else if(arg2->kind == EXPR_STRING){
@@ -1202,11 +1202,11 @@ FORMULAFUNC(drsp_cat){
                         continue;
                     }
                     if(e->kind != EXPR_STRING)
-                        return Error(ctx, "");
+                        return Error(ctx, "argument 1 to cat() must be a string");
                     String* s = (String*)e;
                     catbuff[0] = s->str;
                     int err = sv_cat(ctx, 2, catbuff, &s->str);
-                    if(err) return Error(ctx, "");
+                    if(err) return Error(ctx, "oom");
                 }
             }
             else if(expr_is_arraylike(arg2)){
@@ -1215,14 +1215,14 @@ FORMULAFUNC(drsp_cat){
                     return arg2;
                 ComputedArray* rights = (ComputedArray*)arg2;
                 if(c->length != rights->length)
-                    return Error(ctx, "");
+                    return Error(ctx, "arguments to cat() must be the same length");
                 for(intptr_t i = 0; i < c->length; i++){
                     Expression* l = c->data[i];
                     Expression* r = rights->data[i];
                     if(l->kind != EXPR_BLANK && l->kind != EXPR_STRING)
-                        return Error(ctx, "");
+                        return Error(ctx, "argument 1 to cat() must be a string");
                     if(r->kind != EXPR_BLANK && r->kind != EXPR_STRING)
-                        return Error(ctx, "");
+                        return Error(ctx, "argument 2 to cat() must be a string");
                     if(l->kind == EXPR_BLANK){
                         c->data[i] = r;
                         continue;
@@ -1235,11 +1235,11 @@ FORMULAFUNC(drsp_cat){
                     catbuff[0] = s->str;
                     catbuff[1] = ((String*)r)->str;
                     int err = sv_cat(ctx, 2, catbuff, &s->str);
-                    if(err) return Error(ctx, "");
+                    if(err) return Error(ctx, "oom");
                 }
             }
             else {
-                return Error(ctx, "");
+                return Error(ctx, "argument 2 to cat() must be a string");
             }
             buff_set(ctx->a, bc);
             return arg;
@@ -1247,7 +1247,7 @@ FORMULAFUNC(drsp_cat){
         else {
             if(arg->kind != EXPR_STRING && arg->kind != EXPR_BLANK) {
                 buff_set(ctx->a, bc);
-                return Error(ctx, "");
+                return Error(ctx, "argument 1 to cat() must be a string");
             }
             Expression* arg2 = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
             if(!arg2 || arg2->kind == EXPR_ERROR){
@@ -1264,12 +1264,12 @@ FORMULAFUNC(drsp_cat){
                     Expression* e = c->data[i];
                     if(e->kind == EXPR_BLANK) continue;
                     if(e->kind != EXPR_STRING)
-                        return Error(ctx, "");
+                        return Error(ctx, "argument 2 to cat() must be a string");
                     if(arg->kind == EXPR_BLANK) continue;
                     String* s = (String*)e;
                     catbuff[1] = s->str;
                     int err = sv_cat(ctx, 2, catbuff, &s->str);
-                    if(err) return Error(ctx, "");
+                    if(err) return Error(ctx, "oom");
                 }
                 return arg2;
             }
@@ -1288,7 +1288,7 @@ FORMULAFUNC(drsp_cat){
                 }
                 if(arg2->kind != EXPR_STRING){
                     buff_set(ctx->a, bc);
-                    return Error(ctx, "");
+                    return Error(ctx, "argument 2 to cat() must be a string");
                 }
                 if(arg->kind == EXPR_BLANK){
                     DrspAtom v = ((String*)arg2)->str;
@@ -1303,7 +1303,7 @@ FORMULAFUNC(drsp_cat){
                 catbuff[1] = ((String*)arg2)->str;
                 int err = sv_cat(ctx, 2, catbuff, &v);
                 buff_set(ctx->a, bc);
-                if(err) return Error(ctx, "");
+                if(err) return Error(ctx, "oom");
                 String* s = expr_alloc(ctx, EXPR_STRING);
                 if(!s) return NULL;
                 s->str = v;
@@ -1334,12 +1334,12 @@ FORMULAFUNC(drsp_cat){
             }
             else if(argv[i]->kind != EXPR_STRING && argv[i]->kind != EXPR_BLANK){
                 buff_set(ctx->a, bc);
-                return Error(ctx, "");
+                return Error(ctx, "arguments to cat() must be a string");
             }
         }
         if(is_arraylike){
             if(!column_length)
-                return Error(ctx, "");
+                return Error(ctx, "arguments to cat must be non-zero length");
             ComputedArray* result = computed_array_alloc(ctx, column_length);
             if(!result) return Error(ctx, "oom");
             for(intptr_t r = 0; r < column_length; r++){
@@ -1366,7 +1366,7 @@ FORMULAFUNC(drsp_cat){
                             }
                             else {
                                 buff_set(ctx->a, bc);
-                                return Error(ctx, "");
+                                return Error(ctx, "arguments to cat() must be strings");
                             }
                         }
                     }
@@ -1460,7 +1460,7 @@ arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intp
             }
         }
         if(idx == haylength){
-            if(!argc) return Error(ctx, "");
+            if(!argc) return Error(ctx, "needle (argument 1) not found in haystack (argument 2) in tlu()");
             if(!default_){
                 default_ = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
                 if(!default_ || default_ == EXPR_ERROR) return default_;
@@ -1469,7 +1469,7 @@ arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intp
         }
         else {
             if(idx >= cvalues->length)
-                return Error(ctx, "");
+                return Error(ctx, "position of needle in haystack outside the bounds of values in tlu()");
             cneedle->data[i] = cvalues->data[idx];
         }
     }
@@ -1479,7 +1479,7 @@ arraylike_tablelookup(DrSpreadCtx* ctx, SheetData* sd, intptr_t caller_row, intp
 DRSP_INTERNAL
 FORMULAFUNC(drsp_tablelookup){
     // "needle", [haystack], [values]
-    if(argc != 3 && argc != 4) return Error(ctx, "");
+    if(argc != 3 && argc != 4) return Error(ctx, "tlu() requires 3 or 4 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     ExpressionKind nkind;
     union {
@@ -1497,7 +1497,7 @@ FORMULAFUNC(drsp_tablelookup){
                 return evaluate_expr(ctx, sd, argv[3], caller_row, caller_col);
             }
         }
-        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING) return Error(ctx, "");
+        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING) return Error(ctx, "argument 1 to tlu() must be a number or string");
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
         else
@@ -1535,7 +1535,7 @@ FORMULAFUNC(drsp_tablelookup){
             intptr_t col, start, end;
             SheetData* rsd = sd;
             if(get_range1dcol(ctx, sd, haystack, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-                return Error(ctx, "");
+                return Error(ctx, "Invalid range for haystack of tlu()");
 
             BuffCheckpoint loopbc = buff_checkpoint(ctx->a);
             if(nkind == EXPR_STRING){
@@ -1565,7 +1565,7 @@ FORMULAFUNC(drsp_tablelookup){
             intptr_t row, start, end;
             SheetData* rsd = sd;
             if(get_range1drow(ctx, sd, haystack, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-                return Error(ctx, "");
+                return Error(ctx, "Invalid range for haystack of tlu()");
 
             BuffCheckpoint loopbc = buff_checkpoint(ctx->a);
             if(nkind == EXPR_STRING){
@@ -1623,7 +1623,7 @@ FORMULAFUNC(drsp_tablelookup){
             intptr_t row, start, end;
             SheetData* rsd = sd;
             if(get_range1drow(ctx, sd, values, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-                return Error(ctx, "invalid column range");
+                return Error(ctx, "invalid row range");
             buff_set(ctx->a, bc);
             if(start+offset > end) return Error(ctx, "out of bounds");
             return evaluate(ctx, rsd, row, start+offset);
@@ -1634,7 +1634,7 @@ FORMULAFUNC(drsp_tablelookup){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_find){
     // "needle", [haystack]
-    if(argc != 2 && argc != 3) return Error(ctx, "");
+    if(argc != 2 && argc != 3) return Error(ctx, "find() requires 2 or 3 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     ExpressionKind nkind;
     union {
@@ -1645,7 +1645,7 @@ FORMULAFUNC(drsp_find){
         Expression* needle = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!needle || needle->kind == EXPR_ERROR) return needle;
         nkind = needle->kind;
-        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING && nkind != EXPR_BLANK) return Error(ctx, "");
+        if(nkind != EXPR_NUMBER && nkind != EXPR_STRING && nkind != EXPR_BLANK) return Error(ctx, "first argument to find() must be a number or a string");
         if(nkind == EXPR_NUMBER)
             nval.d = ((Number*)needle)->value;
         else if(nkind == EXPR_STRING)
@@ -1683,7 +1683,7 @@ FORMULAFUNC(drsp_find){
             intptr_t col, start, end;
             SheetData* rsd = sd;
             if(get_range1dcol(ctx, sd, haystack, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-                return Error(ctx, "");
+                return Error(ctx, "Invalid range");
 
             BuffCheckpoint loopchk = buff_checkpoint(ctx->a);
             for(intptr_t row = start; row <= end; buff_set(ctx->a, loopchk), row++){
@@ -1712,7 +1712,7 @@ FORMULAFUNC(drsp_find){
             intptr_t row, start, end;
             SheetData* rsd = sd;
             if(get_range1drow(ctx, sd, haystack, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-                return Error(ctx, "");
+                return Error(ctx, "Invalid range");
 
             BuffCheckpoint loopchk = buff_checkpoint(ctx->a);
             for(intptr_t col = start; col <= end; buff_set(ctx->a, loopchk), col++){
@@ -1742,7 +1742,7 @@ FORMULAFUNC(drsp_find){
     if(offset < 0) {
         if(argc == 3)
             return evaluate_expr(ctx, sd, argv[2], caller_row, caller_col);
-        return Error(ctx, "");
+        return Error(ctx, "needle not found in haystack in call to find()");
     }
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
@@ -1752,18 +1752,19 @@ FORMULAFUNC(drsp_find){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_call){
-    if(!argc) return Error(ctx, "");
+    if(!argc) return Error(ctx, "call() requires at least 1 argument");
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_STRING)
-        return Error(ctx, "");
+        return Error(ctx, "first argument to call() must be a string");
     FormulaFunc* func = lookup_func(((String*)arg)->str);
-    if(!func) return Error(ctx, "");
+    if(!func) return Error(ctx, "first argument to call() does not name a function");
     argc--, argv++;
     return func(ctx, sd, caller_row, caller_col, argc, argv);
 }
 
 #ifdef DRSP_INTRINS
+// GCOV_EXCL_START
 DRSP_INTERNAL
 FORMULAFUNC(drsp_first){
     if(argc != 1) return Error(ctx, "");
@@ -1805,7 +1806,6 @@ print(PrintBuff* buff, const char* fmt, ...){
 }
 
 
-// GCOV_EXCL_START
 DRSP_INTERNAL
 void
 repr_expr(PrintBuff* buff, Expression* arg){
@@ -1966,7 +1966,6 @@ repr_expr(PrintBuff* buff, Expression* arg){
             break;
     }
 }
-// GCOV_EXCL_STOP
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_repr){
@@ -1986,11 +1985,12 @@ FORMULAFUNC(drsp_repr){
     s->str = str;
     return &s->e;
 }
+// GCOV_EXCL_STOP
 #endif
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_array){
-    if(!argc) return Error(ctx, "");
+    if(!argc) return Error(ctx, "array() requires arguments");
     ComputedArray* cc = computed_array_alloc(ctx, argc);
     if(!cc) return NULL;
     for(int i = 0; i < argc; i++){
@@ -2004,7 +2004,7 @@ FORMULAFUNC(drsp_array){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_if){
-    if(argc != 3) return Error(ctx, "");
+    if(argc != 3) return Error(ctx, "if() requires 3 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* cond = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!cond || cond->kind == EXPR_ERROR)
@@ -2034,7 +2034,7 @@ FORMULAFUNC(drsp_if){
                 if(t->kind == EXPR_COMPUTED_ARRAY){
                     ComputedArray* tc = (ComputedArray*)t;
                     if(i >= tc->length){
-                        return Error(ctx, "");
+                        return Error(ctx, "true range out of bounds");
                     }
                     cc->data[i] = tc->data[i];
                 }
@@ -2044,10 +2044,10 @@ FORMULAFUNC(drsp_if){
                 else if(t->kind == EXPR_RANGE1D_COLUMN || t->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
                     if(tcol_or_row == IDX_UNSET){
                         if(get_range1dcol(ctx, sd, t, &tcol_or_row, &tstart, &tend, &tsd, caller_row, caller_col))
-                            return Error(ctx, "");
+                            return Error(ctx, "Invalid range");
                     }
                     if(tstart + i > tend)
-                        return Error(ctx, "");
+                        return Error(ctx, "true range out of bounds");
                     Expression* te = evaluate(ctx, tsd, tstart+i, tcol_or_row);
                     if(!te || te->kind == EXPR_ERROR)
                         return te;
@@ -2056,17 +2056,17 @@ FORMULAFUNC(drsp_if){
                 else if(t->kind == EXPR_RANGE1D_ROW || t->kind == EXPR_RANGE1D_ROW_FOREIGN){
                     if(tcol_or_row == IDX_UNSET){
                         if(get_range1drow(ctx, sd, t, &tcol_or_row, &tstart, &tend, &tsd, caller_row, caller_col))
-                            return Error(ctx, "");
+                            return Error(ctx, "Invalid range");
                     }
                     if(tstart + i > tend)
-                        return Error(ctx, "");
+                        return Error(ctx, "true range out of bounds");
                     Expression* te = evaluate(ctx, tsd, tcol_or_row, tstart+i);
                     if(!te || te->kind == EXPR_ERROR)
                         return te;
                     cc->data[i] = te;
                 }
                 else {
-                    return Error(ctx, "");
+                    return Error(ctx, ""); // unreachable?
                 }
             }
             else {
@@ -2078,7 +2078,7 @@ FORMULAFUNC(drsp_if){
                 if(f->kind == EXPR_COMPUTED_ARRAY){
                     ComputedArray* fc = (ComputedArray*)f;
                     if(i >= fc->length){
-                        return Error(ctx, "");
+                        return Error(ctx, "false range out of bounds");
                     }
                     cc->data[i] = fc->data[i];
                 }
@@ -2088,10 +2088,10 @@ FORMULAFUNC(drsp_if){
                 else if(f->kind == EXPR_RANGE1D_COLUMN || f->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
                     if(fcol_or_row == IDX_UNSET){
                         if(get_range1dcol(ctx, sd, f, &fcol_or_row, &fstart, &fend, &fsd, caller_row, caller_col))
-                            return Error(ctx, "");
+                            return Error(ctx, "Invalid range");
                     }
                     if(fstart + i > fend)
-                        return Error(ctx, "");
+                        return Error(ctx, "false range out of bounds");
                     Expression* fe = evaluate(ctx, fsd, fstart+i, fcol_or_row);
                     if(!fe || fe->kind == EXPR_ERROR)
                         return fe;
@@ -2100,23 +2100,24 @@ FORMULAFUNC(drsp_if){
                 else if(f->kind == EXPR_RANGE1D_ROW || f->kind == EXPR_RANGE1D_ROW_FOREIGN){
                     if(fcol_or_row == IDX_UNSET){
                         if(get_range1drow(ctx, sd, f, &fcol_or_row, &fstart, &fend, &fsd, caller_row, caller_col))
-                            return Error(ctx, "");
+                            return Error(ctx, "Invalid range");
                     }
                     if(fstart + i > fend)
-                        return Error(ctx, "");
+                        return Error(ctx, "false range out of bounds");
                     Expression* fe = evaluate(ctx, fsd, fcol_or_row, fstart+i);
                     if(!fe || fe->kind == EXPR_ERROR)
                         return fe;
                     cc->data[i] = fe;
                 }
                 else {
-                    return Error(ctx, "");
+                    return Error(ctx, ""); // unreachable?
                 }
             }
         }
         return cond;
     }
     if(evaled_is_not_scalar(cond)){
+        // Unreachable?
         return Error(ctx, "Must be coercible to true/false");
     }
     _Bool truthy;

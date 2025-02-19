@@ -165,7 +165,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
         if(larraylike || rarraylike){
             if(larraylike && !rarraylike){
                 if(rhs->kind != EXPR_STRING && rhs->kind != EXPR_NUMBER)
-                    BAD(Error(ctx, ""));
+                    BAD(Error(ctx, "rhs is not string or number"));
                 lhs = convert_to_computed_array(ctx, sd, lhs, caller_row, caller_col);
                 if(!lhs || lhs->kind == EXPR_ERROR)
                     BAD(lhs);
@@ -176,7 +176,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         Expression* e = l->data[i];
                         if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_STRING)
-                            BAD(Error(ctx, ""));
+                            BAD(Error(ctx, "lhs is not a string"));
                         _Bool cmp;
                         DrspAtom s = ((String*)e)->str;
                         switch(op){
@@ -187,7 +187,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                                 cmp = s != r;
                                 break;
                             default:
-                                BAD(Error(ctx, ""));
+                                BAD(Error(ctx, "only '=' and '!=' supported for strings"));
                         }
                         Number* n = expr_alloc(ctx, EXPR_NUMBER);
                         if(!n) return NULL;
@@ -202,7 +202,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         Expression* e = l->data[i];
                         if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_NUMBER)
-                            BAD(Error(ctx, ""));
+                            BAD(Error(ctx, "lhs is not a number"));
                         Number* n = (Number*)e;
                         n->value = double_bin_cmp(op, n->value, r);
                     }
@@ -211,7 +211,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
             }
             else if(rarraylike && !larraylike){
                 if(lhs->kind != EXPR_STRING && lhs->kind != EXPR_NUMBER)
-                    BAD(Error(ctx, ""));
+                    BAD(Error(ctx, "lhs is not string or number"));
                 rhs = convert_to_computed_array(ctx, sd, rhs, caller_row, caller_col);
                 if(!rhs || rhs->kind == EXPR_ERROR)
                     BAD(rhs);
@@ -222,7 +222,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         Expression* e = r->data[i];
                         if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_STRING)
-                            BAD(Error(ctx, ""));
+                            BAD(Error(ctx, "rhs is not a string"));
                         _Bool cmp;
                         DrspAtom s = ((String*)e)->str;
                         switch(op){
@@ -233,7 +233,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                                 cmp = s != l;
                                 break;
                             default:
-                                BAD(Error(ctx, ""));
+                                BAD(Error(ctx, "only '=' and '!=' supported for strings"));
                         }
                         Number* n = expr_alloc(ctx, EXPR_NUMBER);
                         if(!n) return NULL;
@@ -248,7 +248,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         Expression* e = r->data[i];
                         if(e->kind == EXPR_BLANK) continue;
                         if(e->kind != EXPR_NUMBER)
-                            BAD(Error(ctx, ""));
+                            BAD(Error(ctx, "rhs is not a number"));
                         Number* n = (Number*)e;
                         n->value = double_bin_cmp(op, l, n->value);
                     }
@@ -299,7 +299,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                 if(rhs->kind == EXPR_COMPUTED_ARRAY){
                     ComputedArray* r = (ComputedArray*)rhs;
                     if(l->length != r->length){
-                        BAD(Error(ctx, ""));
+                        BAD(Error(ctx, "lhs not same length as rhs"));
                     }
                     for(intptr_t i = 0; i < l->length; i++){
                         Expression* e = evaluate_binary_op(ctx, sd, op, l->data[i], r->data[i], caller_row, caller_col);
@@ -312,9 +312,9 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                 SheetData* rsd = sd;
                 intptr_t col, rstart, rend;
                 if(get_range1dcol(ctx, sd, rhs, &col, &rstart, &rend, &rsd, caller_row, caller_col))
-                    BAD(Error(ctx, ""));
+                    BAD(Error(ctx, "Bad Range"));
                 if(rend - rstart +1 != l->length)
-                    BAD(Error(ctx, ""));
+                    BAD(Error(ctx, "lhs not same length as rhs"));
                 for(intptr_t row = rstart, i = 0; row <= rend; row++, i++){
                     BuffCheckpoint bc = buff_checkpoint(ctx->a);
                     Expression* ld = l->data[i];
@@ -323,7 +323,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                     Expression* e = evaluate(ctx, rsd, row, col);
                     if(!e || e->kind == EXPR_ERROR) BAD(e);
                     if(ld->kind != e->kind){
-                        BAD(Error(ctx, ""));
+                        BAD(Error(ctx, "lhs not same type as rhs"));
                     }
                     if(ld->kind == EXPR_NUMBER){
                         ((Number*)ld)->value = double_bin_cmp(op, ((Number*)ld)->value, ((Number*)e)->value);
@@ -340,7 +340,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                                 cmp = ((String*)ld)->str != ((String*)e)->str;
                                 break;
                             default:
-                                BAD(Error(ctx, ""));
+                                BAD(Error(ctx, "only '=' and '!=' supported for strings"));
                         }
                         buff_set(ctx->a, bc);
                         Number* res = expr_alloc(ctx, EXPR_NUMBER);
@@ -348,7 +348,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         l->data[i] = &res->e;
                         continue;
                     }
-                    BAD(Error(ctx, ""));
+                    BAD(Error(ctx, "lhs is not a string or number"));
                 }
                 return lhs;
             }
@@ -363,10 +363,10 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                 goto cleanup;
             }
             if(lhs->kind != EXPR_NUMBER && lhs->kind != EXPR_STRING)
-                BAD(Error(ctx, ""));
+                BAD(Error(ctx, "lhs is not a string or number"));
             if(lhs->kind == EXPR_STRING){
                 if(rhs->kind != EXPR_STRING)
-                    BAD(Error(ctx, ""));
+                    BAD(Error(ctx, "rhs not a string"));
                 String* l = (String*)lhs;
                 String* r = (String*)rhs;
                 _Bool cmp;
@@ -378,7 +378,7 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                         cmp = l->str != r->str;
                         break;
                     default:
-                        BAD(Error(ctx, ""));
+                        BAD(Error(ctx, "only '=' and '!=' supported for strings"));
                 }
                 buff_set(ctx->a, bc);
                 Number* res = (Number*)expr_alloc(ctx, EXPR_NUMBER);
@@ -386,9 +386,9 @@ evaluate_binary_op(DrSpreadCtx* ctx, SheetData* sd, BinaryKind op, Expression*_N
                 return &res->e;
             }
             if(lhs->kind != EXPR_NUMBER)
-                BAD(Error(ctx, ""));
+                BAD(Error(ctx, "lhs not a number"));
             if(rhs->kind != EXPR_NUMBER)
-                BAD(Error(ctx, ""));
+                BAD(Error(ctx, "rhs not a number"));
             double l = ((Number*)lhs)->value;
             double r = ((Number*)rhs)->value;
             double value = double_bin_cmp(op, l, r);

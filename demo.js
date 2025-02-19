@@ -73,17 +73,17 @@ function display_string(i, row, col, val) {
         func_display[row][col] = val;
     }
 }
-function display_error(i, row, col, val) {
+function display_error(i, row, col, s) {
     if (i == 0) {
         if (row == -2147483645) {
             console.log({ i, row, col });
-            extra_display[col] = 'err: ' + val;
+            extra_display[col] = 'error: ' + s;
         }
         else
-            display[row][col] = 'err: ' + val;
+            display[row][col] = 'error:' + s;
     }
     else {
-        func_display[row][col] = 'err: ' + val;
+        func_display[row][col] = 'error:' + s;
     }
 }
 let table;

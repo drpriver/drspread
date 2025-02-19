@@ -207,8 +207,8 @@ TestPrintf(const char* fmt, ...){
 #define TestPrintImpl_(suffix, type, fmt, ...) \
     force_inline void \
     TestPrintImpl_##suffix(const char* file, const char* func, int line, const char* str, type x){ \
-        TestPrintf("%s%s %s:%d%s %s = " fmt "\n",\
-                _test_color_gray, file, func, line, _test_color_reset, str, __VA_ARGS__); \
+        TestPrintf("%s%s:%d: %s%s %s = " fmt "\n",\
+                _test_color_gray, file, line, func, _test_color_reset, str, __VA_ARGS__); \
         }
 TestPrintFuncs(TestPrintImpl_)
 
@@ -374,8 +374,8 @@ register_test(StringView test_name, TestFunc* func, enum TestCaseFlags flags){
 // It's an fprintf wrapper (appends a newline though).
 //
 #define TestReport(fmt, ...) \
-    TestPrintf("%s%s %s %d: %s" fmt "\n",\
-        _test_color_gray, __FILE__, __func__, __LINE__, \
+    TestPrintf("%s%s:%d: %s %s" fmt "\n",\
+        _test_color_gray, __FILE__, __LINE__, __func__, \
         _test_color_reset, ##__VA_ARGS__);
 
 //

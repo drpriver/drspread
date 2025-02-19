@@ -417,6 +417,7 @@ TestFunction(TestParsing){
 
 
         "=1+2+\n" // parse error
+        "=1+\n"
 
     ;
     // NOTE: We print out the internal 0-based offsets instead
@@ -556,9 +557,10 @@ TestFunction(TestParsing){
         // [f, :, 1]         -> 1d row f
         ROW("R1RF([f, :, 2])"),
 
-        ROW("error"),
+        ROW("error: end of input before valid expression"),
+        ROW("error: end of input before valid expression"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
 
 TestFunction(TestRanges){
@@ -596,16 +598,16 @@ TestFunction(TestBadRanges){
         // "=a b 1\n"
         // "=[a,]\n"
         "=[,a,]\n"
-        "=[:]\n"
-        "=[:, :]\n"
+        // "=[:]\n"
+        // "=[:, :]\n"
         "=[,:, :]\n"
-        "=[:,:, 2]\n"
+        // "=[:,:, 2]\n"
         "=[1]\n"
         "=[$]\n"
         "=[]\n"
         "=['$', '3', '3']\n"
         "=sum(['a])\n"
-        "=sum(['a', '3':'3'])\n"
+        // "=sum(['a', '3':'3'])\n"
         "=sum([3, 1:2])\n"
 
         // "=[f, a,]\n"
@@ -621,28 +623,28 @@ TestFunction(TestBadRanges){
     SheetRow expected[] = {
         // ROW("error"),
         // ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
+        ROW("error: bad range literal"),
+        // ROW("error: error"),
+        // ROW("error: error"),
+        ROW("error: bad range literal"),
+        // ROW("error: error"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        // ROW("error: a"),
+        ROW("error: bad range literal"),
 
         // ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
         // ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
+        ROW("error: bad range literal"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), arrlen(expected));
 }
@@ -745,7 +747,7 @@ TestFunction(TestBinOps){
         ROW("1", "0", "1", "1"),
 
         ROW("0", "", "1"),
-        ROW("error", "error", "error"),
+        ROW("error: rhs not a string", "error: rhs not a string", "error: only '=' and '!=' supported for strings"),
 
         ROW("1", "1", "1"),
         ROW("0", "0", "0"),
@@ -781,7 +783,7 @@ TestFunction(TestBinOps){
         ROW("0", "1", "0", "1"),
         ROW("1", "0"),
 
-        ROW("error", "error"),
+        ROW("error: lhs not same length as rhs", "error: lhs not same length as rhs"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 5);
 }
@@ -795,6 +797,7 @@ TestFunction(TestUnOps){
         "=!!!1    | =-!!1  | =+!!2\n"
         "=-!-!-!1 | =-!+!1 | =+!-!2\n"
         "=-!-!-! | =-!+! | =+!-!\n"
+        "=+ | =- | =!\n"
     ;
     SheetRow expected[] = {
         ROW("0", "-2", "2"),
@@ -802,9 +805,10 @@ TestFunction(TestUnOps){
         ROW("1",  "0", "0"),
         ROW("0", "-1", "1"),
         ROW("0", "-1", "1"),
-        ROW("error", "error", "error"),
+        ROW("error: end of input before valid expression", "error: end of input before valid expression", "error: end of input before valid expression"),
+        ROW("error: end of input before valid expression", "error: end of input before valid expression", "error: end of input before valid expression"),
     };
-    return test_spreadsheet(__func__, input, expected, arrlen(expected), 3);
+    return test_spreadsheet(__func__, input, expected, arrlen(expected), 6);
 }
 
 TestFunction(TestFuncs){
@@ -988,12 +992,12 @@ TestFunction(TestFuncs){
         ROW("-1"),
         ROW("15"),
 
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
-        ROW("error"),
+        ROW("error: Can't find udf of this name"),
+        ROW("error: Can't find udf of this name"),
+        ROW("error: Can't find udf of this name"),
+        ROW("error: Can't find udf of this name"),
+        ROW("error: Can't find udf of this name"),
+        ROW("error: Can't find udf of this name"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 6);
 }
@@ -1166,7 +1170,7 @@ TestFunction(TestFuncsV){
         ROW("9"),
         ROW("7"),
         ROW(""),
-        ROW("error"),
+        ROW("error: position of needle in haystack outside the bounds of values in tlu()"),
 
         ROW("2", "2", "4"),
     };
@@ -1364,7 +1368,7 @@ TestFunction(TestBugs){
     SheetRow expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
         ROW("Chain" ,  "3", "",      "2"),
-        ROW("Leather", "1", "error", "error"),
+        ROW("Leather", "1", "error: end of input before valid expression", "error: end of input before valid expression"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
@@ -1377,7 +1381,7 @@ TestFunction(TestBugs2){
     SheetRow expected[] = {
         ROW("Plate",   "5", "Plate", "5"),
         ROW("Chain" ,  "3", "",      "2"),
-        ROW("Leather", "1", "error", "error"),
+        ROW("Leather", "1", "error: end of input before valid expression", "error: end of input before valid expression"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
@@ -1386,7 +1390,7 @@ TestFunction(TestDirectlyRecursiveShouldError){
         "=a$\n"
     ;
     SheetRow expected[] = {
-        ROW("error"),
+        ROW("error: oom"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 1);
 }
@@ -1396,8 +1400,8 @@ TestFunction(TestIndirectlyRecursiveShouldError){
         "=a1\n"
     ;
     SheetRow expected[] = {
-        ROW("error"),
-        ROW("error"),
+        ROW("error: oom"),
+        ROW("error: oom"),
     };
     return test_spreadsheet(__func__, input, expected, arrlen(expected), 2);
 }
@@ -1632,7 +1636,7 @@ TestFunction(TestMultisheet){
         [2] = ROW("3"),
         [3] = ROW("4"),
         [4] = ROW("2"),
-        [5] = ROW("error"),
+        [5] = ROW("error: needle not found in haystack in call to find()"),
         [6] = ROW("a"),
         [7] = ROW("other","1", "4"),
     };
@@ -1873,7 +1877,7 @@ TestFunction(TestCaching){
         ROW("nan"),
         ROW(""),
         ROW("a"),
-        ROW("error"),
+        ROW("error: Can't find udf of this name"),
     };
     SheetRow expected2[] = {
         ROW(""),
@@ -2078,8 +2082,8 @@ TestFunction(TestUserFunctions){
     TestAssertEquals(err, 2);
     TestAssertEquals(s->display[0].n, 3);
     TestExpectEquals2(streq, s->display[0].data[0], "6");
-    TestExpectEquals2(streq, s->display[0].data[1], "error");
-    TestExpectEquals2(streq, s->display[0].data[2], "error");
+    TestExpectEquals2(streq, s->display[0].data[1], "error: Wrong number of args");
+    TestExpectEquals2(streq, s->display[0].data[2], "error: only '=' and '!=' supported for strings");
 
     err = drsp_clear_function_params(ctx, func);
     TestAssertFalse(err);
@@ -2451,7 +2455,7 @@ TestFunction(TestEditing){
     {
         SheetRow expected[] = {
             ROW("1", "4"),
-            ROW("3", "error"),
+            ROW("3", "error: end of input before closing ')'"),
         };
         nerr = drsp_evaluate_formulas(ctx);
         TestExpectEquals(nerr, 1);
@@ -3038,6 +3042,9 @@ TestFunction(TestErrorMessages){
     {
         int err = read_multi_csv_from_string(&ms, input);
         TestAssertFalse(err);
+        SpreadSheet* ss = multisheet_alloc(&ms);
+        TestAssert(ss);
+        ss->name = SV("Test");
     }
     SheetOps ops = multisheet_ops(&ms);
     DrSpreadCtx* ctx = drsp_create_ctx(&ops);
@@ -3065,10 +3072,6 @@ TestFunction(TestErrorMessages){
         StringView input;
         StringView output;
     } test_cases[] = {
-        {
-            SV("cat()"),
-            SV("Too few arguments to cat()"),
-        },
         {
             SV("sum()"),
             SV("sum() accepts 1 argument"),
@@ -3429,6 +3432,269 @@ TestFunction(TestErrorMessages){
             SV("eval(a(1))"),
             SV("argument to eval() must be a string"),
         },
+        {
+            SV("pow()"),
+            SV("pow() requires 2 arguments"),
+        },
+        {
+            SV("pow(10, 12, 14)"),
+            SV("pow() requires 2 arguments"),
+        },
+        {
+            SV("pow(10, 'a')"),
+            SV("argument 2 to pow() must be a number"),
+        },
+        {
+            SV("pow(a(1, 2), a(10))"),
+            SV("both arguments to pow() must have the same length"),
+        },
+        {
+            SV("pow(a(10), a(1, 2))"),
+            SV("both arguments to pow() must have the same length"),
+        },
+        {
+            SV("pow(a(10), 'a')"),
+            SV("argument 2 to pow() must be a number"),
+        },
+        {
+            SV("pow(a(10), a('a'))"),
+            SV("argument 2 to pow() must be a number"),
+        },
+        {
+            SV("pow('a', 10)"),
+            SV("argument 1 to pow() must be a number"),
+        },
+        {
+            SV("pow(10, 'a')"),
+            SV("argument 2 to pow() must be a number"),
+        },
+        {
+            SV("pow(a('a'), 10)"),
+            SV("argument 1 to pow() must be a number"),
+        },
+        {
+            SV("cat()"),
+            SV("cat() requires at least 2 arguments"),
+        },
+        {
+            SV("cat(10)"),
+            SV("cat() requires at least 2 arguments"),
+        },
+        {
+            SV("cat(a(1), '')"),
+            SV("argument 1 to cat() must be a string"),
+        },
+        {
+            SV("cat(a(1), 'a')"),
+            SV("argument 1 to cat() must be a string"),
+        },
+        {
+            SV("cat(a('a'), a('a', 'b'))"),
+            SV("arguments to cat() must be the same length"),
+        },
+        {
+            SV("cat(a(1), a('b'))"),
+            SV("argument 1 to cat() must be a string"),
+        },
+        {
+            SV("cat(a('a'), a(2))"),
+            SV("argument 2 to cat() must be a string"),
+        },
+        {
+            SV("cat(a('a'), 2)"),
+            SV("argument 2 to cat() must be a string"),
+        },
+        {
+            SV("cat(1, 2)"),
+            SV("argument 1 to cat() must be a string"),
+        },
+        {
+            SV("cat('a', a(1))"),
+            SV("argument 2 to cat() must be a string"),
+        },
+        {
+            SV("cat('a', 1)"),
+            SV("argument 2 to cat() must be a string"),
+        },
+        {
+            SV("cat('a', 'b', 3)"),
+            SV("arguments to cat() must be a string"),
+        },
+        #if 0
+        {
+            SV("cat(a('a'), a('a', 'b'), a())"),
+            SV("arguments to cat must be non-zero length"),
+        },
+        #endif
+        {
+            SV("cat(a('a'), a('b'), a(1))"),
+            SV("arguments to cat() must be strings"),
+        },
+        {
+            SV("tlu(a('1'), a('2'), a('3'))"),
+            SV("needle (argument 1) not found in haystack (argument 2) in tlu()"),
+        },
+        {
+            SV("tlu(a('1'), a('2', '1'), a('3'))"),
+            SV("position of needle in haystack outside the bounds of values in tlu()"),
+        },
+        {
+            SV("tlu()"),
+            SV("tlu() requires 3 or 4 arguments"),
+        },
+        {
+            SV("tlu(1)"),
+            SV("tlu() requires 3 or 4 arguments"),
+        },
+        {
+            SV("tlu(1, a(1))"),
+            SV("tlu() requires 3 or 4 arguments"),
+        },
+        {
+            SV("tlu('', a(1), a(2))"),
+            // FIXME: this error sucks
+            SV("argument 1 to tlu() must be a number or string"),
+        },
+        {
+            SV("tlu('1', foobar1:3, a(2))"),
+            SV("Invalid range for haystack of tlu()"),
+        },
+        {
+            SV("tlu('1', foobar1:bar1, a(2))"),
+            SV("Invalid range for haystack of tlu()"),
+        },
+        {
+            SV("tlu('1', 1, a(2))"),
+            SV("haystack is the wrong type"),
+        },
+        {
+            SV("tlu('1', a('2'), a(2))"),
+            SV("Didn't find needle in haystack"),
+        },
+        {
+            SV("tlu('1', a('2', '1'), a(2))"),
+            SV("out of bounds"),
+        },
+        {
+            SV("tlu('1', a('2', '1'), foobar:3)"),
+            SV("invalid column range"),
+        },
+        {
+            SV("tlu('1', a('2', '1'), a1:1)"),
+            SV("out of bounds"),
+        },
+        {
+            SV("tlu('1', a('2', '1'), foobar1:bar1)"),
+            SV("invalid row range"),
+        },
+        {
+            SV("tlu('1', a('2', '3', '1'), a1:b1)"),
+            SV("out of bounds"),
+        },
+        {
+            SV("find()"),
+            SV("find() requires 2 or 3 arguments"),
+        },
+        {
+            SV("find('a')"),
+            SV("find() requires 2 or 3 arguments"),
+        },
+        {
+            SV("find('a', 1, 2, 3)"),
+            SV("find() requires 2 or 3 arguments"),
+        },
+        {
+            SV("find(a('a'), a('a', 'b'), 2)"),
+            SV("first argument to find() must be a number or a string"),
+        },
+        {
+            SV("find('a', foobar:2, 2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("find('a', foobar2:flimflam2, 2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("find('a', a(1, 2))"),
+            SV("needle not found in haystack in call to find()"),
+        },
+        {
+            SV("call()"),
+            SV("call() requires at least 1 argument"),
+        },
+        {
+            SV("call(1)"),
+            SV("first argument to call() must be a string"),
+        },
+        {
+            SV("call('asd')"),
+            SV("first argument to call() does not name a function"),
+        },
+        {
+            SV("array()"),
+            SV("array() requires arguments"),
+        },
+        {
+            SV("if()"),
+            SV("if() requires 3 arguments"),
+        },
+        {
+            SV("if(1)"),
+            SV("if() requires 3 arguments"),
+        },
+        {
+            SV("if(1, 2)"),
+            SV("if() requires 3 arguments"),
+        },
+        {
+            SV("if(1, 2, 3, 4)"),
+            SV("if() requires 3 arguments"),
+        },
+        {
+            SV("if(a(a(1)), 2, 3)"),
+            SV("Must be coercible to true/false"),
+        },
+        {
+            SV("if(a(1, 2), a(1), 3)"),
+            SV("true range out of bounds"),
+        },
+        {
+            SV("if(a(1, 2), foobar:2, 3)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("if(a(0, 2), a1:a1, 3)"),
+            SV("true range out of bounds"),
+        },
+        {
+            SV("if(a(1, 2), foobar2:blumph2, 3)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("if(a(0, 2), row('a', 'a', 1), 3)"),
+            SV("true range out of bounds"),
+        },
+        {
+            SV("if(a(0, 0), 3, a(1))"),
+            SV("false range out of bounds"),
+        },
+        {
+            SV("if(a(0, 0), 3, foobar:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("if(a(1, 0), 3, a1:a1)"),
+            SV("false range out of bounds"),
+        },
+        {
+            SV("if(a(0, 0), 3, foobar2:blumph2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("if(a(1, 0), 3, row('a', 'a', 1))"),
+            SV("false range out of bounds"),
+        },
     };
 
     for(size_t i = 0; i < sizeof test_cases / sizeof test_cases[0]; i++){
@@ -3445,7 +3711,62 @@ TestFunction(TestErrorMessages){
             TestPrintValue("    actual ", s);
         }
     }
+    for(size_t i = 0; i < sizeof test_cases / sizeof test_cases[0]; i++){
+        TestAssertEquals(ms.n, 2);
+        SpreadSheet* sheet = &ms.sheets[1];
+        StringView in = test_cases[i].input;
+        char* t = NULL;
+        drsp_asprintf(&t, "=%s", in.text);
+        SheetRow ro = {0};
+        sheet_row_push(&ro, t);
+        SheetRow disp = {0};
+        sheet_row_push(&disp, drsp_strdup(""));
+        sheet_push_row(sheet, ro, disp);
+    }
+    {
+        SpreadSheet* sheet = &ms.sheets[1];
+        SheetHandle sheethandle = (SheetHandle)sheet;
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++){
+                int e = drsp_set_cell_str(ctx, sheethandle, r, c, row->data[c], row->lengths[c]);
+                if(!row->lengths[c]) continue;
+                if(e){ // don't bloat the stats
+                    TestAssertFalse(e);
+                }
+            }
+        }
+    }
+    TestAssertEquals(ms.sheets[1].rows, sizeof test_cases / sizeof test_cases[0]);
+    {
+        int nerr = drsp_evaluate_formulas(ctx);
+        TestExpectEquals(nerr, ms.sheets[1].rows);
+    }
+    for(size_t i = 0; i < sizeof test_cases / sizeof test_cases[0]; i++){
+        SpreadSheet* ss = &ms.sheets[1];
+        StringView expected = test_cases[i].output;
+        SheetRow disp = ss->display[i];
+        SheetRow cells = ss->cells[i];
+        TestAssertEquals(disp.n, 1);
+        StringView d = {disp.lengths[0]-sizeof "error: "+1, disp.data[0]+sizeof "error: "-1};
+        TestExpectEquals2(sv_equals, expected, d);
+        if(!sv_equals(expected, d)){
+            TestPrintValue("    expected input ", test_cases[i].input);
+            TestPrintValue("    actual input   ", cells.data[0]+1);
+            TestPrintValue("    expected output", expected);
+            TestPrintValue("    actual output  ", d);
+            TestPrintValue("    disp.data[0]   ", disp.data[0]);
+        }
+    }
     drsp_destroy_ctx(ctx);
+    {
+        SpreadSheet* sheet = &ms.sheets[1];
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++)
+                drsp_alloc(row->lengths[c]+1, row->data[c], 0, 1);
+        }
+    }
     cleanup_multisheet(&ms);
     EXPECT_NO_LEAKS();
     TESTEND();

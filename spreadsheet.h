@@ -254,12 +254,10 @@ sheet_set_display_error(void*m, SheetHandle hnd, intptr_t row, intptr_t col, con
     if(unlikely(row < 0 || row >= sheet->rows)) return 1;
     SheetRow* ro = &sheet->display[row];
     if(unlikely(col < 0 || col >= ro->n)) return 1;
-    (void)mess;
-    (void)len;
     drsp_alloc(strlen(ro->data[col])+1, ro->data[col], 0, 1);
-    // free((void*)ro->data[col]);
-    ro->data[col] = drsp_strdup("error");
-    ro->lengths[col] = 5;
+    ro->lengths[col] = drsp_asprintf((char**)&ro->data[col], "error: %.*s", (int)len, mess);
+    // drsp_strdup("error");
+    // ro->lengths[col] = 5;
     return 0;
 }
 static

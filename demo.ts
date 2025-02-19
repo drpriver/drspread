@@ -79,17 +79,17 @@ function display_string(i:number, row:number, col:number, val:string):void{
         func_display[row][col] = val;
     }
 }
-function display_error(i:number, row:number, col:number):void{
+function display_error(i:number, row:number, col:number, s:string):void{
     if(i == 0){
         if(row == DRSP.IDX_EXTRA_DIMENSIONAL){
             console.log({i, row, col});
-            extra_display[col] = 'err';
+            extra_display[col] = 'error: ' + s;
         }
         else
-            display[row][col] = 'err';
+            display[row][col] = 'error:' + s;
     }
     else {
-        func_display[row][col] = 'err';
+        func_display[row][col] = 'error:' + s;
     }
 }
 
@@ -399,7 +399,7 @@ declare function drspread(
     wasm_path:string,
     sheet_set_display_number:(id:number, row:number, col:number, val:number)=>void,
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
-    sheet_set_display_error:(id:number, row:number, col:number)=>void,
+    sheet_set_display_error:(id:number, row:number, col:number, s:string)=>void,
 ):Promise<{
     make_ctx: () => DrSpreadCtx;
     exports: DrSpreadExports;

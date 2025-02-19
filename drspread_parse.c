@@ -92,7 +92,7 @@ parse(DrSpreadCtx* ctx, DrspAtom a){
     lstrip(&sv);
     if(sv.length != 0) {
         // XXX: free what we can
-        Expression* e =  Error(ctx, "");
+        Expression* e =  Error(ctx, "parsing expression did not consume all input");
         cache_parse(ctx, a, e);
         return e;
     }
@@ -118,12 +118,12 @@ PARSEFUNC(parse_comparison){
             case '<': op = c2? BIN_LE : BIN_LT; break;
             case '>': op = c2? BIN_GE : BIN_GT; break;
             case '!':
-                if(!c2) return Error(ctx, "");
+                if(!c2) return Error(ctx, "expected '=' after '!'");
                 op = BIN_NE;
                 break;
             // Allow '=' and '=='.
             case '=': op = BIN_EQ; break;
-            default: return Error(ctx, "");
+            default: return Error(ctx, "invalid comparison operator");
         }
         lstrip(sv);
         Expression* rhs = parse_addplus(ctx, sv);
@@ -193,7 +193,7 @@ PARSEFUNC(parse_unary){
         sv->length-=2;
         lstrip(sv);
     }
-    if(!sv->length) return Error(ctx, "");
+    if(!sv->length) return Error(ctx, "end of input before valid expression");
     char c = sv->text[0];
     UnaryKind op = (UnaryKind)-1;
     switch(c){
@@ -253,7 +253,7 @@ PARSEFUNC(parse_unary){
 
 DRSP_INTERNAL
 PARSEFUNC(parse_terminal){
-    if(!sv->length) return Error(ctx, "");
+    if(!sv->length) return Error(ctx, "end of input when parsing terminal");
     switch(sv->text[0]){
         case '[':
             return parse_range(ctx, sv);
@@ -272,7 +272,7 @@ PARSEFUNC(parse_terminal){
         case ':':
             return parse_other_range_syntax(ctx, sv, "", 0);
         default:
-            return Error(ctx, "");
+            return Error(ctx, "invalid start of terminal expression");
     }
 }
 
@@ -286,7 +286,7 @@ PARSEFUNC(parse_string){
         sv->length--, sv->text++;
     }
     const char* end = sv->text;
-    if(!sv->length) return Error(ctx, "");
+    if(!sv->length) return Error(ctx, "Unterminated string");
     Expression* result;
     if(end != begin){
         String* s = parser_expr_alloc(ctx, EXPR_STRING);
@@ -569,24 +569,25 @@ PARSEFUNC(parse_range){
     int nstrings[2] = {0};
     int nnumbers = 0;
     lstrip(sv);
-    if(!sv->length) return Error(ctx, "");
+    // These error messages suck but I want to delete this syntax anyway
+    if(!sv->length) return Error(ctx, "bad range literal");
     {
         int n = maybe_parse_string_pair(sv, strings_0_, strings_0_+1);
-        if(n < 0) return Error(ctx, "");
+        if(n < 0) return Error(ctx, "bad range literal");
         nstrings[0] = n;
-        if(!n) return Error(ctx, "");
+        if(!n) return Error(ctx, "bad range literal");
         lstrip(sv);
     }
-    if(!sv->length) return Error(ctx, "");
+    if(!sv->length) return Error(ctx, "bad range literal");
     if(sv->text[0] == ','){
-        if(nstrings[0] == 0) return Error(ctx, "");
+        if(nstrings[0] == 0) return Error(ctx, "bad range literal");
         sv->text++, sv->length--;
         lstrip(sv);
-        if(!sv->length) return Error(ctx, "");
+        if(!sv->length) return Error(ctx, "bad range literal");
     }
     {
         int n = maybe_parse_string_pair(sv, strings_1_, strings_1_+1);
-        if(n < 0) return Error(ctx, "");
+        if(n < 0) return Error(ctx, "bad range literal");
         lstrip(sv);
         if(n == 2 && sv->length && sv->text[0] == ']' && !strings_1_[0].length && !strings_1_[1].length){
             // disambiguate as a number range instead.
@@ -597,16 +598,16 @@ PARSEFUNC(parse_range){
         }
         nstrings[1] = n;
     }
-    if(!sv->length) return Error(ctx, "");
+    if(!sv->length) return Error(ctx, "bad range literal");
     if(nstrings[1] && sv->text[0] == ','){
-        if(nstrings[0] == 0) return Error(ctx, ""); // XXX unnecessary check?
+        if(nstrings[0] == 0) return Error(ctx, "bad range literal"); // XXX unnecessary check?
         sv->text++, sv->length--;
         lstrip(sv);
-        if(!sv->length) return Error(ctx, "");
+        if(!sv->length) return Error(ctx, "bad range literal");
     }
     {
         int n = maybe_parse_number_pair(sv, numbers, numbers+1);
-        if(n < 0) return Error(ctx, "");
+        if(n < 0) return Error(ctx, "bad range literal");
         nnumbers += n;
         lstrip(sv);
         if(n > 0 && numbers[0] == IDX_BLANK)
@@ -614,9 +615,9 @@ PARSEFUNC(parse_range){
         if(n > 1 && numbers[1] == IDX_BLANK)
             numbers[1] = -1;
     }
-    if(!sv->length) return Error(ctx, "");
+    if(!sv->length) return Error(ctx, "bad range literal");
     after_numbers:;
-    if(sv->text[0] != ']') return Error(ctx, "");
+    if(sv->text[0] != ']') return Error(ctx, "bad range literal");
     sv->text++, sv->length--;
     if(nstrings[1] && nstrings[0] > 1) return Error(ctx, "sheet ranges unsupported");
     DrspAtom sheetname = NULL;
@@ -738,11 +739,11 @@ PARSEFUNC(parse_number){
         }
         break;
     }
-    if(begin == end) return Error(ctx, "");
+    if(begin == end) return Error(ctx, ""); // unreachable?
     Number* n = parser_expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     DoubleResult dr = parse_double(begin, end-begin);
-    if(dr.errored) return Error(ctx, "");
+    if(dr.errored) return Error(ctx, "invalid number");
     n->value = dr.result;
     return &n->e;
 }
@@ -755,7 +756,7 @@ PARSEFUNC(parse_group){
     Expression* e = parse_comparison(ctx, sv);
     if(!e || e->kind == EXPR_ERROR) return e;
     lstrip(sv);
-    if(!sv->length || sv->text[0] != ')') return Error(ctx, "");
+    if(!sv->length || sv->text[0] != ')') return Error(ctx, "unterminated paren, no ')'");
     sv->text++, sv->length--;
     return e;
 }
@@ -787,7 +788,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
             }
             else {
                 Int32Result ir = parse_int32(begin, end-begin);
-                if(ir.errored) return Error(ctx, "");
+                if(ir.errored) return Error(ctx, ""); // TODO: stringify error
                 row_idx = ir.result - 1;
             }
         }
@@ -860,7 +861,7 @@ parse_other_range_syntax(DrSpreadCtx* ctx, StringView* sv, const char* cn, size_
             }
             else {
                 Int32Result ir = parse_int32(begin, end-begin);
-                if(ir.errored) return Error(ctx, "");
+                if(ir.errored) return Error(ctx, ""); // TODO: stringify error
                 row_idx2 = ir.result-1;
             }
         }
@@ -901,7 +902,7 @@ PARSEFUNC(parse_func_call){
                 continue;
             case '$':
             case CASE_0_9:{
-                if(begin == end) return Error(ctx, "");
+                if(begin == end) return Error(ctx, ""); // when does this happen
                 return parse_other_range_syntax(ctx, sv, begin, end-begin);
             }
             default:
@@ -928,7 +929,7 @@ PARSEFUNC(parse_func_call){
     int argc;
     for(argc = 0; argc < argmax; argc++){
         lstripc(sv);
-        if(!sv->length) return Error(ctx, "");
+        if(!sv->length) return Error(ctx, "end of input before closing ')'");
         if(sv->text[0] == ')')
             break;
         Expression* e = parse_comparison(ctx, sv);
@@ -936,7 +937,7 @@ PARSEFUNC(parse_func_call){
         argv[argc] = e;
     }
     if(!sv->length || sv->text[0] != ')')
-        return Error(ctx, "");
+        return Error(ctx, "end of input before closing ')'");
     sv->length--, sv->text++;
     if(func){
         FunctionCall* fc = parser_expr_alloc(ctx, EXPR_FUNCTION_CALL);

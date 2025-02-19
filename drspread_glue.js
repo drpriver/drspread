@@ -65,9 +65,7 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                     const encoded = encoder.encode(s);
                     mem.set(encoded, exports.wasm_str_buff.value);
                     const err = exports.drsp_evaluate_string(ctx, sheet, exports.wasm_str_buff.value, encoded.length, exports.wasm_result.value, -1, -1);
-                    if (err)
-                        return "error";
-                    const kind = read4(exports.wasm_result.value);
+                    const kind = err ? 3 : read4(exports.wasm_result.value);
                     let v = "error";
                     switch (kind) {
                         case 0:
@@ -78,6 +76,9 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                             break;
                         case 2:
                             v = wasm_string_to_js(read4(exports.wasm_result.value + 12), read4(exports.wasm_result.value + 8));
+                            break;
+                        case 3:
+                            v += ": " + wasm_string_to_js(read4(exports.wasm_result.value + 12), read4(exports.wasm_result.value + 8));
                             break;
                         default: break;
                     }
