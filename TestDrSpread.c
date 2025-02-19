@@ -76,6 +76,7 @@ static TestFunc TestEditing;
 static TestFunc TestNamedCells;
 static TestFunc TestDependants;
 static TestFunc TestDependantsF;
+static TestFunc TestErrorMessages;
 
 int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
     if(!test_funcs_count){ // wasm calls main more than once.
@@ -110,6 +111,7 @@ int main(int argc, char*_Null_unspecified*_Null_unspecified argv){
         RegisterTest(TestDependants);
         RegisterTest(TestDependantsF);
         #endif
+        RegisterTest(TestErrorMessages);
     }
     int ret = test_main(argc, argv, NULL);
     return ret;
@@ -3014,6 +3016,433 @@ TestFunction(TestDependantsF){
             SheetHandle* handles = drsp_sheet_get_dependants(ctx, (SheetHandle)&ms.sheets[3], &n);
             (void)handles;
             TestExpectEquals(n, 0);
+        }
+    }
+    drsp_destroy_ctx(ctx);
+    cleanup_multisheet(&ms);
+    EXPECT_NO_LEAKS();
+    TESTEND();
+}
+
+TestFunction(TestErrorMessages){
+    TESTBEGIN();
+    const char* input =
+
+        "Sheet1\n"
+        // -------
+        "Data\n"
+        "=3\n"
+        "---\n"
+        ;
+    MultiSpreadSheet ms = {0};
+    {
+        int err = read_multi_csv_from_string(&ms, input);
+        TestAssertFalse(err);
+    }
+    SheetOps ops = multisheet_ops(&ms);
+    DrSpreadCtx* ctx = drsp_create_ctx(&ops);
+    for(int i = 0; i < ms.n; i++){
+        SpreadSheet* sheet = &ms.sheets[i];
+        int e = drsp_set_sheet_name(ctx, (SheetHandle)sheet, sheet->name.text, sheet->name.length);
+        TestAssertFalse(e);
+        for(int i = 0; i < sheet->colnames.n; i++){
+            int e = drsp_set_col_name(ctx, (SheetHandle)sheet, i, sheet->colnames.data[i], sheet->colnames.lengths[i]);
+            TestAssertFalse(e);
+        }
+        SheetHandle sheethandle = (SheetHandle)sheet;
+        for(intptr_t r = 0; r < sheet->rows; r++){
+            const SheetRow* row = &sheet->cells[r];
+            for(int c = 0; c < row->n; c++){
+                e = drsp_set_cell_str(ctx, sheethandle, r, c, row->data[c], row->lengths[c]);
+                if(!row->lengths[c]) continue;
+                if(e){ // don't bloat the stats
+                    TestAssertFalse(e);
+                }
+            }
+        }
+    }
+    struct {
+        StringView input;
+        StringView output;
+    } test_cases[] = {
+        {
+            SV("cat()"),
+            SV("Too few arguments to cat()"),
+        },
+        {
+            SV("sum()"),
+            SV("sum() accepts 1 argument"),
+        },
+        {
+            SV("sum(foobar1:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("sum(foobar2:bar2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("sum(a(a(1), 2))"),
+            SV("Range to be summed contains range"),
+        },
+        {
+            SV("prod()"),
+            SV("prod() accepts 1 argument"),
+        },
+        {
+            SV("prod(foobar1:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("prod(foobar2:bar2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("prod(a(a(1), 2))"),
+            SV("Range input to prod() contains range"),
+        },
+        {
+            SV("avg()"),
+            SV("avg() accepts 1 argument"),
+        },
+        {
+            SV("avg(foobar1:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("avg(foobar2:bar2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("avg(a(a(1), 2))"),
+            SV("Range input to avg() contains range"),
+        },
+        {
+            SV("count()"),
+            SV("count() accepts 1 argument"),
+        },
+        {
+            SV("count(foobar1:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("count(foobar2:bar2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("min()"),
+            SV("min() requires more than 0 arguments"),
+        },
+        {
+            SV("min('a', 2)"),
+            SV("arguments to min() must be numbers"),
+        },
+        {
+            SV("min(a(a(1), 2))"),
+            SV("Range input to min() contains range"),
+        },
+        {
+            SV("min(foobar1:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("min(foobar2:bar2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("max()"),
+            SV("max() requires more than 0 arguments"),
+        },
+        {
+            SV("max('a', 2)"),
+            SV("arguments to max() must be numbers"),
+        },
+        {
+            SV("max(a(a(1), 2))"),
+            SV("Range input to max() contains range"),
+        },
+        {
+            SV("max(foobar1:2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("max(foobar2:bar2)"),
+            SV("Invalid range"),
+        },
+        {
+            SV("mod()"),
+            SV("mod() requires 1 argument"),
+        },
+        {
+            SV("mod(10, 12)"),
+            SV("mod() requires 1 argument"),
+        },
+        {
+            SV("mod(a('a'))"),
+            SV("argument to mod() must be a number"),
+        },
+        {
+            SV("mod('a')"),
+            SV("argument to mod() must be a number"),
+        },
+        {
+            SV("floor()"),
+            SV("floor() requires 1 argument"),
+        },
+        {
+            SV("floor(10, 12)"),
+            SV("floor() requires 1 argument"),
+        },
+        {
+            SV("floor(a('a'))"),
+            SV("argument to floor() must be a number"),
+        },
+        {
+            SV("floor('a')"),
+            SV("argument to floor() must be a number"),
+        },
+        {
+            SV("ceil()"),
+            SV("ceil() requires 1 argument"),
+        },
+        {
+            SV("ceil(10, 12)"),
+            SV("ceil() requires 1 argument"),
+        },
+        {
+            SV("ceil(a('a'))"),
+            SV("argument to ceil() must be a number"),
+        },
+        {
+            SV("ceil('a')"),
+            SV("argument to ceil() must be a number"),
+        },
+        {
+            SV("trunc()"),
+            SV("trunc() requires 1 argument"),
+        },
+        {
+            SV("trunc(10, 12)"),
+            SV("trunc() requires 1 argument"),
+        },
+        {
+            SV("trunc(a('a'))"),
+            SV("argument to trunc() must be a number"),
+        },
+        {
+            SV("trunc('a')"),
+            SV("argument to trunc() must be a number"),
+        },
+        {
+            SV("round()"),
+            SV("round() requires 1 argument"),
+        },
+        {
+            SV("round(10, 12)"),
+            SV("round() requires 1 argument"),
+        },
+        {
+            SV("round(a('a'))"),
+            SV("argument to round() must be a number"),
+        },
+        {
+            SV("round('a')"),
+            SV("argument to round() must be a number"),
+        },
+        {
+            SV("abs()"),
+            SV("abs() requires 1 argument"),
+        },
+        {
+            SV("abs(10, 12)"),
+            SV("abs() requires 1 argument"),
+        },
+        {
+            SV("abs(a('a'))"),
+            SV("argument to abs() must be a number"),
+        },
+        {
+            SV("abs('a')"),
+            SV("argument to abs() must be a number"),
+        },
+        {
+            SV("sqrt()"),
+            SV("sqrt() requires 1 argument"),
+        },
+        {
+            SV("sqrt(10, 12)"),
+            SV("sqrt() requires 1 argument"),
+        },
+        {
+            SV("sqrt(a('a'))"),
+            SV("argument to sqrt() must be a number"),
+        },
+        {
+            SV("sqrt('a')"),
+            SV("argument to sqrt() must be a number"),
+        },
+        {
+            SV("log()"),
+            SV("log() requires 1 or 2 arguments"),
+        },
+        {
+            SV("log(10, 12, 14)"),
+            SV("log() requires 1 or 2 arguments"),
+        },
+        {
+            SV("log(a('a'))"),
+            SV("argument to log() must be a number"),
+        },
+        {
+            SV("log('a')"),
+            SV("argument to log() must be a number"),
+        },
+        {
+            SV("log(10, 'a')"),
+            SV("base must be a number"),
+        },
+        {
+            SV("log(10, 1)"),
+            SV("base must be > 1"),
+        },
+        {
+            SV("log(10, 0)"),
+            SV("base must be > 1"),
+        },
+        {
+            SV("num()"),
+            SV("num() requires 1 or 2 arguments"),
+        },
+        {
+            SV("num(10, 12, 14)"),
+            SV("num() requires 1 or 2 arguments"),
+        },
+        {
+            SV("num(10, 'a')"),
+            SV("second argument to num() must be a number"),
+        },
+        {
+            SV("try()"),
+            SV("try() requires 2 arguments"),
+        },
+        {
+            SV("try(10, 12, 14)"),
+            SV("try() requires 2 arguments"),
+        },
+        {
+            SV("cell()"),
+            SV("cell() requires 1, 2, or 3 arguments"),
+        },
+        {
+            SV("cell('a', 12, 14, 15)"),
+            SV("cell() requires 1, 2, or 3 arguments"),
+        },
+        {
+            SV("cell(3)"),
+            SV("argument to cell() with one argument must be a string"),
+        },
+        {
+            SV("cell('a')"),
+            SV("named cell not found in call to cell()"),
+        },
+        {
+            SV("cell(12, 12)"),
+            SV("first argument to cell() with two arguments must be a string"),
+        },
+        {
+            SV("cell('a', 'b')"),
+            SV("sheet not found in call to cell()"),
+        },
+        {
+            SV("cell('Sheet1', 'b')"),
+            SV("named cell not found in call to cell()"),
+        },
+        {
+            SV("cell('col1', 4)"),
+            SV("column name not found in call to cell()"),
+        },
+        {
+            SV("cell('a', a(1, 2))"),
+            SV("second argument to cell() with two arguments must be a number"),
+        },
+        {
+            SV("cell('a', -1)"),
+            SV("row index out of bounds in call to cell()"),
+        },
+        {
+            SV("cell(12, 'b', 12)"),
+            SV("first argument to cell() with three arguments must be a string"),
+        },
+        {
+            SV("cell('a', 'b', 12)"),
+            SV("sheet not found in call to cell()"),
+        },
+        {
+            SV("cell('Sheet1', 12, 12)"),
+            SV("second argument to cell() with three arguments must be a string"),
+        },
+        {
+            SV("cell('Sheet1', 'foo', 12)"),
+            SV("column name not found in call to cell()"),
+        },
+        {
+            SV("cell('Sheet1', 'a', '12')"),
+            SV("third argument to cell() with three arguments must be a number"),
+        },
+        {
+            SV("cell('Sheet1', 'a', -1)"),
+            SV("row index out of bounds in call to cell()"),
+        },
+        {
+            SV("col()"),
+            SV("col() requires 1-4 arguments"),
+        },
+        {
+            SV("col(1,2,3)"),
+            SV("first argument to col() must be a string"),
+        },
+        {
+            SV("col('a',foobar1:2,3)"),
+            SV("second argument to col() must be a string or a number"),
+        },
+        {
+            SV("col('a',2,'a')"),
+            SV("third argument to col() must be a number"),
+        },
+        {
+            SV("col('a',2,2,2)"),
+            SV("second argument to col() with four arguments must be a string"),
+        },
+        {
+            SV("col('a','2',2,'2')"),
+            SV("fourth argument to col() must be a number"),
+        },
+        {
+            SV("eval()"),
+            SV("eval() accepts 1 argument"),
+        },
+        {
+            SV("eval(1)"),
+            SV("argument to eval() must be a string"),
+        },
+        {
+            SV("eval(a(1))"),
+            SV("argument to eval() must be a string"),
+        },
+    };
+
+    for(size_t i = 0; i < sizeof test_cases / sizeof test_cases[0]; i++){
+        StringView in = test_cases[i].input;
+        StringView out = test_cases[i].output;
+        DrSpreadResult val = {0};
+        int err = drsp_evaluate_string(ctx, (SheetHandle)&ms.sheets[0], in.text, in.length, &val, 0, 0);
+        TestExpectEquals(err, 1);
+        StringView s = {val.s.length, val.s.text};
+        TestExpectEquals2(sv_equals, s, out);
+        if(!sv_equals(s, out)){
+            TestPrintValue("    input ", in);
+            TestPrintValue("    expected ", out);
+            TestPrintValue("    actual ", s);
         }
     }
     drsp_destroy_ctx(ctx);

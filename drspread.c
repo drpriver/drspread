@@ -230,11 +230,17 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
     #endif
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     SheetData* sd = sheet_lookup_by_handle(ctx, sheethandle);
-    if(!sd) return 1;
+    if(!sd) {
+        outval->s.text = "Invalid sheethandle";
+        outval->s.length = -1 + sizeof "Invalid sheethandle";
+        return 1;
+    }
     Expression* e = evaluate_string(ctx, sd, txt, len, row, col);
     int error = 0;
     if(!e){
         error = 1;
+        outval->s.text = "oom";
+        outval->s.length = 3;
         goto finish;
     }
     switch(e->kind){
@@ -251,7 +257,16 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
             outval->s.length = s->length;
             outval->s.text = s->data;
         }break;
+        case EXPR_ERROR:{
+            outval->kind = DRSP_RESULT_ERROR;
+            ErrorExpression* err = (ErrorExpression*)e;
+            outval->s.text = err->message;
+            outval->s.length = err->len;
+            error = 1;
+        }break;
         default:
+            outval->s.text = "Unable to represent result";
+            outval->s.length = -1 + sizeof "Unable to represent result";
             error = 1;
             break;
     }
@@ -335,9 +350,7 @@ int
 sp_set_display_error(const DrSpreadCtx* ctx, SheetHandle sheet, intptr_t row, intptr_t col, const char* errmess, size_t errmess_len){
     #ifdef DRSPREAD_DIRECT_OPS
         (void)ctx;
-        (void)errmess;
-        (void)errmess_len;
-        sheet_set_display_error(sheet, row, col);
+        sheet_set_display_error(sheet, row, col, errmess, errmess_len);
         return 0;
     #else
         return ctx->_ops.set_display_error(ctx->_ops.ctx, sheet, row, col, errmess, errmess_len);

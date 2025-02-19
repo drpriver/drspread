@@ -38,7 +38,7 @@
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sum){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "sum() accepts 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -47,6 +47,7 @@ FORMULAFUNC(drsp_sum){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range to be summed contains range");
             if(e->kind != EXPR_NUMBER)
                 continue;
             sum += ((Number*)e)->value;
@@ -56,13 +57,13 @@ FORMULAFUNC(drsp_sum){
         intptr_t col, start, end;
         SheetData* rsd = sd;
         if(get_range1dcol(ctx, sd, arg, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range to be summed contains range");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
             buff_set(ctx->a, bc);
@@ -72,13 +73,13 @@ FORMULAFUNC(drsp_sum){
         intptr_t row, start, end;
         SheetData* rsd = sd;
         if(get_range1drow(ctx, sd, arg, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range to be summed contains range");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
             buff_set(ctx->a, bc);
@@ -92,7 +93,7 @@ FORMULAFUNC(drsp_sum){
 }
 DRSP_INTERNAL
 FORMULAFUNC(drsp_prod){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "prod() accepts 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -101,6 +102,7 @@ FORMULAFUNC(drsp_prod){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to prod() contains range");
             if(e->kind != EXPR_NUMBER)
                 continue;
             prod *= ((Number*)e)->value;
@@ -110,13 +112,13 @@ FORMULAFUNC(drsp_prod){
         intptr_t col, start, end;
         SheetData* rsd = sd;
         if(get_range1dcol(ctx, sd, arg, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to prod() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             prod *= ((Number*)e)->value;
             buff_set(ctx->a, bc);
@@ -126,13 +128,13 @@ FORMULAFUNC(drsp_prod){
         intptr_t row, start, end;
         SheetData* rsd = sd;
         if(get_range1drow(ctx, sd, arg, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to prod() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             prod *= ((Number*)e)->value;
             buff_set(ctx->a, bc);
@@ -147,7 +149,7 @@ FORMULAFUNC(drsp_prod){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_avg){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "avg() accepts 1 argument");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
@@ -159,6 +161,7 @@ FORMULAFUNC(drsp_avg){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to avg() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
             count += 1.0;
@@ -168,13 +171,13 @@ FORMULAFUNC(drsp_avg){
         intptr_t col, start, end;
         SheetData* rsd = sd;
         if(get_range1dcol(ctx, sd, arg, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to avg() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
             count += 1.0;
@@ -185,13 +188,13 @@ FORMULAFUNC(drsp_avg){
         intptr_t row, start, end;
         SheetData* rsd = sd;
         if(get_range1drow(ctx, sd, arg, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to avg() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             sum += ((Number*)e)->value;
             count += 1.0;
@@ -205,7 +208,7 @@ FORMULAFUNC(drsp_avg){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_count){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "count() accepts 1 argument");
     Number* n = expr_alloc(ctx, EXPR_NUMBER);
     if(!n) return NULL;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
@@ -225,7 +228,7 @@ FORMULAFUNC(drsp_count){
         SheetData* rsd = sd;
         intptr_t col, start, end;
         if(get_range1dcol(ctx, sd, arg, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
@@ -241,7 +244,7 @@ FORMULAFUNC(drsp_count){
         SheetData* rsd = sd;
         intptr_t row, start, end;
         if(get_range1drow(ctx, sd, arg, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
@@ -260,7 +263,7 @@ FORMULAFUNC(drsp_count){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_min){
-    if(!argc) return Error(ctx, "");
+    if(!argc) return Error(ctx, "min() requires more than 0 arguments");
     if(argc > 1){
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = 1e32;
@@ -269,7 +272,7 @@ FORMULAFUNC(drsp_min){
             if(!arg || arg->kind == EXPR_ERROR)
                 return arg;
             if(arg->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "arguments to min() must be numbers");
             double n = ((Number*)arg)->value;
             if(n < v)
                 v = n;
@@ -289,6 +292,7 @@ FORMULAFUNC(drsp_min){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to min() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value < v)
                 v = ((Number*)e)->value;
@@ -298,13 +302,13 @@ FORMULAFUNC(drsp_min){
         SheetData* rsd = sd;
         intptr_t col, start, end;
         if(get_range1dcol(ctx, sd, arg, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to min() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value < v)
                 v = ((Number*)e)->value;
@@ -315,13 +319,13 @@ FORMULAFUNC(drsp_min){
         SheetData* rsd = sd;
         intptr_t row, start, end;
         if(get_range1drow(ctx, sd, arg, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to min() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value < v)
                 v = ((Number*)e)->value;
@@ -336,7 +340,7 @@ FORMULAFUNC(drsp_min){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_max){
-    if(!argc) return Error(ctx, "");
+    if(!argc) return Error(ctx, "max() requires more than 0 arguments");
     if(argc > 1){
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = -1e32;
@@ -345,7 +349,7 @@ FORMULAFUNC(drsp_max){
             if(!arg || arg->kind == EXPR_ERROR)
                 return arg;
             if(arg->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "arguments to max() must be numbers");
             double n = ((Number*)arg)->value;
             if(n > v)
                 v = n;
@@ -365,6 +369,7 @@ FORMULAFUNC(drsp_max){
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to max() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value > v)
                 v = ((Number*)e)->value;
@@ -374,13 +379,13 @@ FORMULAFUNC(drsp_max){
         SheetData* rsd = sd;
         intptr_t col, start, end;
         if(get_range1dcol(ctx, sd, arg, &col, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t row = start; row <= end; row++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to max() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value > v)
                 v = ((Number*)e)->value;
@@ -391,13 +396,13 @@ FORMULAFUNC(drsp_max){
         SheetData* rsd = sd;
         intptr_t row, start, end;
         if(get_range1drow(ctx, sd, arg, &row, &start, &end, &rsd, caller_row, caller_col) != 0)
-            return Error(ctx, "");
+            return Error(ctx, "Invalid range");
         // NOTE: inclusive range
         for(intptr_t col = start; col <= end; col++){
             BuffCheckpoint bc = buff_checkpoint(ctx->a);
             Expression* e = evaluate(ctx, rsd, row, col);
             if(!e || e->kind == EXPR_ERROR) return e;
-            if(evaled_is_not_scalar(e)) return Error(ctx, "");
+            if(evaled_is_not_scalar(e)) return Error(ctx, "Range input to max() contains range");
             if(e->kind != EXPR_NUMBER) continue;
             if(((Number*)e)->value > v)
                 v = ((Number*)e)->value;
@@ -412,7 +417,7 @@ FORMULAFUNC(drsp_max){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_mod){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "mod() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -425,7 +430,7 @@ FORMULAFUNC(drsp_mod){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to mod() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_floor((n->value - 10)/2);
         }
@@ -433,7 +438,7 @@ FORMULAFUNC(drsp_mod){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to mod() must be a number");
         double score = ((Number*)arg)->value;
         double mod = __builtin_floor((score - 10)/2);
         buff_set(ctx->a, bc);
@@ -446,7 +451,7 @@ FORMULAFUNC(drsp_mod){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_floor){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "floor() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -459,7 +464,7 @@ FORMULAFUNC(drsp_floor){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to floor() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_floor(n->value);
         }
@@ -467,7 +472,7 @@ FORMULAFUNC(drsp_floor){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to floor() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -478,7 +483,7 @@ FORMULAFUNC(drsp_floor){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_ceil){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "ceil() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -491,7 +496,7 @@ FORMULAFUNC(drsp_ceil){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to ceil() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_ceil(n->value);
         }
@@ -499,7 +504,7 @@ FORMULAFUNC(drsp_ceil){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to ceil() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -510,7 +515,7 @@ FORMULAFUNC(drsp_ceil){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_trunc){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "trunc() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -523,7 +528,7 @@ FORMULAFUNC(drsp_trunc){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to trunc() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_trunc(n->value);
         }
@@ -531,7 +536,7 @@ FORMULAFUNC(drsp_trunc){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to trunc() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -542,7 +547,7 @@ FORMULAFUNC(drsp_trunc){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_round){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "round() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -555,7 +560,7 @@ FORMULAFUNC(drsp_round){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to round() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_round(n->value);
         }
@@ -563,7 +568,7 @@ FORMULAFUNC(drsp_round){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to round() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -574,7 +579,7 @@ FORMULAFUNC(drsp_round){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_abs){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "abs() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -587,7 +592,7 @@ FORMULAFUNC(drsp_abs){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to abs() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_fabs(n->value);
         }
@@ -595,7 +600,7 @@ FORMULAFUNC(drsp_abs){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to abs() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -606,7 +611,7 @@ FORMULAFUNC(drsp_abs){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sqrt){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "sqrt() requires 1 argument");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -619,7 +624,7 @@ FORMULAFUNC(drsp_sqrt){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to sqrt() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_sqrt(n->value);
         }
@@ -627,7 +632,7 @@ FORMULAFUNC(drsp_sqrt){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to sqrt() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -638,7 +643,7 @@ FORMULAFUNC(drsp_sqrt){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_log){
-    if(argc != 1 && argc != 2) return Error(ctx, "");
+    if(argc != 1 && argc != 2) return Error(ctx, "log() requires 1 or 2 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
@@ -661,7 +666,7 @@ FORMULAFUNC(drsp_log){
             if(e->kind == EXPR_BLANK)
                 continue;
             if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "");
+                return Error(ctx, "argument to log() must be a number");
             Number* n = (Number*)e;
             n->value = __builtin_log(n->value);
             if(base > 0) n->value /= __builtin_log(base);
@@ -670,7 +675,7 @@ FORMULAFUNC(drsp_log){
     }
     else {
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "argument to log() must be a number");
         buff_set(ctx->a, bc);
         Number* n = expr_alloc(ctx, EXPR_NUMBER);
         if(!n) return NULL;
@@ -739,7 +744,7 @@ parse_leading_double(const char* txt, size_t len, double* result){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_num){
-    if(argc != 1 && argc != 2) return Error(ctx, "");
+    if(argc != 1 && argc != 2) return Error(ctx, "num() requires 1 or 2 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     double default_ = 0.;
     if(argc == 2){
@@ -747,7 +752,7 @@ FORMULAFUNC(drsp_num){
         if(!d || d->kind == EXPR_ERROR)
             return d;
         if(d->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "second argument to num() must be a number");
         default_ = ((Number*)d)->value;
         buff_set(ctx->a, bc);
     }
@@ -798,7 +803,7 @@ FORMULAFUNC(drsp_num){
 }
 DRSP_INTERNAL
 FORMULAFUNC(drsp_try){
-    if(argc != 2) return Error(ctx, "");
+    if(argc != 2) return Error(ctx, "try() requires 2 arguments");
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg) return NULL;
@@ -810,16 +815,16 @@ FORMULAFUNC(drsp_try){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_cell){
     SheetData* fsd = sd;
-    if(argc != 1 && argc != 2 && argc != 3) return Error(ctx, "");
+    if(argc != 1 && argc != 2 && argc != 3) return Error(ctx, "cell() requires 1, 2, or 3 arguments");
     if(argc == 1){
         // cell('cell name')
         Expression* name = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!name || name->kind == EXPR_ERROR) return name;
-        if(name->kind != EXPR_STRING) return Error(ctx, "");
+        if(name->kind != EXPR_STRING) return Error(ctx, "argument to cell() with one argument must be a string");
         DrspAtom a = drsp_atom_lower(ctx, ((String*)name)->str);
         if(!a) return NULL;
         const NamedCell* cell = get_named_cell(&sd->named_cells, a);
-        if(!cell) return Error(ctx, "");
+        if(!cell) return Error(ctx, "named cell not found in call to cell()");
         return evaluate(ctx, sd, cell->row, cell->col);
     }
     if(argc == 2){
@@ -829,7 +834,7 @@ FORMULAFUNC(drsp_cell){
         // cell('sheet', 'cell name')
         Expression* arg1 = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg1 || arg1->kind == EXPR_ERROR) return arg1;
-        if(arg1->kind != EXPR_STRING) return Error(ctx, "");
+        if(arg1->kind != EXPR_STRING) return Error(ctx, "first argument to cell() with two arguments must be a string");
         DrspAtom a = drsp_atom_lower(ctx, ((String*)arg1)->str);
         if(!a) return NULL;
 
@@ -837,25 +842,25 @@ FORMULAFUNC(drsp_cell){
         if(!arg2 || arg2->kind == EXPR_ERROR) return arg2;
         if(arg2->kind == EXPR_STRING){
             fsd = sheet_lookup_by_name(ctx, a);
-            if(!fsd) return Error(ctx, "");
+            if(!fsd) return Error(ctx, "sheet not found in call to cell()");
             a = drsp_atom_lower(ctx, ((String*)arg2)->str);
             if(!a) return NULL;
             const NamedCell* cell = get_named_cell(&fsd->named_cells, a);
-            if(!cell) return Error(ctx, "");
+            if(!cell) return Error(ctx, "named cell not found in call to cell()");
             if(fsd != sd){
                 int err = sheet_add_dependant(ctx, fsd, sd->handle);
-                if(err) return Error(ctx, "");
+                if(err) return Error(ctx, "oom");
             }
             return evaluate(ctx, fsd, cell->row, cell->col);
         }
         else {
             intptr_t col_idx = sp_name_to_col_idx(fsd, a);
-            if(col_idx < 0) return Error(ctx, "");
+            if(col_idx < 0) return Error(ctx, "column name not found in call to cell()");
 
-            if(arg2->kind != EXPR_NUMBER) return Error(ctx, "");
+            if(arg2->kind != EXPR_NUMBER) return Error(ctx, "second argument to cell() with two arguments must be a number");
             intptr_t row_idx = (intptr_t)((Number*)arg2)->value;
             row_idx--;
-            if(row_idx < 0) return Error(ctx, "");
+            if(row_idx < 0) return Error(ctx, "row index out of bounds in call to cell()");
             return evaluate(ctx, fsd, row_idx, col_idx);
         }
     }
@@ -864,36 +869,36 @@ FORMULAFUNC(drsp_cell){
     {
         Expression* sheet = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!sheet || sheet->kind == EXPR_ERROR) return sheet;
-        if(sheet->kind != EXPR_STRING) return Error(ctx, "");
+        if(sheet->kind != EXPR_STRING) return Error(ctx, "first argument to cell() with three arguments must be a string");
         DrspAtom a = drsp_atom_lower(ctx, ((String*)sheet)->str);
         if(!a) return NULL;
         fsd = sheet_lookup_by_name(ctx, a);
-        if(!fsd) return Error(ctx, "");
+        if(!fsd) return Error(ctx, "sheet not found in call to cell()");
     }
 
     intptr_t col_idx;
     {
         Expression* col = evaluate_expr(ctx, sd, argv[1], caller_row, caller_col);
         if(!col || col->kind == EXPR_ERROR) return col;
-        if(col->kind != EXPR_STRING) return Error(ctx, "");
+        if(col->kind != EXPR_STRING) return Error(ctx, "second argument to cell() with three arguments must be a string");
         DrspAtom a = drsp_atom_lower(ctx, ((String*)col)->str);
         if(!a) return NULL;
         col_idx = sp_name_to_col_idx(fsd, a);
-        if(col_idx < 0) return Error(ctx, "");
+        if(col_idx < 0) return Error(ctx, "column name not found in call to cell()");
     }
 
     intptr_t row_idx;
     {
         Expression* row = evaluate_expr(ctx, sd, argv[2], caller_row, caller_col);
         if(!row || row->kind == EXPR_ERROR) return row;
-        if(row->kind != EXPR_NUMBER) return Error(ctx, "");
+        if(row->kind != EXPR_NUMBER) return Error(ctx, "third argument to cell() with three arguments must be a number");
         row_idx = (intptr_t)((Number*)row)->value;
         row_idx--;
-        if(row_idx < 0) return Error(ctx, "");
+        if(row_idx < 0) return Error(ctx, "row index out of bounds in call to cell()");
     }
     if(fsd != sd){
         int err = sheet_add_dependant(ctx, fsd, sd->handle);
-        if(err) return Error(ctx, "");
+        if(err) return Error(ctx, "oom");
     }
     return evaluate(ctx, fsd, row_idx, col_idx);
 }
@@ -909,14 +914,14 @@ FORMULAFUNC(drsp_col){
     // col('Colname')
     //
     // It's basically the dynamic form of range literals.
-    if(!argc || argc > 4) return Error(ctx, "");
+    if(!argc || argc > 4) return Error(ctx, "col() requires 1-4 arguments");
     DrspAtom colname = NULL, sheetname = NULL;
     intptr_t rowstart = IDX_UNSET, rowend = IDX_UNSET;
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     {
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
-        if(arg->kind != EXPR_STRING && arg->kind != EXPR_BLANK) return Error(ctx, "");
+        if(arg->kind != EXPR_STRING && arg->kind != EXPR_BLANK) return Error(ctx, "first argument to col() must be a string");
         if(arg->kind == EXPR_BLANK)
             colname = drsp_nil_atom();
         else
@@ -936,7 +941,7 @@ FORMULAFUNC(drsp_col){
             rowstart = (intptr_t)((Number*)arg)->value;
         }
         else {
-            return Error(ctx, "");
+            return Error(ctx, "second argument to col() must be a string or a number");
         }
         argc--, argv++;
     }
@@ -944,7 +949,7 @@ FORMULAFUNC(drsp_col){
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "third argument to col() must be a number");
         if(rowstart == IDX_UNSET)
             rowstart = (intptr_t)((Number*)arg)->value;
         else
@@ -953,11 +958,11 @@ FORMULAFUNC(drsp_col){
     }
     if(argc){
         if(rowend != IDX_UNSET)
-            return Error(ctx, "");
+            return Error(ctx, "second argument to col() with four arguments must be a string");
         Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
         if(!arg || arg->kind == EXPR_ERROR) return arg;
         if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "");
+            return Error(ctx, "fourth argument to col() must be a number");
         rowend = (intptr_t)((Number*)arg)->value;
         argc--, argv++;
     }
@@ -969,7 +974,7 @@ FORMULAFUNC(drsp_col){
     if(rowend == IDX_UNSET)
         rowend = -1;
     else if(rowend) rowend--;
-    if(argc) return Error(ctx, "");
+    if(argc) return Error(ctx, "Too many args"); // Unreachable??
     buff_set(ctx->a, bc);
     if(sheetname && sheetname->length){
         ForeignRange1DColumn* result = expr_alloc(ctx, EXPR_RANGE1D_COLUMN_FOREIGN);
@@ -1067,7 +1072,7 @@ FORMULAFUNC(drsp_row){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_eval){
-    if(argc != 1) return Error(ctx, "");
+    if(argc != 1) return Error(ctx, "eval() accepts 1 argument");
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
@@ -1077,7 +1082,7 @@ FORMULAFUNC(drsp_eval){
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
             if(e->kind == EXPR_BLANK) continue;
-            if(e->kind != EXPR_STRING) return Error(ctx, "");
+            if(e->kind != EXPR_STRING) return Error(ctx, "argument to eval() must be a string");
             DrspAtom a = ((String*)e)->str;
             Expression* ev = evaluate_string(ctx, sd, a->data, a->length, caller_row, caller_col);
             if(!ev || ev->kind == EXPR_ERROR) return ev;
@@ -1085,7 +1090,7 @@ FORMULAFUNC(drsp_eval){
         }
         return &c->e;
     }
-    if(arg->kind != EXPR_STRING) return Error(ctx, "");
+    if(arg->kind != EXPR_STRING) return Error(ctx, "argument to eval() must be a string");
     DrspAtom a = ((String*)arg)->str;
     Expression* result = evaluate_string(ctx, sd, a->data, a->length, caller_row, caller_col);
     return result;
@@ -1167,7 +1172,7 @@ FORMULAFUNC(drsp_pow){
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_cat){
-    if(argc < 2) return Error(ctx, "");
+    if(argc < 2) return Error(ctx, "Too few arguments to cat()");
     DrspAtom catbuff[4];
     BuffCheckpoint bc = buff_checkpoint(ctx->a);
     if(argc == 2){

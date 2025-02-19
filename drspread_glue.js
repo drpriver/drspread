@@ -36,7 +36,10 @@ function drspread(wasm_path, sheet_set_display_number, sheet_set_display_string_
                 const s = wasm_string_to_js(p, len);
                 sheet_set_display_string_(id, row, col, s);
             },
-            sheet_set_display_error,
+            sheet_set_display_error: function (id, row, col, p, len) {
+                const s = wasm_string_to_js(p, len);
+                sheet_set_display_error(id, row, col, s);
+            },
         },
     };
     return fetch(wasm_path)

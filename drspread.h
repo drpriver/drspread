@@ -53,6 +53,7 @@ DRSP_TYPED_ENUM(DrspResultKind, uintptr_t){
     DRSP_RESULT_NULL = 0, // Empty Cell
     DRSP_RESULT_NUMBER = 1,
     DRSP_RESULT_STRING = 2,
+    DRSP_RESULT_ERROR = 3,
 };
 enum {DRSP_MAX_ROWS=10065000};
 

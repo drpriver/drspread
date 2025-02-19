@@ -64,7 +64,7 @@ function drspread(
     wasm_path:string,
     sheet_set_display_number:(id:number, row:number, col:number, val:number)=>void,
     sheet_set_display_string_:(id:number, row:number, col:number, s:string)=>void,
-    sheet_set_display_error:(id:number, row:number, col:number)=>void,
+    sheet_set_display_error:(id:number, row:number, col:number, s:string)=>void,
 ):Promise<{
     make_ctx: () => DrSpreadCtx;
     exports: DrSpreadExports;
@@ -120,7 +120,10 @@ const imports = {
             const s = wasm_string_to_js(p, len);
             sheet_set_display_string_(id, row, col, s);
         },
-        sheet_set_display_error,
+        sheet_set_display_error: function(id:number, row:number, col:number, p:number, len:number):void{
+            const s = wasm_string_to_js(p, len);
+            sheet_set_display_error(id, row, col, s);
+        },
     },
 };
 

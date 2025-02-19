@@ -641,6 +641,12 @@ struct SheetMap {
     size_t n;
     SheetData* data;
 };
+typedef struct ErrorExpression ErrorExpression;
+struct ErrorExpression {
+    Expression e;
+    const char* message;
+    size_t len;
+};
 
 struct DrSpreadCtx {
 #ifndef DRSPREAD_DIRECT_OPS
@@ -653,7 +659,7 @@ struct DrSpreadCtx {
     BuffAllocator* a;
     BuffAllocator _a;
     Expression null;
-    Expression error;
+    ErrorExpression error;
 #ifndef __wasm__
     uintptr_t limit; // this sucks but is to avoid stack overflow;
 #endif
@@ -921,7 +927,19 @@ logline(const char* f, int l){
 // #define Error(ctx, mess) (bt(), logline(__func__, __LINE__), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR))
 #define Error(ctx, mess) (bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR))
 #else
-#define Error(ctx, mess) expr_alloc(ctx, EXPR_ERROR)
+static inline
+Expression*
+Error_(DrSpreadCtx* ctx, const char* mess, size_t len){
+    ErrorExpression* e = &ctx->error;
+    if(!len){
+        mess = "error";
+        len = 5;
+    }
+    e->message = mess;
+    e->len = len;
+    return &e->e;
+}
+#define Error(ctx, mess) Error_(ctx, "" mess, -1 + sizeof mess)
 #endif
 
 typedef struct FuncInfo FuncInfo;

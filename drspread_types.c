@@ -31,7 +31,7 @@ drsp_create_ctx(ARGS){
     __builtin_memcpy((void*)&ctx->_a, &a, sizeof a);
     ctx->a = &ctx->_a;
     ctx->null.kind = EXPR_BLANK;
-    ctx->error.kind = EXPR_ERROR;
+    ctx->error.e.kind = EXPR_ERROR;
     return ctx;
 }
 
