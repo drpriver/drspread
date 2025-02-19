@@ -2386,20 +2386,76 @@ TestFunction(TestEditing){
             }
         }
     }
-    #define SET_CELL(r, c, x) drsp_set_cell_str(ctx, sheethandle, r, c, x, sizeof(x)-1)
-    err = SET_CELL(1, 0, "3");
-    if(err) TestAssertFalse(err);
 
-    {
-        SheetRow expected[] = {
-            ROW("1", "4"),
-            ROW("3", "ab"),
-        };
+    struct Edit {
+        int row, col;
+        const char* txt;
+    };
+
+    struct {
+        struct Edit edit;
+        SheetRow expected[2];
+        int nerr;
+    } test_cases[] = {
+        {
+            .edit = {1, 0, "3"},
+            .expected = {
+                ROW("1", "4"),
+                ROW("3", "ab"),
+            },
+            .nerr = 0,
+        },
+        {
+            .edit = {1, 1, "=CAT('', '')"},
+            .expected = {
+                ROW("1", "4"),
+                ROW("3", ""),
+            },
+            .nerr = 0,
+        },
+        {
+            .edit = {1, 1, "=sum()"},
+            .expected = {
+                ROW("1", "4"),
+                ROW("3", "error: sum() accepts 1 argument"),
+            },
+            .nerr = 1,
+        },
+        {
+            .edit = {1, 1, "=CAT(''"},
+            .expected = {
+                ROW("1", "4"),
+                ROW("3", "error: end of input before closing ')'"),
+            },
+            .nerr = 1,
+        },
+        {
+            .edit = {1, 1, "=sum()"},
+            .expected = {
+                ROW("1", "4"),
+                ROW("3", "error: sum() accepts 1 argument"),
+            },
+            .nerr = 1,
+        },
+        {
+            .edit = {1, 1, "=sum(a)"},
+            .expected = {
+                ROW("1", "4"),
+                ROW("3", "4"),
+            },
+            .nerr = 0,
+        },
+    };
+    for(size_t t = 0; t < arrlen(test_cases); t++){
+        struct Edit* e = &test_cases[t].edit;
+        err = drsp_set_cell_str(ctx, sheethandle, e->row, e->col, e->txt, strlen(e->txt));
+        if(err) TestAssertFalse(err);
         nerr = drsp_evaluate_formulas(ctx);
-        TestExpectEquals(nerr, 0);
-        for(size_t i = 0; i < arrlen(expected); i++){
+        TestExpectEquals(nerr, test_cases[t].nerr);
+        SheetRow (*expected)[2] = &test_cases[t].expected;
+        for(size_t i = 0; i < arrlen(*expected); i++){
             const SheetRow* display_row = &sheet.display[i];
-            const SheetRow* expected_row = &expected[i];
+            const SheetRow* expected_row = &(*expected)[i];
             TestAssertEquals(display_row->n, expected_row->n);
             for(int j = 0; j < display_row->n; j++){
                 TEST_stats.executed++;
@@ -2407,71 +2463,9 @@ TestFunction(TestEditing){
                 const char* rhs = expected_row->data[j];
                 if(!streq(lhs, rhs)){
                     TEST_stats.failures++;
-                      TestReport("Test condition failed");
-                      TestReport("row %zu, col %d", i, j);
-                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
-                              _test_color_green, lhs, _test_color_reset,
-                              _test_color_red, _test_color_reset,
-                              _test_color_green, rhs, _test_color_reset);
-                }
-            }
-        }
-    }
-
-    err = SET_CELL(1, 1, "=CAT('', '')");
-    if(err) TestAssertFalse(err);
-
-    {
-        SheetRow expected[] = {
-            ROW("1", "4"),
-            ROW("3", ""),
-        };
-        nerr = drsp_evaluate_formulas(ctx);
-        TestExpectEquals(nerr, 0);
-        for(size_t i = 0; i < arrlen(expected); i++){
-            const SheetRow* display_row = &sheet.display[i];
-            const SheetRow* expected_row = &expected[i];
-            TestAssertEquals(display_row->n, expected_row->n);
-            for(int j = 0; j < display_row->n; j++){
-                TEST_stats.executed++;
-                const char* lhs = display_row->data[j];
-                const char* rhs = expected_row->data[j];
-                if(!streq(lhs, rhs)){
-                    TEST_stats.failures++;
-                      TestReport("Test condition failed");
-                      TestReport("row %zu, col %d", i, j);
-                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
-                              _test_color_green, lhs, _test_color_reset,
-                              _test_color_red, _test_color_reset,
-                              _test_color_green, rhs, _test_color_reset);
-                }
-            }
-        }
-    }
-
-    err = SET_CELL(1, 1, "=CAT(''");
-    if(err) TestAssertFalse(err);
-
-    {
-        SheetRow expected[] = {
-            ROW("1", "4"),
-            ROW("3", "error: end of input before closing ')'"),
-        };
-        nerr = drsp_evaluate_formulas(ctx);
-        TestExpectEquals(nerr, 1);
-        for(size_t i = 0; i < arrlen(expected); i++){
-            const SheetRow* display_row = &sheet.display[i];
-            const SheetRow* expected_row = &expected[i];
-            TestAssertEquals(display_row->n, expected_row->n);
-            for(int j = 0; j < display_row->n; j++){
-                TEST_stats.executed++;
-                const char* lhs = display_row->data[j];
-                const char* rhs = expected_row->data[j];
-                if(!streq(lhs, rhs)){
-                    TEST_stats.failures++;
-                      TestReport("Test condition failed");
-                      TestReport("row %zu, col %d", i, j);
-                      TestReport("'%s%s%s' %s!=%s '%s%s%s'",
+                    TestReport("Test condition failed");
+                    TestReport("test %zu, row %zu, col %d", t, i, j);
+                    TestReport("'%s%s%s' %s!=%s '%s%s%s'",
                               _test_color_green, lhs, _test_color_reset,
                               _test_color_red, _test_color_reset,
                               _test_color_green, rhs, _test_color_reset);
@@ -2484,7 +2478,6 @@ TestFunction(TestEditing){
     cleanup_sheet(&sheet);
     EXPECT_NO_LEAKS();
     TESTEND();
-    #undef SET_CELL
 }
 
 TestFunction(TestNamedCells){

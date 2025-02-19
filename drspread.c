@@ -137,13 +137,8 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
                     nerrs++;
                     if(e->kind == EXPR_ERROR){
                         ErrorExpression* err = (ErrorExpression*)e;
-                        const char* mess = err->message;
-                        size_t len = err->len;
-                        if(!len){
-                            mess = "error (unset)";
-                            len = sizeof "error (unset)" - 1;
-                        }
-                        sp_set_display_error(ctx, sd->handle, row, col, mess, len);
+                        DrspAtom mess = err->message;
+                        sp_set_display_error(ctx, sd->handle, row, col, mess->data, mess->length);
                     }
                     else
                         sp_set_display_error(ctx, sd->handle, row, col, "error (unset)", sizeof "error (unset)" - 1);
@@ -271,8 +266,8 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
         case EXPR_ERROR:{
             outval->kind = DRSP_RESULT_ERROR;
             ErrorExpression* err = (ErrorExpression*)e;
-            outval->s.text = err->message;
-            outval->s.length = err->len;
+            outval->s.text = err->message->data;
+            outval->s.length = err->message->length;
             error = 1;
         }break;
         default:

@@ -402,91 +402,17 @@ struct CachedResult{
 };
 static inline
 _Bool
-cached_result_eq_ignoring_loc(const CachedResult* a, const CachedResult* b){
-    if(a->kind != b->kind) return 0;
-    switch(a->kind){
-        case CACHED_RESULT_NULL:
-            return 1;
-        case CACHED_RESULT_STRING:
-            return a->string ==  b->string;
-        case CACHED_RESULT_NUMBER:
-            // eq or both nan
-            return a->number == b->number || (a->number != a->number && b->number != b->number);
-        case CACHED_RESULT_ERROR:
-            return 1;
-        default:
-            return 0;
-    }
-}
+cached_result_eq_ignoring_loc(const CachedResult* a, const CachedResult* b);
 static inline
 int
-expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
-    switch(e->kind){
-        case EXPR_NUMBER:
-            out->kind = CACHED_RESULT_NUMBER;
-            out->number = ((Number*)e)->value;
-            return 0;
-        case EXPR_STRING:{
-            String* s = (String*)e;
-            DrspAtom str = s->str;
-            if(!str) return 1;
-            out->kind = CACHED_RESULT_STRING;
-            out->string = str;
-            return 0;
-        }break;
-        case EXPR_BLANK:
-            out->kind = CACHED_RESULT_NULL;
-            return 0;
-        case EXPR_RANGE1D_ROW:
-        case EXPR_RANGE1D_ROW_FOREIGN:
-        case EXPR_RANGE1D_COLUMN:
-        case EXPR_RANGE1D_COLUMN_FOREIGN:
-        case EXPR_COMPUTED_ARRAY:{
-            DrspAtom str = drsp_intern_str(ctx, "[[array]]", sizeof("[[array]]")-1);
-            if(!str) return 1;
-            out->kind = CACHED_RESULT_STRING;
-            out->string = str;
-            return 0;
-        }
-        default:
-        case EXPR_ERROR:
-            out->kind = CACHED_RESULT_ERROR;
-            return 0;
-    }
-}
+expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out);
+static inline
+int
+expr_to_cached_result_no_array(DrSpreadCtx* ctx, Expression* e, CachedResult* out);
 
 static inline
-int
-expr_to_cached_result_no_array(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
-    (void)ctx;
-    switch(e->kind){
-        case EXPR_NUMBER:
-            out->kind = CACHED_RESULT_NUMBER;
-            out->number = ((Number*)e)->value;
-            return 0;
-        case EXPR_STRING:{
-            String* s = (String*)e;
-            DrspAtom str = s->str;
-            if(!str) return 1;
-            out->kind = CACHED_RESULT_STRING;
-            out->string = str;
-            return 0;
-        }break;
-        case EXPR_BLANK:
-            out->kind = CACHED_RESULT_NULL;
-            return 0;
-        case EXPR_RANGE1D_ROW:
-        case EXPR_RANGE1D_ROW_FOREIGN:
-        case EXPR_RANGE1D_COLUMN:
-        case EXPR_RANGE1D_COLUMN_FOREIGN:
-        case EXPR_COMPUTED_ARRAY:
-            return 1;
-        default:
-        case EXPR_ERROR:
-            out->kind = CACHED_RESULT_ERROR;
-            return 0;
-    }
-}
+Expression*_Nullable
+cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr);
 
 force_inline
 void*_Nullable
@@ -499,30 +425,6 @@ parser_expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind);
 force_inline
 ComputedArray*_Nullable
 computed_array_alloc(DrSpreadCtx* ctx, size_t nitems);
-
-static inline
-Expression*_Nullable
-cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
-    switch(cr->kind){
-        case CACHED_RESULT_NULL:
-            return expr_alloc(ctx, EXPR_BLANK);
-        case CACHED_RESULT_NUMBER:{
-            Number* n = expr_alloc(ctx, EXPR_NUMBER);
-            if(!n) return NULL;
-            n->value = cr->number;
-            return &n->e;
-        }
-        case CACHED_RESULT_STRING:{
-            String* s = expr_alloc(ctx, EXPR_STRING);
-            if(!s) return NULL;
-            s->str = cr->string;
-            return &s->e;
-        }
-        default:
-        case CACHED_RESULT_ERROR:
-            return expr_alloc(ctx, EXPR_ERROR);
-    }
-}
 DRSP_INTERNAL
 CachedResult*_Nullable
 get_cached_output_result(OutputResultCache* cache, intptr_t row, intptr_t col);
@@ -644,8 +546,7 @@ struct SheetMap {
 typedef struct ErrorExpression ErrorExpression;
 struct ErrorExpression {
     Expression e;
-    const char* message;
-    size_t len;
+    DrspAtom message;
 };
 
 struct DrSpreadCtx {
@@ -908,39 +809,11 @@ union ExprU{
     UserFunctionCall ufc;
 };
 
-#if 0
-#ifdef __wasm__
-extern
-void
-logline(const char*, int);
-#else
-static inline
-void
-logline(const char* f, int l){
-    fprintf(stderr, "%s: %d\n", f, l);
-}
-#endif
-
-#pragma clang assume_nonnull end
-#include "debugging.h"
-#pragma clang assume_nonnull begin
-// #define Error(ctx, mess) (bt(), logline(__func__, __LINE__), fprintf(stderr, "%s:%d:(%s) %s\n", __FILE__, __LINE__, __func__, mess), expr_alloc(ctx, EXPR_ERROR))
-#define Error(ctx, mess) (bt(), fprintf(stderr, "%d: %s\n", __LINE__, mess), __builtin_debugtrap(), expr_alloc(ctx, EXPR_ERROR))
-#else
 static inline
 Expression*
-Error_(DrSpreadCtx* ctx, const char* mess, size_t len){
-    ErrorExpression* e = &ctx->error;
-    if(!len){
-        mess = "error (boog)";
-        len = sizeof "error (boog)" - 1;
-    }
-    e->message = mess;
-    e->len = len;
-    return &e->e;
-}
+Error_(DrSpreadCtx* ctx, const char* mess, size_t len);
+
 #define Error(ctx, mess) Error_(ctx, "" mess, -1 + sizeof mess)
-#endif
 
 typedef struct FuncInfo FuncInfo;
 struct FuncInfo {

@@ -123,7 +123,9 @@ tests: \
     TestResults/TestDrSpread_O2_san \
     TestResults/TestDrSpread_O3_san
 .PHONY: test
-test: TestResults/TestDrSpread_O0
+test: Bin/TestDrSpread_O0
+	$<
+
 .PHONY: tests
 .PHONY: all
 ALL= \

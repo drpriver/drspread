@@ -971,6 +971,141 @@ sheet_mark_dirty(DrSpreadCtx* ctx, SheetData* d){
     d->dependants.count = 0;
 }
 
+static inline
+Expression*
+Error_(DrSpreadCtx* ctx, const char* mess, size_t len){
+    ErrorExpression* e = &ctx->error;
+    if(!len){
+        mess = "error (boog)";
+        len = sizeof "error (boog)" - 1;
+    }
+    DrspAtom a = drsp_atomize(ctx, mess, len);
+    if(!a) a = drsp_nil_atom();
+    e->message = a;
+    return &e->e;
+}
+
+static inline
+Expression*_Nullable
+cached_result_to_expr(DrSpreadCtx* ctx, const CachedResult* cr){
+    switch(cr->kind){
+        case CACHED_RESULT_NULL:
+            return expr_alloc(ctx, EXPR_BLANK);
+        case CACHED_RESULT_NUMBER:{
+            Number* n = expr_alloc(ctx, EXPR_NUMBER);
+            if(!n) return NULL;
+            n->value = cr->number;
+            return &n->e;
+        }
+        case CACHED_RESULT_STRING:{
+            String* s = expr_alloc(ctx, EXPR_STRING);
+            if(!s) return NULL;
+            s->str = cr->string;
+            return &s->e;
+        }
+        default:
+        case CACHED_RESULT_ERROR:{
+            ErrorExpression* e =  expr_alloc(ctx, EXPR_ERROR);
+            // if(!e) __builtin_unreachable();
+            e->message = cr->string;
+            return &e->e;
+        }
+    }
+}
+static inline
+_Bool
+cached_result_eq_ignoring_loc(const CachedResult* a, const CachedResult* b){
+    if(a->kind != b->kind) return 0;
+    switch(a->kind){
+        case CACHED_RESULT_NULL:
+            return 1;
+        case CACHED_RESULT_STRING:
+            return a->string ==  b->string;
+        case CACHED_RESULT_NUMBER:
+            // eq or both nan
+            return a->number == b->number || (a->number != a->number && b->number != b->number);
+        case CACHED_RESULT_ERROR:
+            return a->string == b->string;
+        default:
+            return 0;
+    }
+}
+static inline
+int
+expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
+    switch(e->kind){
+        case EXPR_NUMBER:
+            out->kind = CACHED_RESULT_NUMBER;
+            out->number = ((Number*)e)->value;
+            return 0;
+        case EXPR_STRING:{
+            String* s = (String*)e;
+            DrspAtom str = s->str;
+            if(!str) return 1;
+            out->kind = CACHED_RESULT_STRING;
+            out->string = str;
+            return 0;
+        }break;
+        case EXPR_BLANK:
+            out->kind = CACHED_RESULT_NULL;
+            return 0;
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN:
+        case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
+        case EXPR_COMPUTED_ARRAY:{
+            DrspAtom str = drsp_intern_str(ctx, "[[array]]", sizeof("[[array]]")-1);
+            if(!str) return 1;
+            out->kind = CACHED_RESULT_STRING;
+            out->string = str;
+            return 0;
+        }
+        default:
+        case EXPR_ERROR:{
+            ErrorExpression* err = (ErrorExpression*)e;
+            out->kind = CACHED_RESULT_ERROR;
+            out->string = err->message;
+            return 0;
+        }break;
+    }
+}
+
+static inline
+int
+expr_to_cached_result_no_array(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
+    (void)ctx;
+    switch(e->kind){
+        case EXPR_NUMBER:
+            out->kind = CACHED_RESULT_NUMBER;
+            out->number = ((Number*)e)->value;
+            return 0;
+        case EXPR_STRING:{
+            String* s = (String*)e;
+            DrspAtom str = s->str;
+            if(!str) return 1;
+            out->kind = CACHED_RESULT_STRING;
+            out->string = str;
+            return 0;
+        }break;
+        case EXPR_BLANK:
+            out->kind = CACHED_RESULT_NULL;
+            return 0;
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN:
+        case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN:
+        case EXPR_COMPUTED_ARRAY:
+            return 1;
+        default:
+        case EXPR_ERROR:{
+            ErrorExpression* err = (ErrorExpression*)e;
+            out->kind = CACHED_RESULT_ERROR;
+            out->string = err->message;
+            return 0;
+        }break;
+    }
+}
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif
