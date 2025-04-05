@@ -69,7 +69,7 @@ clean:
 endif
 
 # not using -mreference-types
-WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
+WASMCFLAGS=--target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -ffreestanding -nostdinc -isystem Wasm -mbulk-memory -mmultivalue -mmutable-globals -mnontrapping-fptoint -msign-ext -Wl,--stack-first
 Bin/drspread.wasm: drspread_wasm.c Makefile | Bin Depends
 	$(WCC) $< -o $@ $(DEPFLAGS) Depends/drspread.wasm.dep $(WWFLAGS) -iquote. $(WASMCFLAGS) -O3
 %.js: %.ts

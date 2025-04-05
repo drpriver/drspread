@@ -3,10 +3,15 @@
 #include <allstd.h>
 #include "Wasm/malloc.h"
 #include <stb_sprintf.c>
-#ifndef IMPORT
 #define IMPORT extern
-#endif
 
+__attribute__((import_name("lround")))
+IMPORT
+long
+lround(double);
+#define __builtin_lround lround
+
+__attribute__((import_name("fwrite_")))
 IMPORT
 long
 fwrite_(const void* restrict buff, size_t sz, FILE* restrict fp);

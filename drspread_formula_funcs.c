@@ -9,16 +9,24 @@
 #include "drspread_formula_funcs.h"
 #include "parse_numbers.h"
 #include <stdarg.h>
-#if (defined(_MSC_VER) && !defined(__clang__)) || defined(__IMPORTC__)
+#ifdef __wasm__
+#include <math.h>
+#define __builtin_round round
+#define __builtin_pow pow
+#define __builtin_log log
+#endif
+#if (defined(_MSC_VER) && !defined(__clang__))
 #include <math.h>
 #define __builtin_floor floor
 #define __builtin_ceil ceil
 #define __builtin_trunc trunc
-#define __builtin_round round
 #define __builtin_fabs fabs
 #define __builtin_sqrt sqrt
+#define __builtin_round round
 #define __builtin_pow pow
+#define __builtin_log log
 #endif
+
 
 #ifndef arrlen
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))

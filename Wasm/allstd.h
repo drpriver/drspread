@@ -178,6 +178,7 @@ perror(const char* s){
 
 extern
 void __attribute__((noreturn))
+__attribute__((import_name("abort")))
 abort(void);
 
 static inline
