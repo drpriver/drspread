@@ -3236,6 +3236,7 @@ main(int argc, char** argv){
                         int h = y1-y+1;
                         copy_rows(SHEET, y, h);
                         delete_row_with_undo(SHEET, y, h);
+                        active_view->cell_y -= h-1;
                         recalc();
                         change_mode(MOVE_MODE);
                         redisplay(active_view);
