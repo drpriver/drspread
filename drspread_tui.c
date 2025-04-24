@@ -390,18 +390,18 @@ static
 const char*
 mode_name(int mode){
     switch(mode){
-        case MOVE_MODE:        return "MOVE";
-        case INSERT_MODE:      return "EDIT";
-        case CHANGE_MODE:      return "CHANGE";
-        case CHANGE_SINGLE_MODE: return "CHANGE (single)";
-        case COMMAND_MODE:     return "COMMAND";
-        case QUERY_MODE:       return "QUERY";
-        case SEARCH_MODE:      return "SEARCH";
-        case SELECT_MODE:      return "SELECT";
-        case LINE_SELECT_MODE: return "SELECT LINE";
-        case DRAG_SELECT_MODE: return "SELECT (drag)";
+        case MOVE_MODE:           return "MOVE";
+        case INSERT_MODE:         return "EDIT";
+        case CHANGE_MODE:         return "CHANGE";
+        case CHANGE_SINGLE_MODE:  return "CHANGE (single)";
+        case COMMAND_MODE:        return "COMMAND";
+        case QUERY_MODE:          return "QUERY";
+        case SEARCH_MODE:         return "SEARCH";
+        case SELECT_MODE:         return "SELECT";
+        case LINE_SELECT_MODE:    return "SELECT LINE";
+        case DRAG_SELECT_MODE:    return "SELECT (drag)";
         case SELECT_COMMAND_MODE: return "SELECT (command)";
-        default:               return "????";
+        default:                  return "????";
     }
 }
 
@@ -433,7 +433,7 @@ struct Rows {
 typedef struct Pasteboard Pasteboard;
 struct Pasteboard {
     Rows rows;
-    _Bool line_paste;
+    _Bool line_paste: 1;
 };
 static
 Pasteboard PASTEBOARD;
