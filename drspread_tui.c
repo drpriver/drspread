@@ -1119,7 +1119,7 @@ static
 void
 move(SheetView* view, int dx, int dy){
     view->cell_y += dy;
-    view->cell_x+=dx;
+    view->cell_x += dx;
     if(view->cell_y < 0) view->cell_y = 0;
 
     if(view->cell_x < 0) view->cell_x = 0;
@@ -2915,7 +2915,7 @@ main(int argc, char** argv){
             continue;
         }
         if(MODE == MOVE_MODE || MODE == SELECT_MODE || MODE == LINE_SELECT_MODE || MODE==DRAG_SELECT_MODE){
-            if(c != 'g' && c != 'd' && c != 'y'){
+            if(c != 'g' && c != 'd' && c != 'y' && c != 'z'){
                 prev_c = 0;
             }
         }
@@ -3213,6 +3213,16 @@ main(int argc, char** argv){
                         redisplay(active_view);
                         begin_line_edit_buff("", 0);
                         break;
+                    case 'z':
+                        if(prev_c != 'z')
+                            prev_c = 'z';
+                        else {
+                            active_view->base_y = active_view->cell_y - active_view->cols/2;
+                            if(active_view->base_y < 0)
+                                active_view->base_y = 0;
+                            redisplay(active_view);
+                        }
+                        break;
                     default:
                         break;
                 }
@@ -3236,7 +3246,7 @@ main(int argc, char** argv){
                         int h = y1-y+1;
                         copy_rows(SHEET, y, h);
                         delete_row_with_undo(SHEET, y, h);
-                        active_view->cell_y -= h-1;
+                        move(active_view, 0, 1-h);
                         recalc();
                         change_mode(MOVE_MODE);
                         redisplay(active_view);
