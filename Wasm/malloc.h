@@ -8,7 +8,9 @@ static inline void logit(const char* fmt, ...);
 #endif
 
 extern
-void __attribute__((noreturn))
+void
+__attribute__((noreturn))
+__attribute__((import_name("abort")))
 abort(void);
 
 typedef double max_align_t;

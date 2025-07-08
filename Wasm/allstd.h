@@ -131,7 +131,7 @@ memset(void*_Nonnull s, int c, size_t n){
 
 
 static inline
-int 
+int
 vfprintf(FILE* fp, const char*_Nonnull fmt, va_list vargs);
 
 static inline
@@ -177,7 +177,8 @@ perror(const char* s){
 }
 
 extern
-void __attribute__((noreturn))
+void
+__attribute__((noreturn))
 __attribute__((import_name("abort")))
 abort(void);
 

@@ -14,47 +14,55 @@
 #pragma clang assume_nonnull begin
 #endif
 
-typedef struct DrtLL DrtLL;
+typedef struct Drt Drt;
 
 DRT_API
 int
-drt_paint(DrtLL* ll);
+drt_paint(Drt* drt);
 
 DRT_API
 void
-drt_init(DrtLL* ll);
+drt_init(Drt* drt);
 
 DRT_API
 void
-drt_invalidate(DrtLL* ll);
+drt_invalidate(Drt* drt);
 
 DRT_API
 void
-drt_move(DrtLL* ll, int x, int y);
+drt_move(Drt* drt, int x, int y);
 
 DRT_API
 void
-drt_update_drawable_area(DrtLL* ll, int x, int y, int w, int h);
+drt_cursor(Drt* drt, int* x, int* y);
 
 DRT_API
 void
-drt_update_terminal_size(DrtLL* ll, int w, int h);
+drt_update_drawable_area(Drt* drt, int x, int y, int w, int h);
 
 DRT_API
 void
-drt_push_state(DrtLL* ll);
+drt_update_terminal_size(Drt* drt, int w, int h);
 
 DRT_API
 void
-drt_pop_state(DrtLL* ll);
+drt_push_state(Drt* drt);
 
 DRT_API
 void
-drt_pop_all_states(DrtLL* ll);
+drt_pop_state(Drt* drt);
 
 DRT_API
 void
-drt_clear_state(DrtLL* ll);
+drt_pop_all_states(Drt* drt);
+
+DRT_API
+void
+drt_clear_state(Drt* drt);
+
+DRT_API
+void
+drt_scissor(Drt* drt, int x, int y, int w, int h);
 
 enum DrtStyle {
     DRT_STYLE_NONE = 0x0,
@@ -67,84 +75,84 @@ enum DrtStyle {
 
 DRT_API
 void
-drt_set_style(DrtLL* ll, unsigned style);
+drt_set_style(Drt* drt, unsigned style);
 
 DRT_API
 void
-drt_clear_color(DrtLL* ll);
+drt_clear_color(Drt* drt);
 
 DRT_API
 void
-drt_set_8bit_color(DrtLL* ll, unsigned color);
+drt_set_8bit_color(Drt* drt, unsigned color);
 
 DRT_API
 void
-drt_set_24bit_color(DrtLL* ll, unsigned char r, unsigned char g, unsigned char b);
+drt_set_24bit_color(Drt* drt, unsigned char r, unsigned char g, unsigned char b);
 
 DRT_API
 void
-drt_bg_clear_color(DrtLL* ll);
+drt_bg_clear_color(Drt* drt);
 
 DRT_API
 void
-drt_bg_set_8bit_color(DrtLL* ll, unsigned color);
+drt_bg_set_8bit_color(Drt* drt, unsigned color);
 
 DRT_API
 void
-drt_bg_set_24bit_color(DrtLL* ll, unsigned char r, unsigned char g, unsigned char b);
+drt_bg_set_24bit_color(Drt* drt, unsigned char r, unsigned char g, unsigned char b);
 
 
 DRT_API
 void
-drt_setc(DrtLL* ll, char c);
+drt_setc(Drt* drt, char c);
 
 DRT_API
 void
-drt_setc_at(DrtLL* ll, int x, int y, char c);
+drt_setc_at(Drt* drt, int x, int y, char c);
 
 DRT_API
 void
-drt_putc(DrtLL* ll, char c);
+drt_putc(Drt* drt, char c);
 DRT_API
 void
-drt_putc(DrtLL* ll, char c);
+drt_putc(Drt* drt, char c);
 
 DRT_API
 void
-drt_putc_mb(DrtLL* ll, const char* c, size_t length, size_t rendwith);
+drt_putc_mb(Drt* drt, const char* c, size_t length, size_t rendwith);
 
 DRT_API
 void
-drt_puts(DrtLL* ll, const char* txt, size_t length);
+drt_puts(Drt* drt, const char* txt, size_t length);
 
 DRT_API
 void
-drt_set_cursor_visible(DrtLL* ll, _Bool show);
+drt_set_cursor_visible(Drt* drt, _Bool show);
 
 DRT_API
 void
-drt_clear_screen(DrtLL* ll);
+drt_clear_screen(Drt* drt);
 
 DRT_API
 void
-drt_move_cursor(DrtLL* ll, int x, int y);
+drt_move_cursor(Drt* drt, int x, int y);
 
 DRT_API
 void
 __attribute__((format(printf,2, 3)))
-drt_printf(DrtLL* ll, const char* fmt, ...);
+drt_printf(Drt* drt, const char* fmt, ...);
 
 DRT_API
 void
-drt_clear_to_end_of_row(DrtLL*ll);
+drt_clear_to_end_of_row(Drt*drt);
 
 // DRT_API
 // void
-// drt_putc_mb(DrtLL* ll, const char* txt, size_t length, size_t render_length);
+// drt_putc_mb(Drt* drt, const char* txt, size_t length, size_t render_length);
 
 // DRT_API
 // void
-// drt_setc_mb(DrtLL* ll, const char* txt, size_t length, size_t render_length);
+// drt_setc_mb(Drt* drt, const char* txt, size_t length, size_t render_length);
 
 
 

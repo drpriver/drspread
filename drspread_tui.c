@@ -1,5 +1,5 @@
 //
-// Copyright © 2023-2024, David Priver <david@davidpriver.com>
+// Copyright © 2023-2025, David Priver <david@davidpriver.com>
 //
 #ifdef __linux__
 #define _GNU_SOURCE
@@ -50,7 +50,7 @@ typedef long long ssize_t;
 #include "drp_merge_sort.h"
 #include "measure_time.h"
 
-static DrtLL* drt;
+static Drt* drt;
 
 #ifdef _WIN32
 static inline _Bool memeq(const void* a, const void* b, size_t sz);
@@ -180,6 +180,14 @@ xstrdup2(const char* txt, size_t len){
 }
 
 static inline
+void*
+xmemdup(const void* p, size_t len){
+    void* r = xmalloc(len);
+    memcpy(r, p, len);
+    return r;
+}
+
+static inline
 char*
 __attribute__((format(printf,1, 2)))
 xsprintf(const char* fmt, ...){
@@ -252,6 +260,7 @@ array_ensure(void*  data, size_t* cap, size_t count, size_t T_sz){
 #define append(array) \
     ((array)->data=array_ensure((array)->data, &(array)->capacity, (array)->count, sizeof *(array)->data), \
      &(array)->data[(array)->count++])
+#define push(array, item) *append(array) = item
 
 static const char* LOGFILE = NULL;
 static FILE* LOGFILE_FP = NULL;
@@ -356,7 +365,7 @@ enum {
     DRAG_SELECT_MODE,
 };
 enum {DEFAULT_WIDTH=8};
-enum {DRSP_TUI_MAX_FILL_WIDTH=32};
+enum {DRSP_TUI_MAX_FILL_WIDTH=80};
 enum {DRSP_TUI_MAX_COLUMNS=4000};
 
 static
@@ -515,6 +524,7 @@ enum UndoType {
     UNDO_NESTED,
     UNDO_DELETE_ROWS,
     UNDO_INSERT_ROWS,
+    UNDO_SORT,
 };
 
 typedef enum UndoType UndoType;
@@ -538,9 +548,16 @@ struct Undoable {
         struct {
             int y, n;
         } delete_rows;
+        // UNDO_INSERT_ROWS
         struct {
             int y, n;
         } insert_rows;
+        // UNDO_SORT
+        struct {
+            intptr_t* idxes;
+            size_t count;
+            size_t first_row;
+        } sort;
     };
 };
 
@@ -569,6 +586,9 @@ cleanup_undoable(Undoable* undoable){
         case UNDO_DELETE_ROWS:
             break;
         case UNDO_INSERT_ROWS:
+            break;
+        case UNDO_SORT:
+            free(undoable->sort.idxes);
             break;
     }
 }
@@ -613,7 +633,7 @@ void
 push_undo_event(UndoStack* undos, Undoable ud){
     truncate_undos(undos);
     undos->cursor++;
-    *append(undos) = ud;
+    push(undos, ud);
 }
 
 static
@@ -702,7 +722,7 @@ new_sheet(const char* name, const char* filename){
     memset(result, 0, sizeof *result);
     result->name = xstrdup(name);
     if(filename) result->filename = xstrdup(filename);
-    *append(&SHEETS) = result;
+    push(&SHEETS, result);
     return result;
 }
 
@@ -723,7 +743,7 @@ new_view(Sheet* sheet){
     view->rows = -1;
     view->cols = -1;
     view->needs_redisplay = 1;
-    *append(&VIEWS) = view;
+    push(&VIEWS, view);
     return view;
 }
 
@@ -1604,6 +1624,10 @@ sighandler(int sig){
         needs_rescale = 1;
         return;
     }
+    if(sig == SIGCONT){
+        needs_rescale = 1;
+        return;
+    }
 }
 #endif
 
@@ -1957,96 +1981,108 @@ enum {
 };
 
 static
-void
-sort_sheet(Sheet* sheet, intptr_t col, unsigned flags){
-    LOG("sorting %zd, %s\n", col, flags & SORT_ASCENDING?"ascending":"descending");
+intptr_t*
+calc_sort(Sheet* sheet, intptr_t col, size_t first_row, size_t len, unsigned flags){
     int asc = flags & SORT_ASCENDING?1:-1;
     SheetSortCtx ctx = {.sheet = sheet, .col=col, .asc=asc};
-    intptr_t* idxes = xmalloc(2*sheet->disp.count * sizeof *idxes);
-    for(intptr_t i = 0; i < sheet->disp.count; i++){
-        idxes[i] = i;
+    intptr_t* idxes = xmalloc(2*len * sizeof *idxes);
+    for(intptr_t i = 0; i < len; i++){
+        idxes[i] = first_row + i;
     }
+    drp_merge_sort(idxes+len, idxes, len, sizeof *idxes, &ctx, &sheet_sort_cmp);
+    idxes[len] = first_row;
+    return idxes;
+}
+
+static
+void
+apply_sort(Sheet* sheet, intptr_t* idxes, size_t count, intptr_t first_row, _Bool undo){
     {
-    // uint64_t t0 = get_t();
-    drp_merge_sort(idxes+sheet->disp.count, idxes, sheet->disp.count, sizeof *idxes, &ctx, &sheet_sort_cmp);
-    // mergesort_b(idxes, sheet->disp.count, sizeof *idxes, ^(const void* a, const void* b){ return sheet_sort_cmp((void*)&ctx, a, b); });
-    // uint64_t t1 = get_t();
-    // LOG("%d merge_sort: %lluµs\n", __LINE__, t1-t0);
-    // LOG("%d merge_sort: %.3fs\n", __LINE__, (t1-t0)/1e6);
-    }
-    {
-    // uint64_t t0 = get_t();
-    // Clear out old values
-    for(int y = 0; y < sheet->data.count; y++){
-        const Row* row = &sheet->data.data[y];
-        for(int x = 0; x < row->count; x++){
-            if(row->data[x].atom != NIL_ATOM){
-                drsp_set_cell_atom(CTX, sheet, y, x, NIL_ATOM);
+        // Clear out old values in spreadsheet engine
+        for(size_t i = 0; i < count; i++){
+            intptr_t y = first_row + i;
+            const Row* row = &sheet->data.data[y];
+            for(int x = 0; x < row->count; x++){
+                if(row->data[x].atom != NIL_ATOM){
+                    drsp_set_cell_atom(CTX, sheet, y, x, NIL_ATOM);
+                }
             }
         }
     }
-    // uint64_t t1 = get_t();
-    // LOG("%d clear old values: %lluµs\n", __LINE__, t1-t0);
-    // LOG("%d clear old values: %.3fs\n", __LINE__, (t1-t0)/1e6);
-    }
     if(0){
-        LOG("Sort: \n");
-        for(intptr_t i = 0; i < sheet->data.count; i++){
-            LOG("  %zd -> %zd\n", idxes[i], i);
-        }
-        LOG("Before:\n");
-        for(intptr_t i = 0; i < sheet->data.count; i++){
-            Row r = sheet->data.data[i];
-            DrspAtom a = r.count > col? r.data[col].atom: NIL_ATOM;
-            size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
-            LOG("  %zd] '%.*s'\n", i, (int)len, txt);
+        for(size_t i = 0; i < count; i++){
+            LOG("idxes[%zu] = %zd\n", i, idxes[i]);
         }
     }
-    {
-    // uint64_t t0 = get_t();
-    for(intptr_t i = 0; i < sheet->data.count; i++){
-        intptr_t dst = i;
-        Row clobbered = sheet->data.data[i];
-        for(;;){
-            intptr_t src = idxes[dst];
-            if(dst == src) break;
-            if(src < 0) break;
-            if(0)LOG("%zd) %zd -> %zd\n", i, src, dst);
-            idxes[dst] = -1;
-            Row new = src == i? clobbered: sheet->data.data[src];
-            sheet->data.data[dst] = new;
-            dst = src;
-        }
-    }
-    // uint64_t t1 = get_t();
-    // LOG("%d apply sort: %lluµs\n", __LINE__, t1-t0);
-    // LOG("%d apply sort: %.3fs\n", __LINE__, (t1-t0)/1e6);
-    }
-    if(0){
-        LOG("After:\n");
-        for(intptr_t i = 0; i < sheet->data.count; i++){
-            Row r = sheet->data.data[i];
-            DrspAtom a = r.count > col? r.data[col].atom: NIL_ATOM;
-            size_t len; const char* txt = drsp_atom_get_str(CTX, a, &len);
-            LOG("  %zd] '%.*s'\n", i, (int)len, txt);
-        }
-    }
-    {
-    // uint64_t t0 = get_t();
-    for(int y = 0; y < sheet->data.count; y++){
-        const Row* row = &sheet->data.data[y];
-        for(int x = 0; x < row->count; x++){
-            if(row->data[x].atom != NIL_ATOM){
-                drsp_set_cell_atom(CTX, sheet, y, x, row->data[x].atom);
+    idxes = xmemdup(idxes, sizeof *idxes * count);
+    // Apply sort
+    if(undo){
+        LOG("undoing sort\n");
+        for(intptr_t i = 0; i < count; i++){
+            intptr_t src = i;
+            Row prev = sheet->data.data[src+first_row];
+            for(;;){
+                intptr_t dst = idxes[src]-first_row;
+                if(dst == src) break;
+                if(dst < 0) break;
+                if(0)LOG("%zd) %zd -> %zd\n", i, src, dst);
+                idxes[src] = -1;
+                Row tmp = sheet->data.data[dst+first_row];
+                sheet->data.data[dst+first_row] = prev;
+                prev = tmp;
+                src = dst;
             }
         }
     }
-    // uint64_t t1 = get_t();
-    // LOG("%d update cells: %lluµs\n", __LINE__, t1-t0);
-    // LOG("%d update cells: %.3fs\n", __LINE__, (t1-t0)/1e6);
+    else {
+        LOG("applying sort\n");
+        for(intptr_t i = 0; i < count; i++){
+            intptr_t dst = i;
+            Row clobbered = sheet->data.data[dst+first_row];
+            for(;;){
+                intptr_t src = idxes[dst]-first_row;
+                if(dst == src) break;
+                if(src < 0) break;
+                if(0)LOG("%zd) %zd -> %zd\n", i, src, dst);
+                idxes[dst] = -1;
+                Row new = src == i? clobbered: sheet->data.data[src+first_row];
+                sheet->data.data[dst+first_row] = new;
+                dst = src;
+            }
+        }
+    }
+    {
+        // Set new values in spreadsheet engine
+        for(size_t i = 0; i < count; i++){
+            intptr_t y = first_row + i;
+            const Row* row = &sheet->data.data[y];
+            for(int x = 0; x < row->count; x++){
+                if(row->data[x].atom != NIL_ATOM){
+                    drsp_set_cell_atom(CTX, sheet, y, x, row->data[x].atom);
+                }
+            }
+        }
     }
     free(idxes);
     recalc();
+}
+
+
+
+static
+void
+sort_sheet(Sheet* sheet, intptr_t col, unsigned flags){
+    size_t count = sheet->disp.count;
+    intptr_t* idxes = calc_sort(sheet, col, 0, count, flags);
+    apply_sort(sheet, idxes, count, 0, 0);
+    push_undo_event(&sheet->undo_stack, (Undoable){
+        .kind  = UNDO_SORT,
+        .sort = {
+            .idxes = idxes,
+            .count = count,
+            .first_row = 0,
+        },
+    });
 }
 
 static
@@ -2298,6 +2334,9 @@ apply_undo(Sheet* sheet, Undoable* u){
         case UNDO_INSERT_ROWS:
             delete_row(sheet, u->insert_rows.y, u->insert_rows.n);
             break;
+        case UNDO_SORT:
+            apply_sort(sheet, u->sort.idxes, u->sort.count, u->sort.first_row, 1);
+            break;
     }
 
 }
@@ -2323,6 +2362,9 @@ apply_redo(Sheet* sheet, Undoable* u){
             break;
         case UNDO_INSERT_ROWS:
             insert_row(sheet, u->insert_rows.y, u->insert_rows.n);
+            break;
+        case UNDO_SORT:
+            apply_sort(sheet, u->sort.idxes, u->sort.count, u->sort.first_row, 0);
             break;
     }
 }
@@ -2769,7 +2811,7 @@ main(int argc, char** argv){
     #ifdef _WIN32
     STDIN = GetStdHandle(STD_INPUT_HANDLE);
     STDOUT = GetStdHandle(STD_OUTPUT_HANDLE);
-#endif
+    #endif
     char* files[64] = {0};
     _Bool first_row_is_not_names = 0;
     drsp_parse_args(argc, argv, &files, &first_row_is_not_names);
@@ -2783,6 +2825,7 @@ main(int argc, char** argv){
     sa.sa_handler = sighandler;
     sa.sa_flags = 0;
     sigaction(SIGWINCH, &sa, NULL);
+    sigaction(SIGCONT, &sa, NULL);
     // signal(SIGWINCH, sighandler);
     #endif
 
@@ -3137,12 +3180,14 @@ main(int argc, char** argv){
                         hide_columns(active_view->sheet, active_view->cell_x, 1);
                         move(active_view, 1, 0);
                         break;
+                    #if 0
                     case 's':
                         sort_sheet(active_view->sheet, active_view->cell_x, SORT_ASCENDING);
                         break;
                     case 'S':
                         sort_sheet(active_view->sheet, active_view->cell_x, SORT_DESCENDING);
                         break;
+                    #endif
                     case 'h':
                     case LEFT:
                     case CTRL_B:
@@ -3217,7 +3262,7 @@ main(int argc, char** argv){
                         if(prev_c != 'z')
                             prev_c = 'z';
                         else {
-                            active_view->base_y = active_view->cell_y - active_view->cols/2;
+                            active_view->base_y = active_view->cell_y - active_view->rows/2;
                             if(active_view->base_y < 0)
                                 active_view->base_y = 0;
                             redisplay(active_view);
@@ -3522,6 +3567,12 @@ main(int argc, char** argv){
                                 redisplay(active_view);
                                 continue;
                             }
+                            if(streq(EDIT.buff, "rsort")){
+                                change_mode(MOVE_MODE);
+                                sort_sheet(active_view->sheet, active_view->cell_x, SORT_DESCENDING);
+                                redisplay(active_view);
+                                continue;
+                            }
                             if(memeq(EDIT.buff, "sort ", 5)){
                                 // TODO
                                 change_mode(MOVE_MODE);
@@ -3632,6 +3683,12 @@ main(int argc, char** argv){
                                 redisplay(active_view);
                                 continue;
                             }
+                            if(streq(EDIT.buff, "rsort")){
+                                change_mode(MOVE_MODE);
+                                sort_sheet(active_view->sheet, active_view->cell_x, SORT_DESCENDING);
+                                redisplay(active_view);
+                                continue;
+                            }
                             if(memeq(EDIT.buff, "sort ", 5)){
                                 // TODO
                                 change_mode(MOVE_MODE);
@@ -3674,5 +3731,5 @@ main(int argc, char** argv){
 #define DRSP_INTRINS 1
 #include "drspread.c"
 #include "drt.c"
-static DrtLL _drt;
-static DrtLL* drt = &_drt;
+static Drt _drt;
+static Drt* drt = &_drt;
