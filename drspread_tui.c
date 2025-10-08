@@ -59,10 +59,10 @@ static inline
 void*
 memmem(const void* haystack, size_t hsz, const void* needle, size_t nsz){
     if(nsz > hsz) return NULL;
-    char* hay = (char*)haystack;
+    const char* hay = (const char*)haystack;
     for(size_t i = 0; i <= hsz-nsz; i++){
         if(memeq(hay+i, needle, nsz))
-            return hay+i;
+            return (char *)hay+i;
     }
     return NULL;
 }
@@ -2846,6 +2846,7 @@ main(int argc, char** argv){
             char* filename = *f;
             char* name;
             _Bool is_drsp = 0;
+            const char* sep = "\t|";
             {
                 char* slash = strrchr(filename, '/');
                 #ifdef _WIN32
@@ -2862,6 +2863,8 @@ main(int argc, char** argv){
                     name = xstrdup(name);
                 if(dot && streq(dot, ".drsp"))
                     is_drsp = 1;
+                if(dot && streq(dot, ".csv"))
+                    sep = ",";
             }
             if(find_sheet(name)){
                 free(name);
@@ -2883,10 +2886,10 @@ main(int argc, char** argv){
                         is_drsp = 0;
                         continue;
                     }
-                    token = strsep(&line, "\t|");
+                    token = strsep(&line, sep);
                     if(!token) continue;
                     if(streq(token, "names")){
-                        for(;(token = strsep(&line, "\t|"));x++){
+                        for(;(token = strsep(&line, sep));x++){
                             if(*token) rename_column(SHEET, x, token);
                         }
                         continue;
@@ -2898,12 +2901,12 @@ main(int argc, char** argv){
                 else if(y == 0 && first_row_as_names){
                     y = -1;
                     first_row_as_names = 0;
-                    for(;(token = strsep(&line, "\t|"));x++){
+                    for(;(token = strsep(&line, sep));x++){
                         if(*token) rename_column(SHEET, x, token);
                     }
                     continue;
                 }
-                for(;(token = strsep(&line, "\t|"));x++){
+                for(;(token = strsep(&line, sep));x++){
                     not_drsp:;
                     update_cell_no_eval_a(SHEET, y, x, xatomize(token, strlen(token)));
                 }
