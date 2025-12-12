@@ -277,12 +277,14 @@ struct ComputedArray {
 };
 
 typedef double (*UnaryDoubleOp)(double);
+typedef double (*BinaryDoubleOp)(double, double);
 
 typedef enum {
     LAZY_RANGE_COL,
     LAZY_RANGE_ROW,
     LAZY_UNARY,
     LAZY_BINARY,
+    LAZY_BINARY_FUNC,
 } LazyArrayKind;
 
 typedef struct LazyArray LazyArray;
@@ -310,6 +312,11 @@ struct LazyArray {
             Expression* lhs;
             Expression* rhs;
         } binary;
+        struct {
+            BinaryDoubleOp op;
+            Expression* lhs;
+            Expression* rhs;
+        } binary_func;
     };
 };
 

@@ -40,6 +40,10 @@ static double drsp_round_op(double x) { return __builtin_round(x); }
 static double drsp_fabs_op(double x) { return __builtin_fabs(x); }
 static double drsp_sqrt_op(double x) { return __builtin_sqrt(x); }
 
+// Binary wrapper functions for lazy evaluation
+static double drsp_fmin_op(double x, double y) { return x < y ? x : y; }
+static double drsp_fmax_op(double x, double y) { return x > y ? x : y; }
+
 #if defined(TESTING_H) && !defined(DRSP_INTRINS)
 #define DRSP_INTRINS 1
 #endif
@@ -280,6 +284,45 @@ FORMULAFUNC(drsp_count){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_min){
     if(!argc) return Error(ctx, "min() requires more than 0 arguments");
+    // Element-wise min of two arrays
+    if(argc == 2){
+        Expression* lhs = argv[0];
+        Expression* rhs = argv[1];
+        _Bool lhs_array = expr_is_arraylike(lhs);
+        _Bool rhs_array = expr_is_arraylike(rhs);
+        if(lhs_array || rhs_array){
+            // Convert ranges to lazy arrays
+            if(lhs_array){
+                lhs = range_to_lazy(ctx, sd, lhs, caller_row, caller_col);
+                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
+            } else {
+                lhs = evaluate_expr(ctx, sd, lhs, caller_row, caller_col);
+                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
+            }
+            if(rhs_array){
+                rhs = range_to_lazy(ctx, sd, rhs, caller_row, caller_col);
+                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
+            } else {
+                rhs = evaluate_expr(ctx, sd, rhs, caller_row, caller_col);
+                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
+            }
+            intptr_t len;
+            if(lhs_array && rhs_array){
+                intptr_t llen = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
+                intptr_t rlen = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
+                if(llen != rlen)
+                    return Error(ctx, "min() array arguments must be same length");
+                len = llen;
+            } else if(lhs_array){
+                len = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
+            } else {
+                len = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
+            }
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_binary_func(ctx, drsp_fmin_op, lhs, rhs, len);
+            return la ? &la->e : NULL;
+        }
+    }
     if(argc > 1){
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = 1e32;
@@ -357,6 +400,45 @@ FORMULAFUNC(drsp_min){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_max){
     if(!argc) return Error(ctx, "max() requires more than 0 arguments");
+    // Element-wise max of two arrays
+    if(argc == 2){
+        Expression* lhs = argv[0];
+        Expression* rhs = argv[1];
+        _Bool lhs_array = expr_is_arraylike(lhs);
+        _Bool rhs_array = expr_is_arraylike(rhs);
+        if(lhs_array || rhs_array){
+            // Convert ranges to lazy arrays
+            if(lhs_array){
+                lhs = range_to_lazy(ctx, sd, lhs, caller_row, caller_col);
+                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
+            } else {
+                lhs = evaluate_expr(ctx, sd, lhs, caller_row, caller_col);
+                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
+            }
+            if(rhs_array){
+                rhs = range_to_lazy(ctx, sd, rhs, caller_row, caller_col);
+                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
+            } else {
+                rhs = evaluate_expr(ctx, sd, rhs, caller_row, caller_col);
+                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
+            }
+            intptr_t len;
+            if(lhs_array && rhs_array){
+                intptr_t llen = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
+                intptr_t rlen = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
+                if(llen != rlen)
+                    return Error(ctx, "max() array arguments must be same length");
+                len = llen;
+            } else if(lhs_array){
+                len = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
+            } else {
+                len = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
+            }
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_binary_func(ctx, drsp_fmax_op, lhs, rhs, len);
+            return la ? &la->e : NULL;
+        }
+    }
     if(argc > 1){
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = -1e32;

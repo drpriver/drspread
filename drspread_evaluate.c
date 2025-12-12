@@ -649,6 +649,37 @@ arraylike_get(DrSpreadCtx* ctx, SheetData* sd, Expression* arr, intptr_t index, 
                     }
                     return Error(ctx, "type mismatch in binary op");
                 }
+                case LAZY_BINARY_FUNC: {
+                    Expression* lhs = la->binary_func.lhs;
+                    Expression* rhs = la->binary_func.rhs;
+                    // Get lhs value - either from arraylike at index, or use scalar directly
+                    Expression* lval;
+                    if(expr_is_arraylike(lhs)){
+                        lval = arraylike_get(ctx, sd, lhs, index, caller_row, caller_col);
+                        if(!lval || lval->kind == EXPR_ERROR) return lval;
+                    } else {
+                        lval = lhs;
+                    }
+                    // Get rhs value
+                    Expression* rval;
+                    if(expr_is_arraylike(rhs)){
+                        rval = arraylike_get(ctx, sd, rhs, index, caller_row, caller_col);
+                        if(!rval || rval->kind == EXPR_ERROR) return rval;
+                    } else {
+                        rval = rhs;
+                    }
+                    // Handle blanks - propagate
+                    if(lval->kind == EXPR_BLANK || rval->kind == EXPR_BLANK){
+                        return &ctx->null;
+                    }
+                    // Apply binary func op
+                    if(lval->kind != EXPR_NUMBER || rval->kind != EXPR_NUMBER)
+                        return Error(ctx, "binary func requires numbers");
+                    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+                    if(!n) return NULL;
+                    n->value = la->binary_func.op(((Number*)lval)->value, ((Number*)rval)->value);
+                    return &n->e;
+                }
             }
             __builtin_unreachable();
         }

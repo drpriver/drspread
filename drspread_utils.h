@@ -241,6 +241,19 @@ lazy_binary(DrSpreadCtx* ctx, BinaryKind op, Expression* lhs, Expression* rhs, i
     return la;
 }
 
+static inline
+LazyArray*_Nullable
+lazy_binary_func(DrSpreadCtx* ctx, BinaryDoubleOp op, Expression* lhs, Expression* rhs, intptr_t length){
+    LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
+    if(!la) return NULL;
+    la->length = length;
+    la->kind = LAZY_BINARY_FUNC;
+    la->binary_func.op = op;
+    la->binary_func.lhs = lhs;
+    la->binary_func.rhs = rhs;
+    return la;
+}
+
 // Convert a range expression to a lazy array
 static inline
 Expression*_Nullable
