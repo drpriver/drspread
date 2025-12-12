@@ -323,6 +323,7 @@ struct LazyArray {
             FormulaFunc* func;
             SheetData* sd;
             int argc;
+            int broadcast_argc; // how many args to broadcast over (0 = all)
             Expression*_Nonnull*_Nonnull argv; // mix of arraylike and scalar (pre-evaluated)
         } func_call;
     };
@@ -876,7 +877,8 @@ typedef struct FuncInfo FuncInfo;
 struct FuncInfo {
     StringView name;
     FormulaFunc* func;
-    int broadcastable; // 0=never, 1=any argc, 2=argc>=2 (for min/max)
+    int broadcastable;      // 0=never, 1=any argc, 2=argc>=2 (for min/max)
+    int broadcast_arg_count; // how many args to consider for broadcasting (0 = all)
 };
 
 DRSP_INTERNAL

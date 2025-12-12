@@ -451,9 +451,12 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             // This allows min/max to reduce with 1 arg but broadcast with 2+ args
             if(fi->broadcastable && fc->argc >= fi->broadcastable){
                 // Pre-evaluate args that aren't range expressions to check for arrays
+                // Only check first N args where N = broadcast_arg_count (0 = all)
                 Expression** eval_argv = NULL;
                 intptr_t broadcast_len = -1;
-                for(int i = 0; i < fc->argc; i++){
+                int bc_limit = fi->broadcast_arg_count > 0 ? fi->broadcast_arg_count : fc->argc;
+                if(bc_limit > fc->argc) bc_limit = fc->argc;
+                for(int i = 0; i < bc_limit; i++){
                     Expression* arg = fc->argv[i];
                     // Range expressions are known arraylike without evaluation
                     if(expr_is_arraylike(arg)){
@@ -488,7 +491,7 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
                 if(broadcast_len >= 0){
                     // At least one arraylike arg - create lazy func call
                     Expression** argv_to_use = eval_argv ? eval_argv : fc->argv;
-                    LazyArray* la = lazy_func_call(ctx, fi->func, sd, fc->argc, argv_to_use, broadcast_len, caller_row, caller_col);
+                    LazyArray* la = lazy_func_call(ctx, fi->func, sd, fc->argc, fi->broadcast_arg_count, argv_to_use, broadcast_len, caller_row, caller_col);
                     return la ? &la->e : NULL;
                 }
             }
@@ -730,16 +733,19 @@ arraylike_get(DrSpreadCtx* ctx, SheetData* sd, Expression* arr, intptr_t index, 
                 case LAZY_FUNC_CALL: {
                     // Build argv for this index
                     int argc = la->func_call.argc;
+                    int bc_argc = la->func_call.broadcast_argc;
+                    int bc_limit = (bc_argc > 0) ? bc_argc : argc;
                     Expression** indexed_argv = buff_alloc(ctx->a, argc * sizeof *indexed_argv);
                     if(!indexed_argv) return NULL;
                     for(int i = 0; i < argc; i++){
                         Expression* arg = la->func_call.argv[i];
-                        if(expr_is_arraylike(arg)){
+                        // Only index into broadcast args (first bc_limit args)
+                        if(i < bc_limit && expr_is_arraylike(arg)){
                             indexed_argv[i] = arraylike_get(ctx, la->func_call.sd, arg, index, caller_row, caller_col);
                             if(!indexed_argv[i] || indexed_argv[i]->kind == EXPR_ERROR)
                                 return indexed_argv[i];
                         } else {
-                            // Scalar - use directly
+                            // Scalar or non-broadcast arg - use directly
                             indexed_argv[i] = arg;
                         }
                     }

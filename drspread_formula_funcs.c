@@ -1398,6 +1398,7 @@ FORMULAFUNC(drsp_tablelookup){
             if(argc == 4){
                 return evaluate_expr(ctx, sd, argv[3], caller_row, caller_col);
             }
+            // Fall through to error check if no default provided
         }
         if(nkind != EXPR_NUMBER && nkind != EXPR_STRING) return Error(ctx, "argument 1 to tlu() must be a number or string");
         if(nkind == EXPR_NUMBER)
@@ -2073,66 +2074,66 @@ FORMULAFUNC(drsp_time){
 #ifdef DRSP_INTRINS
 DRSP_INTERNAL
 const FuncInfo FUNC1[] = {
-    {SVI("a"),    &drsp_array},
-    {SVI("f"),    &drsp_first},
-    {SVI("r"),    &drsp_repr},
+    {SVI("a"),    &drsp_array,       0, 0},
+    {SVI("f"),    &drsp_first,       0, 0},
+    {SVI("r"),    &drsp_repr,        0, 0},
 #if defined(DRSPREAD_CLI_C)
 #ifdef __APPLE__
-    {SVI("t"),    &drsp_time},
+    {SVI("t"),    &drsp_time,        0, 0},
 #endif
 #endif
 };
 #endif
 DRSP_INTERNAL
 const FuncInfo FUNC2[] = {
-    {SVI("if"),    &drsp_if,          0},
-    {SVI("lu"),    &drsp_tablelookup, 0},
-    {SVI("ln"),    &drsp_log,         1}, // broadcastable
+    {SVI("if"),    &drsp_if,          0, 0},
+    {SVI("lu"),    &drsp_tablelookup, 0, 0}, // has special array semantics
+    {SVI("ln"),    &drsp_log,         1, 0}, // broadcastable
 };
 DRSP_INTERNAL
 const FuncInfo FUNC3[] = {
-    {SVI("sum"),   &drsp_sum,         0},
-    {SVI("tlu"),   &drsp_tablelookup, 0},
-    {SVI("mod"),   &drsp_mod,         1}, // broadcastable
-    {SVI("avg"),   &drsp_avg,         0},
-    {SVI("min"),   &drsp_min,         2}, // broadcast with 2+ args, reduce with 1 arg
-    {SVI("max"),   &drsp_max,         2}, // broadcast with 2+ args, reduce with 1 arg
-    {SVI("abs"),   &drsp_abs,         1}, // broadcastable
-    {SVI("num"),   &drsp_num,         0},
-    {SVI("try"),   &drsp_try,         0},
-    {SVI("pow"),   &drsp_pow,         1}, // broadcastable
-    {SVI("col"),   &drsp_col,         0},
-    {SVI("cat"),   &drsp_cat,         0},
-    {SVI("row"),   &drsp_row,         0},
-    {SVI("log"),   &drsp_log,         1}, // broadcastable
+    {SVI("sum"),   &drsp_sum,         0, 0},
+    {SVI("tlu"),   &drsp_tablelookup, 0, 0}, // has special array semantics
+    {SVI("mod"),   &drsp_mod,         1, 0}, // broadcastable
+    {SVI("avg"),   &drsp_avg,         0, 0},
+    {SVI("min"),   &drsp_min,         2, 0}, // broadcast with 2+ args, reduce with 1 arg
+    {SVI("max"),   &drsp_max,         2, 0}, // broadcast with 2+ args, reduce with 1 arg
+    {SVI("abs"),   &drsp_abs,         1, 0}, // broadcastable
+    {SVI("num"),   &drsp_num,         0, 0},
+    {SVI("try"),   &drsp_try,         0, 0},
+    {SVI("pow"),   &drsp_pow,         1, 0}, // broadcastable
+    {SVI("col"),   &drsp_col,         0, 0},
+    {SVI("cat"),   &drsp_cat,         0, 0},
+    {SVI("row"),   &drsp_row,         0, 0},
+    {SVI("log"),   &drsp_log,         1, 0}, // broadcastable
 };
 DRSP_INTERNAL
 const FuncInfo FUNC4[] = {
-    {SVI("ceil"),  &drsp_ceil,        1}, // broadcastable
-    {SVI("find"),  &drsp_find,        0},
-    {SVI("cell"),  &drsp_cell,        0},
-    {SVI("eval"),  &drsp_eval,        0},
-    {SVI("call"),  &drsp_call,        0},
-    {SVI("sqrt"),  &drsp_sqrt,        1}, // broadcastable
-    {SVI("mean"),  &drsp_avg,         0},
+    {SVI("ceil"),  &drsp_ceil,        1, 0}, // broadcastable
+    {SVI("find"),  &drsp_find,        0, 0},
+    {SVI("cell"),  &drsp_cell,        0, 0},
+    {SVI("eval"),  &drsp_eval,        0, 0},
+    {SVI("call"),  &drsp_call,        0, 0},
+    {SVI("sqrt"),  &drsp_sqrt,        1, 0}, // broadcastable
+    {SVI("mean"),  &drsp_avg,         0, 0},
 #ifdef DRSPREAD_CLI_C
 #ifdef __APPLE__
-    {SVI("time"),  &drsp_time,        0},
+    {SVI("time"),  &drsp_time,        0, 0},
 #endif
 #endif
-    {SVI("prod"),  &drsp_prod,        0},
+    {SVI("prod"),  &drsp_prod,        0, 0},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC5[] = {
-    {SVI("count"), &drsp_count,       0},
-    {SVI("floor"), &drsp_floor,       1}, // broadcastable
-    {SVI("trunc"), &drsp_trunc,       1}, // broadcastable
-    {SVI("round"), &drsp_round,       1}, // broadcastable
-    {SVI("array"), &drsp_array,       0},
+    {SVI("count"), &drsp_count,       0, 0},
+    {SVI("floor"), &drsp_floor,       1, 0}, // broadcastable
+    {SVI("trunc"), &drsp_trunc,       1, 0}, // broadcastable
+    {SVI("round"), &drsp_round,       1, 0}, // broadcastable
+    {SVI("array"), &drsp_array,       0, 0},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC6[] = {
-    {SVI("column"), &drsp_col,        0},
+    {SVI("column"), &drsp_col,        0, 0},
 };
 
 

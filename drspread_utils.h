@@ -293,9 +293,10 @@ range_to_lazy(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr_t caller_ro
 
 // Create lazy array for auto-broadcasted function call
 // Pre-evaluates non-arraylike args, converts ranges to lazy for arraylike args
+// broadcast_argc: how many args from the start are part of broadcast (0 = all)
 static inline
 LazyArray*_Nullable
-lazy_func_call(DrSpreadCtx* ctx, FormulaFunc* func, SheetData* sd, int argc, Expression*_Nonnull*_Nonnull argv, intptr_t length, intptr_t caller_row, intptr_t caller_col){
+lazy_func_call(DrSpreadCtx* ctx, FormulaFunc* func, SheetData* sd, int argc, int broadcast_argc, Expression*_Nonnull*_Nonnull argv, intptr_t length, intptr_t caller_row, intptr_t caller_col){
     LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
     if(!la) return NULL;
     la->length = length;
@@ -303,16 +304,18 @@ lazy_func_call(DrSpreadCtx* ctx, FormulaFunc* func, SheetData* sd, int argc, Exp
     la->func_call.func = func;
     la->func_call.sd = sd;
     la->func_call.argc = argc;
+    la->func_call.broadcast_argc = broadcast_argc;
     // Allocate new argv array
     Expression** new_argv = buff_alloc(ctx->a, argc * sizeof *new_argv);
     if(!new_argv) return NULL;
+    int bc_limit = (broadcast_argc > 0) ? broadcast_argc : argc;
     for(int i = 0; i < argc; i++){
-        if(expr_is_arraylike(argv[i])){
-            // Convert ranges to lazy arrays
+        if(i < bc_limit && expr_is_arraylike(argv[i])){
+            // Convert ranges to lazy arrays (only for broadcast args)
             new_argv[i] = range_to_lazy(ctx, sd, argv[i], caller_row, caller_col);
             if(!new_argv[i] || new_argv[i]->kind == EXPR_ERROR) return NULL;
         } else {
-            // Pre-evaluate scalar args
+            // Pre-evaluate scalar args and non-broadcast args
             new_argv[i] = evaluate_expr(ctx, sd, argv[i], caller_row, caller_col);
             if(!new_argv[i] || new_argv[i]->kind == EXPR_ERROR) return NULL;
         }
