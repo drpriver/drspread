@@ -539,11 +539,14 @@
         max(num, num)
         max(num, num, num)
         max(num, num, num, num)
+        max(range, range)
       Returns the largest number from range.
 
       Returns 0 for empty ranges (or ranges with no numbers).
 
       Alternatively, returns the largest from among nums.
+
+      If given multiple ranges/arrays, returns an array of element-wise maximums.
 
       Arguments::dl
         range::def
@@ -556,14 +559,17 @@
     min::def
       ::pre
         min(range)
-        max(num, num)
-        max(num, num, num)
-        max(num, num, num, num)
+        min(num, num)
+        min(num, num, num)
+        min(num, num, num, num)
+        min(range, range)
       Returns the smallest number from range.
 
       Returns 0 for empty ranges (or ranges with no numbers).
 
       Alternatively, returns the smallest from among nums.
+
+      If given multiple ranges/arrays, returns an array of element-wise minimums.
 
       Arguments::dl
         range::def
@@ -677,6 +683,8 @@
       ::pre
         trunc(number)
       Removes the part of the number after the decimal point.
+
+      This can also be applied to a range.
       Arguments::dl
         number::def
           The number.
