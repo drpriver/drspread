@@ -151,11 +151,133 @@ expr_is_arraylike(Expression* e){
         case EXPR_COMPUTED_ARRAY:
         case EXPR_RANGE1D_ROW:
         case EXPR_RANGE1D_ROW_FOREIGN:
+        case EXPR_LAZY_ARRAY:
             return 1;
         default:
             return 0;
     }
 }
+
+// Get the length of an arraylike expression.
+// Returns -1 on error.
+static inline
+intptr_t
+arraylike_length(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr_t caller_row, intptr_t caller_col){
+    switch(e->kind){
+        case EXPR_COMPUTED_ARRAY:
+            return ((ComputedArray*)e)->length;
+        case EXPR_LAZY_ARRAY:
+            return ((LazyArray*)e)->length;
+        case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN: {
+            intptr_t col, start, end;
+            SheetData* rsd = sd;
+            if(get_range1dcol(ctx, sd, e, &col, &start, &end, &rsd, caller_row, caller_col))
+                return -1;
+            return end - start + 1;
+        }
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN: {
+            intptr_t row, start, end;
+            SheetData* rsd = sd;
+            if(get_range1drow(ctx, sd, e, &row, &start, &end, &rsd, caller_row, caller_col))
+                return -1;
+            return end - start + 1;
+        }
+        default:
+            return -1;
+    }
+}
+
+// Lazy array constructors
+static inline
+LazyArray*_Nullable
+lazy_from_range_col(DrSpreadCtx* ctx, SheetData* range_sd, intptr_t col, intptr_t start, intptr_t length){
+    LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
+    if(!la) return NULL;
+    la->length = length;
+    la->kind = LAZY_RANGE_COL;
+    la->range_col.sd = range_sd;
+    la->range_col.col = col;
+    la->range_col.start = start;
+    return la;
+}
+
+static inline
+LazyArray*_Nullable
+lazy_from_range_row(DrSpreadCtx* ctx, SheetData* range_sd, intptr_t row, intptr_t start, intptr_t length){
+    LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
+    if(!la) return NULL;
+    la->length = length;
+    la->kind = LAZY_RANGE_ROW;
+    la->range_row.sd = range_sd;
+    la->range_row.row = row;
+    la->range_row.start = start;
+    return la;
+}
+
+static inline
+LazyArray*_Nullable
+lazy_unary(DrSpreadCtx* ctx, UnaryDoubleOp op, Expression* source, intptr_t length){
+    LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
+    if(!la) return NULL;
+    la->length = length;
+    la->kind = LAZY_UNARY;
+    la->unary.op = op;
+    la->unary.source = source;
+    return la;
+}
+
+static inline
+LazyArray*_Nullable
+lazy_binary(DrSpreadCtx* ctx, BinaryKind op, Expression* lhs, Expression* rhs, intptr_t length){
+    LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
+    if(!la) return NULL;
+    la->length = length;
+    la->kind = LAZY_BINARY;
+    la->binary.op = op;
+    la->binary.lhs = lhs;
+    la->binary.rhs = rhs;
+    return la;
+}
+
+// Convert a range expression to a lazy array
+static inline
+Expression*_Nullable
+range_to_lazy(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr_t caller_row, intptr_t caller_col){
+    if(e->kind == EXPR_LAZY_ARRAY || e->kind == EXPR_COMPUTED_ARRAY)
+        return e;
+    if(e->kind == EXPR_RANGE1D_COLUMN || e->kind == EXPR_RANGE1D_COLUMN_FOREIGN){
+        intptr_t col, start, end;
+        SheetData* rsd = sd;
+        if(get_range1dcol(ctx, sd, e, &col, &start, &end, &rsd, caller_row, caller_col))
+            return Error(ctx, "Invalid range");
+        intptr_t len = end - start + 1;
+        if(len <= 0) return Error(ctx, "Empty range");
+        if(rsd != sd){
+            int err = sheet_add_dependant(ctx, rsd, sd->handle);
+            if(err) return Error(ctx, "oom");
+        }
+        LazyArray* la = lazy_from_range_col(ctx, rsd, col, start, len);
+        return la ? &la->e : NULL;
+    }
+    if(e->kind == EXPR_RANGE1D_ROW || e->kind == EXPR_RANGE1D_ROW_FOREIGN){
+        intptr_t row, start, end;
+        SheetData* rsd = sd;
+        if(get_range1drow(ctx, sd, e, &row, &start, &end, &rsd, caller_row, caller_col))
+            return Error(ctx, "Invalid range");
+        intptr_t len = end - start + 1;
+        if(len <= 0) return Error(ctx, "Empty range");
+        if(rsd != sd){
+            int err = sheet_add_dependant(ctx, rsd, sd->handle);
+            if(err) return Error(ctx, "oom");
+        }
+        LazyArray* la = lazy_from_range_row(ctx, rsd, row, start, len);
+        return la ? &la->e : NULL;
+    }
+    return Error(ctx, "Not a range");
+}
+
 // GCOV_EXCL_STOP
 
 static inline
@@ -163,6 +285,20 @@ Expression*_Nullable
 convert_to_computed_array(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr_t caller_row, intptr_t caller_col){
     if(e->kind == EXPR_COMPUTED_ARRAY)
         return e;
+    if(e->kind == EXPR_LAZY_ARRAY){
+        // Materialize the lazy array
+        LazyArray* la = (LazyArray*)e;
+        intptr_t len = la->length;
+        if(len <= 0) return Error(ctx, "");
+        ComputedArray* cc = computed_array_alloc(ctx, len);
+        if(!cc) return NULL;
+        for(intptr_t i = 0; i < len; i++){
+            Expression* val = arraylike_get(ctx, sd, e, i, caller_row, caller_col);
+            if(!val || val->kind == EXPR_ERROR) return val;
+            cc->data[i] = val;
+        }
+        return &cc->e;
+    }
     if(e->kind == EXPR_RANGE1D_ROW || e->kind == EXPR_RANGE1D_ROW_FOREIGN){
         SheetData* rsd = sd;
         intptr_t row, colstart, colend;

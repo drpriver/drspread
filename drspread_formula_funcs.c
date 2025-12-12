@@ -32,6 +32,14 @@
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
 #endif
 
+// Wrapper functions for builtins (needed because we take their addresses for lazy evaluation)
+static double drsp_floor_op(double x) { return __builtin_floor(x); }
+static double drsp_ceil_op(double x) { return __builtin_ceil(x); }
+static double drsp_trunc_op(double x) { return __builtin_trunc(x); }
+static double drsp_round_op(double x) { return __builtin_round(x); }
+static double drsp_fabs_op(double x) { return __builtin_fabs(x); }
+static double drsp_sqrt_op(double x) { return __builtin_sqrt(x); }
+
 #if defined(TESTING_H) && !defined(DRSP_INTRINS)
 #define DRSP_INTRINS 1
 #endif
@@ -464,8 +472,16 @@ FORMULAFUNC(drsp_floor){
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
-        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        // Use lazy evaluation only for unevaluated ranges, not for already-computed arrays
+        if(arg->kind != EXPR_COMPUTED_ARRAY){
+            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_unary(ctx, drsp_floor_op, arg, len);
+            return la ? &la->e : NULL;
+        }
+        // Eager evaluation for ComputedArray
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
@@ -496,8 +512,14 @@ FORMULAFUNC(drsp_ceil){
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
-        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_COMPUTED_ARRAY){
+            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_unary(ctx, drsp_ceil_op, arg, len);
+            return la ? &la->e : NULL;
+        }
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
@@ -528,8 +550,14 @@ FORMULAFUNC(drsp_trunc){
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
-        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_COMPUTED_ARRAY){
+            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_unary(ctx, drsp_trunc_op, arg, len);
+            return la ? &la->e : NULL;
+        }
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
@@ -560,8 +588,14 @@ FORMULAFUNC(drsp_round){
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
-        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_COMPUTED_ARRAY){
+            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_unary(ctx, drsp_round_op, arg, len);
+            return la ? &la->e : NULL;
+        }
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
@@ -592,8 +626,14 @@ FORMULAFUNC(drsp_abs){
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
-        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_COMPUTED_ARRAY){
+            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_unary(ctx, drsp_fabs_op, arg, len);
+            return la ? &la->e : NULL;
+        }
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
@@ -624,8 +664,14 @@ FORMULAFUNC(drsp_sqrt){
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(expr_is_arraylike(arg)){
-        arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-        if(!arg || arg->kind == EXPR_ERROR) return arg;
+        if(arg->kind != EXPR_COMPUTED_ARRAY){
+            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
+            if(!arg || arg->kind == EXPR_ERROR) return arg;
+            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+            if(len < 0) return Error(ctx, "Invalid range");
+            LazyArray* la = lazy_unary(ctx, drsp_sqrt_op, arg, len);
+            return la ? &la->e : NULL;
+        }
         ComputedArray* c = (ComputedArray*)arg;
         for(intptr_t i = 0; i < c->length; i++){
             Expression* e = c->data[i];
@@ -1781,13 +1827,10 @@ FORMULAFUNC(drsp_first){
         return arg;
     if(!expr_is_arraylike(arg))
         return Error(ctx, "");
-    arg = convert_to_computed_array(ctx, sd, arg, caller_row, caller_col);
-    if(!arg || arg->kind == EXPR_ERROR)
-        return arg;
-    ComputedArray* c = (ComputedArray*)arg;
-    if(!c->length)
+    intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+    if(len <= 0)
         return Error(ctx, "");
-    return c->data[0];
+    return arraylike_get(ctx, sd, arg, 0, caller_row, caller_col);
 }
 
 typedef struct PrintBuff PrintBuff;
@@ -1971,6 +2014,9 @@ repr_expr(PrintBuff* buff, Expression* arg){
         }break;
         case EXPR_COMPUTED_ARRAY:
             print(buff, "ComputedArray()");
+            break;
+        case EXPR_LAZY_ARRAY:
+            print(buff, "LazyArray()");
             break;
     }
 }

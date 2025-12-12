@@ -30,6 +30,11 @@ DRSP_INTERNAL
 Expression*_Nullable
 call_udf(DrSpreadCtx* ctx, SheetData*, size_t nargs, Expression*_Nonnull*_Nonnull args);
 
+// Get element at index from any arraylike expression (ComputedArray, LazyArray, Range)
+DRSP_INTERNAL
+Expression*_Nullable
+arraylike_get(DrSpreadCtx* ctx, SheetData* sd, Expression* arr, intptr_t index, intptr_t caller_row, intptr_t caller_col);
+
 #ifdef __clang__
 #pragma clang assume_nonnull end
 #endif

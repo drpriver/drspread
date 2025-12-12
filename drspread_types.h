@@ -138,6 +138,7 @@ TYPED_ENUM(ExpressionKind, uintptr_t){
     EXPR_UNARY                  = 13,
     EXPR_COMPUTED_ARRAY         = 14,
     EXPR_USER_DEFINED_FUNC_CALL = 15,
+    EXPR_LAZY_ARRAY             = 16,
 };
 
 typedef struct Expression Expression;
@@ -273,6 +274,43 @@ struct ComputedArray {
     Expression e;
     intptr_t length;
     _Alignas(uintptr_t) Expression*_Nonnull data[];
+};
+
+typedef double (*UnaryDoubleOp)(double);
+
+typedef enum {
+    LAZY_RANGE_COL,
+    LAZY_RANGE_ROW,
+    LAZY_UNARY,
+    LAZY_BINARY,
+} LazyArrayKind;
+
+typedef struct LazyArray LazyArray;
+struct LazyArray {
+    Expression e;
+    intptr_t length;
+    LazyArrayKind kind;
+    union {
+        struct {
+            SheetData* sd;
+            intptr_t col;
+            intptr_t start;
+        } range_col;
+        struct {
+            SheetData* sd;
+            intptr_t row;
+            intptr_t start;
+        } range_row;
+        struct {
+            UnaryDoubleOp op;
+            Expression* source;
+        } unary;
+        struct {
+            BinaryKind op;
+            Expression* lhs;
+            Expression* rhs;
+        } binary;
+    };
 };
 
 // This is a hash table
@@ -626,6 +664,7 @@ expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
             break;
         case EXPR_COMPUTED_ARRAY:
             __builtin_trap();
+        case EXPR_LAZY_ARRAY:                  sz = sizeof(LazyArray); break;
         case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();
     }
@@ -661,6 +700,7 @@ parser_expr_alloc(DrSpreadCtx* ctx, ExpressionKind kind){
             break;
         case EXPR_COMPUTED_ARRAY:
             __builtin_trap();
+        case EXPR_LAZY_ARRAY:                  sz = sizeof(LazyArray); break;
         case EXPR_USER_DEFINED_FUNC_CALL:      sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();
     }
@@ -727,6 +767,7 @@ expr_size(ExpressionKind kind){
         case EXPR_STRING:                 sz = sizeof(String); break;
         case EXPR_BLANK:                  sz = sizeof(Expression); break;
         case EXPR_COMPUTED_ARRAY: __builtin_trap();
+        case EXPR_LAZY_ARRAY:             sz = sizeof(LazyArray); break;
         case EXPR_USER_DEFINED_FUNC_CALL: sz = sizeof(UserFunctionCall); break;
         default: __builtin_trap();
     }
@@ -737,7 +778,7 @@ expr_size(ExpressionKind kind){
 static
 void*_Nullable
 expr_clone(DrSpreadCtx* ctx, Expression* e){
-    if(e->kind == EXPR_COMPUTED_ARRAY){
+    if(e->kind == EXPR_COMPUTED_ARRAY || e->kind == EXPR_LAZY_ARRAY){
         abort();
     }
     else {
@@ -807,6 +848,7 @@ union ExprU{
     Unary u;
     String s;
     UserFunctionCall ufc;
+    LazyArray la;
 };
 
 static inline

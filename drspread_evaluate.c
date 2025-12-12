@@ -415,6 +415,7 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
         case EXPR_RANGE1D_ROW:
         case EXPR_RANGE1D_ROW_FOREIGN:
         case EXPR_COMPUTED_ARRAY:
+        case EXPR_LAZY_ARRAY:
         case EXPR_STRING:
             return expr;
         case EXPR_RANGE1D_COLUMN:{
@@ -564,6 +565,116 @@ call_udf(DrSpreadCtx* ctx, SheetData* func, size_t nargs, Expression*_Nonnull*_N
     Expression* result = evaluate(ctx, func, func->out_row, func->out_col);
     __builtin_memset(func->hacky_func_args, 0, sizeof func->hacky_func_args);
     return result;
+}
+
+DRSP_INTERNAL
+Expression*_Nullable
+arraylike_get(DrSpreadCtx* ctx, SheetData* sd, Expression* arr, intptr_t index, intptr_t caller_row, intptr_t caller_col){
+    switch(arr->kind){
+        case EXPR_COMPUTED_ARRAY: {
+            ComputedArray* ca = (ComputedArray*)arr;
+            if(index < 0 || index >= ca->length)
+                return Error(ctx, "index out of bounds");
+            return ca->data[index];
+        }
+        case EXPR_LAZY_ARRAY: {
+            LazyArray* la = (LazyArray*)arr;
+            if(index < 0 || index >= la->length)
+                return Error(ctx, "index out of bounds");
+            switch(la->kind){
+                case LAZY_RANGE_COL:
+                    return evaluate(ctx, la->range_col.sd, la->range_col.start + index, la->range_col.col);
+                case LAZY_RANGE_ROW:
+                    return evaluate(ctx, la->range_row.sd, la->range_row.row, la->range_row.start + index);
+                case LAZY_UNARY: {
+                    Expression* elem = arraylike_get(ctx, sd, la->unary.source, index, caller_row, caller_col);
+                    if(!elem || elem->kind == EXPR_ERROR) return elem;
+                    if(elem->kind == EXPR_BLANK){
+                        // Propagate blank
+                        return elem;
+                    }
+                    if(elem->kind != EXPR_NUMBER)
+                        return Error(ctx, "unary op requires number");
+                    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+                    if(!n) return NULL;
+                    n->value = la->unary.op(((Number*)elem)->value);
+                    return &n->e;
+                }
+                case LAZY_BINARY: {
+                    Expression* lhs = la->binary.lhs;
+                    Expression* rhs = la->binary.rhs;
+                    // Get lhs value - either from arraylike at index, or use scalar directly
+                    Expression* lval;
+                    if(expr_is_arraylike(lhs)){
+                        lval = arraylike_get(ctx, sd, lhs, index, caller_row, caller_col);
+                        if(!lval || lval->kind == EXPR_ERROR) return lval;
+                    } else {
+                        lval = lhs;
+                    }
+                    // Get rhs value
+                    Expression* rval;
+                    if(expr_is_arraylike(rhs)){
+                        rval = arraylike_get(ctx, sd, rhs, index, caller_row, caller_col);
+                        if(!rval || rval->kind == EXPR_ERROR) return rval;
+                    } else {
+                        rval = rhs;
+                    }
+                    // Handle blanks
+                    if(lval->kind == EXPR_BLANK || rval->kind == EXPR_BLANK){
+                        return &ctx->null;
+                    }
+                    // Apply binary op
+                    if(lval->kind == EXPR_NUMBER && rval->kind == EXPR_NUMBER){
+                        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+                        if(!n) return NULL;
+                        n->value = double_bin_cmp(la->binary.op, ((Number*)lval)->value, ((Number*)rval)->value);
+                        return &n->e;
+                    }
+                    if(lval->kind == EXPR_STRING && rval->kind == EXPR_STRING){
+                        _Bool cmp;
+                        switch(la->binary.op){
+                            case BIN_EQ:
+                                cmp = ((String*)lval)->str == ((String*)rval)->str;
+                                break;
+                            case BIN_NE:
+                                cmp = ((String*)lval)->str != ((String*)rval)->str;
+                                break;
+                            default:
+                                return Error(ctx, "only '=' and '!=' supported for strings");
+                        }
+                        Number* n = expr_alloc(ctx, EXPR_NUMBER);
+                        if(!n) return NULL;
+                        n->value = (double)cmp;
+                        return &n->e;
+                    }
+                    return Error(ctx, "type mismatch in binary op");
+                }
+            }
+            __builtin_unreachable();
+        }
+        case EXPR_RANGE1D_COLUMN:
+        case EXPR_RANGE1D_COLUMN_FOREIGN: {
+            intptr_t col, start, end;
+            SheetData* rsd = sd;
+            if(get_range1dcol(ctx, sd, arr, &col, &start, &end, &rsd, caller_row, caller_col))
+                return Error(ctx, "Invalid range");
+            if(index < 0 || index > end - start)
+                return Error(ctx, "index out of bounds");
+            return evaluate(ctx, rsd, start + index, col);
+        }
+        case EXPR_RANGE1D_ROW:
+        case EXPR_RANGE1D_ROW_FOREIGN: {
+            intptr_t row, start, end;
+            SheetData* rsd = sd;
+            if(get_range1drow(ctx, sd, arr, &row, &start, &end, &rsd, caller_row, caller_col))
+                return Error(ctx, "Invalid range");
+            if(index < 0 || index > end - start)
+                return Error(ctx, "index out of bounds");
+            return evaluate(ctx, rsd, row, start + index);
+        }
+        default:
+            return Error(ctx, "not an array");
+    }
 }
 
 #ifdef __clang__
