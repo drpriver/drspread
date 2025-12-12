@@ -174,11 +174,12 @@ struct Number {
 };
 typedef struct FunctionCall FunctionCall;
 typedef struct SheetData SheetData;
+typedef struct FuncInfo FuncInfo; // forward declaration
 #define FORMULAFUNC(name) Expression*_Nullable (name)(DrSpreadCtx* ctx, SheetData* sd,  intptr_t caller_row, intptr_t caller_col, int argc, Expression*_Nonnull*_Nonnull argv)
 typedef FORMULAFUNC(FormulaFunc);
 struct FunctionCall {
     Expression e;
-    FormulaFunc* func;
+    const FuncInfo* func_info;
     int argc;
     Expression*_Nonnull*_Nonnull argv;
 };
@@ -285,6 +286,7 @@ typedef enum {
     LAZY_UNARY,
     LAZY_BINARY,
     LAZY_BINARY_FUNC,
+    LAZY_FUNC_CALL,
 } LazyArrayKind;
 
 typedef struct LazyArray LazyArray;
@@ -317,6 +319,12 @@ struct LazyArray {
             Expression* lhs;
             Expression* rhs;
         } binary_func;
+        struct {
+            FormulaFunc* func;
+            SheetData* sd;
+            int argc;
+            Expression*_Nonnull*_Nonnull argv; // mix of arraylike and scalar (pre-evaluated)
+        } func_call;
     };
 };
 
@@ -868,6 +876,7 @@ typedef struct FuncInfo FuncInfo;
 struct FuncInfo {
     StringView name;
     FormulaFunc* func;
+    _Bool broadcastable;
 };
 
 DRSP_INTERNAL

@@ -95,7 +95,7 @@ evaluate(DrSpreadCtx* ctx, SheetData* sd, intptr_t row, intptr_t col){
         }
         _Alignas(union ExprU) unsigned char tmp[sizeof(union ExprU)];
         ExpressionKind kind = e->kind;
-        if(kind == EXPR_COMPUTED_ARRAY)
+        if(kind == EXPR_COMPUTED_ARRAY || kind == EXPR_LAZY_ARRAY)
             return e;
         size_t sz = expr_size(kind);
         __builtin_memcpy(tmp, e, sz);
@@ -445,7 +445,52 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
         }
         case EXPR_FUNCTION_CALL:{
             FunctionCall* fc = (FunctionCall*)expr;
-            return fc->func(ctx, sd, caller_row, caller_col, fc->argc, fc->argv);
+            const FuncInfo* fi = fc->func_info;
+            // Check for auto-broadcasting
+            if(fi->broadcastable){
+                // Pre-evaluate args that aren't range expressions to check for arrays
+                Expression** eval_argv = NULL;
+                intptr_t broadcast_len = -1;
+                for(int i = 0; i < fc->argc; i++){
+                    Expression* arg = fc->argv[i];
+                    // Range expressions are known arraylike without evaluation
+                    if(expr_is_arraylike(arg)){
+                        intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
+                        if(len < 0) return Error(ctx, "Invalid range");
+                        if(broadcast_len < 0) broadcast_len = len;
+                        else if(broadcast_len != len)
+                            return Error(ctx, "Array arguments must be same length");
+                    } else {
+                        // Evaluate to see if it produces an array
+                        Expression* evaled = evaluate_expr(ctx, sd, arg, caller_row, caller_col);
+                        if(!evaled || evaled->kind == EXPR_ERROR) return evaled;
+                        if(expr_is_arraylike(evaled)){
+                            intptr_t len = arraylike_length(ctx, sd, evaled, caller_row, caller_col);
+                            if(len < 0) return Error(ctx, "Invalid range");
+                            if(broadcast_len < 0) broadcast_len = len;
+                            else if(broadcast_len != len)
+                                return Error(ctx, "Array arguments must be same length");
+                            // Store evaluated args for use in lazy_func_call
+                            if(!eval_argv){
+                                eval_argv = buff_alloc(ctx->a, fc->argc * sizeof *eval_argv);
+                                if(!eval_argv) return NULL;
+                                for(int j = 0; j < fc->argc; j++) eval_argv[j] = fc->argv[j];
+                            }
+                            eval_argv[i] = evaled;
+                        } else {
+                            // Not arraylike - store evaluated result if we're tracking
+                            if(eval_argv) eval_argv[i] = evaled;
+                        }
+                    }
+                }
+                if(broadcast_len >= 0){
+                    // At least one arraylike arg - create lazy func call
+                    Expression** argv_to_use = eval_argv ? eval_argv : fc->argv;
+                    LazyArray* la = lazy_func_call(ctx, fi->func, sd, fc->argc, argv_to_use, broadcast_len, caller_row, caller_col);
+                    return la ? &la->e : NULL;
+                }
+            }
+            return fi->func(ctx, sd, caller_row, caller_col, fc->argc, fc->argv);
         }
         case EXPR_RANGE0D_FOREIGN:{
             ForeignRange0D* rng = (ForeignRange0D*)expr;
@@ -679,6 +724,25 @@ arraylike_get(DrSpreadCtx* ctx, SheetData* sd, Expression* arr, intptr_t index, 
                     if(!n) return NULL;
                     n->value = la->binary_func.op(((Number*)lval)->value, ((Number*)rval)->value);
                     return &n->e;
+                }
+                case LAZY_FUNC_CALL: {
+                    // Build argv for this index
+                    int argc = la->func_call.argc;
+                    Expression** indexed_argv = buff_alloc(ctx->a, argc * sizeof *indexed_argv);
+                    if(!indexed_argv) return NULL;
+                    for(int i = 0; i < argc; i++){
+                        Expression* arg = la->func_call.argv[i];
+                        if(expr_is_arraylike(arg)){
+                            indexed_argv[i] = arraylike_get(ctx, la->func_call.sd, arg, index, caller_row, caller_col);
+                            if(!indexed_argv[i] || indexed_argv[i]->kind == EXPR_ERROR)
+                                return indexed_argv[i];
+                        } else {
+                            // Scalar - use directly
+                            indexed_argv[i] = arg;
+                        }
+                    }
+                    // Call the function with scalar args
+                    return la->func_call.func(ctx, la->func_call.sd, caller_row, caller_col, argc, indexed_argv);
                 }
             }
             __builtin_unreachable();

@@ -1053,7 +1053,8 @@ expr_to_cached_result(DrSpreadCtx* ctx, Expression* e, CachedResult* out){
         case EXPR_RANGE1D_ROW_FOREIGN:
         case EXPR_RANGE1D_COLUMN:
         case EXPR_RANGE1D_COLUMN_FOREIGN:
-        case EXPR_COMPUTED_ARRAY:{
+        case EXPR_COMPUTED_ARRAY:
+        case EXPR_LAZY_ARRAY:{
             DrspAtom str = drsp_intern_str(ctx, "[[array]]", sizeof("[[array]]")-1);
             if(!str) return 1;
             out->kind = CACHED_RESULT_STRING;

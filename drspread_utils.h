@@ -291,6 +291,36 @@ range_to_lazy(DrSpreadCtx* ctx, SheetData* sd, Expression* e, intptr_t caller_ro
     return Error(ctx, "Not a range");
 }
 
+// Create lazy array for auto-broadcasted function call
+// Pre-evaluates non-arraylike args, converts ranges to lazy for arraylike args
+static inline
+LazyArray*_Nullable
+lazy_func_call(DrSpreadCtx* ctx, FormulaFunc* func, SheetData* sd, int argc, Expression*_Nonnull*_Nonnull argv, intptr_t length, intptr_t caller_row, intptr_t caller_col){
+    LazyArray* la = expr_alloc(ctx, EXPR_LAZY_ARRAY);
+    if(!la) return NULL;
+    la->length = length;
+    la->kind = LAZY_FUNC_CALL;
+    la->func_call.func = func;
+    la->func_call.sd = sd;
+    la->func_call.argc = argc;
+    // Allocate new argv array
+    Expression** new_argv = buff_alloc(ctx->a, argc * sizeof *new_argv);
+    if(!new_argv) return NULL;
+    for(int i = 0; i < argc; i++){
+        if(expr_is_arraylike(argv[i])){
+            // Convert ranges to lazy arrays
+            new_argv[i] = range_to_lazy(ctx, sd, argv[i], caller_row, caller_col);
+            if(!new_argv[i] || new_argv[i]->kind == EXPR_ERROR) return NULL;
+        } else {
+            // Pre-evaluate scalar args
+            new_argv[i] = evaluate_expr(ctx, sd, argv[i], caller_row, caller_col);
+            if(!new_argv[i] || new_argv[i]->kind == EXPR_ERROR) return NULL;
+        }
+    }
+    la->func_call.argv = new_argv;
+    return la;
+}
+
 // GCOV_EXCL_STOP
 
 static inline

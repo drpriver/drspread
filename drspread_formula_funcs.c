@@ -32,18 +32,6 @@
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
 #endif
 
-// Wrapper functions for builtins (needed because we take their addresses for lazy evaluation)
-static double drsp_floor_op(double x) { return __builtin_floor(x); }
-static double drsp_ceil_op(double x) { return __builtin_ceil(x); }
-static double drsp_trunc_op(double x) { return __builtin_trunc(x); }
-static double drsp_round_op(double x) { return __builtin_round(x); }
-static double drsp_fabs_op(double x) { return __builtin_fabs(x); }
-static double drsp_sqrt_op(double x) { return __builtin_sqrt(x); }
-
-// Binary wrapper functions for lazy evaluation
-static double drsp_fmin_op(double x, double y) { return x < y ? x : y; }
-static double drsp_fmax_op(double x, double y) { return x > y ? x : y; }
-
 #if defined(TESTING_H) && !defined(DRSP_INTRINS)
 #define DRSP_INTRINS 1
 #endif
@@ -284,45 +272,7 @@ FORMULAFUNC(drsp_count){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_min){
     if(!argc) return Error(ctx, "min() requires more than 0 arguments");
-    // Element-wise min of two arrays
-    if(argc == 2){
-        Expression* lhs = argv[0];
-        Expression* rhs = argv[1];
-        _Bool lhs_array = expr_is_arraylike(lhs);
-        _Bool rhs_array = expr_is_arraylike(rhs);
-        if(lhs_array || rhs_array){
-            // Convert ranges to lazy arrays
-            if(lhs_array){
-                lhs = range_to_lazy(ctx, sd, lhs, caller_row, caller_col);
-                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
-            } else {
-                lhs = evaluate_expr(ctx, sd, lhs, caller_row, caller_col);
-                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
-            }
-            if(rhs_array){
-                rhs = range_to_lazy(ctx, sd, rhs, caller_row, caller_col);
-                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
-            } else {
-                rhs = evaluate_expr(ctx, sd, rhs, caller_row, caller_col);
-                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
-            }
-            intptr_t len;
-            if(lhs_array && rhs_array){
-                intptr_t llen = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
-                intptr_t rlen = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
-                if(llen != rlen)
-                    return Error(ctx, "min() array arguments must be same length");
-                len = llen;
-            } else if(lhs_array){
-                len = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
-            } else {
-                len = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
-            }
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_binary_func(ctx, drsp_fmin_op, lhs, rhs, len);
-            return la ? &la->e : NULL;
-        }
-    }
+    // Multiple scalar args - return min of all (auto-broadcast handles array cases)
     if(argc > 1){
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = 1e32;
@@ -400,45 +350,7 @@ FORMULAFUNC(drsp_min){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_max){
     if(!argc) return Error(ctx, "max() requires more than 0 arguments");
-    // Element-wise max of two arrays
-    if(argc == 2){
-        Expression* lhs = argv[0];
-        Expression* rhs = argv[1];
-        _Bool lhs_array = expr_is_arraylike(lhs);
-        _Bool rhs_array = expr_is_arraylike(rhs);
-        if(lhs_array || rhs_array){
-            // Convert ranges to lazy arrays
-            if(lhs_array){
-                lhs = range_to_lazy(ctx, sd, lhs, caller_row, caller_col);
-                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
-            } else {
-                lhs = evaluate_expr(ctx, sd, lhs, caller_row, caller_col);
-                if(!lhs || lhs->kind == EXPR_ERROR) return lhs;
-            }
-            if(rhs_array){
-                rhs = range_to_lazy(ctx, sd, rhs, caller_row, caller_col);
-                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
-            } else {
-                rhs = evaluate_expr(ctx, sd, rhs, caller_row, caller_col);
-                if(!rhs || rhs->kind == EXPR_ERROR) return rhs;
-            }
-            intptr_t len;
-            if(lhs_array && rhs_array){
-                intptr_t llen = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
-                intptr_t rlen = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
-                if(llen != rlen)
-                    return Error(ctx, "max() array arguments must be same length");
-                len = llen;
-            } else if(lhs_array){
-                len = arraylike_length(ctx, sd, lhs, caller_row, caller_col);
-            } else {
-                len = arraylike_length(ctx, sd, rhs, caller_row, caller_col);
-            }
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_binary_func(ctx, drsp_fmax_op, lhs, rhs, len);
-            return la ? &la->e : NULL;
-        }
-    }
+    // Multiple scalar args - return max of all (auto-broadcast handles array cases)
     if(argc > 1){
         BuffCheckpoint bc = buff_checkpoint(ctx->a);
         double v = -1e32;
@@ -550,231 +462,85 @@ FORMULAFUNC(drsp_mod){
 DRSP_INTERNAL
 FORMULAFUNC(drsp_floor){
     if(argc != 1) return Error(ctx, "floor() requires 1 argument");
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_arraylike(arg)){
-        // Use lazy evaluation only for unevaluated ranges, not for already-computed arrays
-        if(arg->kind != EXPR_COMPUTED_ARRAY){
-            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
-            if(!arg || arg->kind == EXPR_ERROR) return arg;
-            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_unary(ctx, drsp_floor_op, arg, len);
-            return la ? &la->e : NULL;
-        }
-        // Eager evaluation for ComputedArray
-        ComputedArray* c = (ComputedArray*)arg;
-        for(intptr_t i = 0; i < c->length; i++){
-            Expression* e = c->data[i];
-            if(e->kind == EXPR_BLANK)
-                continue;
-            if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "argument to floor() must be a number");
-            Number* n = (Number*)e;
-            n->value = __builtin_floor(n->value);
-        }
-        return arg;
-    }
-    else {
-        if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "argument to floor() must be a number");
-        buff_set(ctx->a, bc);
-        Number* n = expr_alloc(ctx, EXPR_NUMBER);
-        if(!n) return NULL;
-        n->value = __builtin_floor(((Number*)arg)->value);
-        return &n->e;
-    }
+    if(arg->kind == EXPR_BLANK) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "argument to floor() must be a number");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = __builtin_floor(((Number*)arg)->value);
+    return &n->e;
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_ceil){
     if(argc != 1) return Error(ctx, "ceil() requires 1 argument");
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_arraylike(arg)){
-        if(arg->kind != EXPR_COMPUTED_ARRAY){
-            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
-            if(!arg || arg->kind == EXPR_ERROR) return arg;
-            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_unary(ctx, drsp_ceil_op, arg, len);
-            return la ? &la->e : NULL;
-        }
-        ComputedArray* c = (ComputedArray*)arg;
-        for(intptr_t i = 0; i < c->length; i++){
-            Expression* e = c->data[i];
-            if(e->kind == EXPR_BLANK)
-                continue;
-            if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "argument to ceil() must be a number");
-            Number* n = (Number*)e;
-            n->value = __builtin_ceil(n->value);
-        }
-        return arg;
-    }
-    else {
-        if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "argument to ceil() must be a number");
-        buff_set(ctx->a, bc);
-        Number* n = expr_alloc(ctx, EXPR_NUMBER);
-        if(!n) return NULL;
-        n->value = __builtin_ceil(((Number*)arg)->value);
-        return &n->e;
-    }
+    if(arg->kind == EXPR_BLANK) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "argument to ceil() must be a number");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = __builtin_ceil(((Number*)arg)->value);
+    return &n->e;
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_trunc){
     if(argc != 1) return Error(ctx, "trunc() requires 1 argument");
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_arraylike(arg)){
-        if(arg->kind != EXPR_COMPUTED_ARRAY){
-            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
-            if(!arg || arg->kind == EXPR_ERROR) return arg;
-            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_unary(ctx, drsp_trunc_op, arg, len);
-            return la ? &la->e : NULL;
-        }
-        ComputedArray* c = (ComputedArray*)arg;
-        for(intptr_t i = 0; i < c->length; i++){
-            Expression* e = c->data[i];
-            if(e->kind == EXPR_BLANK)
-                continue;
-            if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "argument to trunc() must be a number");
-            Number* n = (Number*)e;
-            n->value = __builtin_trunc(n->value);
-        }
-        return arg;
-    }
-    else {
-        if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "argument to trunc() must be a number");
-        buff_set(ctx->a, bc);
-        Number* n = expr_alloc(ctx, EXPR_NUMBER);
-        if(!n) return NULL;
-        n->value = __builtin_trunc(((Number*)arg)->value);
-        return &n->e;
-    }
+    if(arg->kind == EXPR_BLANK) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "argument to trunc() must be a number");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = __builtin_trunc(((Number*)arg)->value);
+    return &n->e;
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_round){
     if(argc != 1) return Error(ctx, "round() requires 1 argument");
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_arraylike(arg)){
-        if(arg->kind != EXPR_COMPUTED_ARRAY){
-            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
-            if(!arg || arg->kind == EXPR_ERROR) return arg;
-            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_unary(ctx, drsp_round_op, arg, len);
-            return la ? &la->e : NULL;
-        }
-        ComputedArray* c = (ComputedArray*)arg;
-        for(intptr_t i = 0; i < c->length; i++){
-            Expression* e = c->data[i];
-            if(e->kind == EXPR_BLANK)
-                continue;
-            if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "argument to round() must be a number");
-            Number* n = (Number*)e;
-            n->value = __builtin_round(n->value);
-        }
-        return arg;
-    }
-    else {
-        if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "argument to round() must be a number");
-        buff_set(ctx->a, bc);
-        Number* n = expr_alloc(ctx, EXPR_NUMBER);
-        if(!n) return NULL;
-        n->value = __builtin_round(((Number*)arg)->value);
-        return &n->e;
-    }
+    if(arg->kind == EXPR_BLANK) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "argument to round() must be a number");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = __builtin_round(((Number*)arg)->value);
+    return &n->e;
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_abs){
     if(argc != 1) return Error(ctx, "abs() requires 1 argument");
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_arraylike(arg)){
-        if(arg->kind != EXPR_COMPUTED_ARRAY){
-            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
-            if(!arg || arg->kind == EXPR_ERROR) return arg;
-            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_unary(ctx, drsp_fabs_op, arg, len);
-            return la ? &la->e : NULL;
-        }
-        ComputedArray* c = (ComputedArray*)arg;
-        for(intptr_t i = 0; i < c->length; i++){
-            Expression* e = c->data[i];
-            if(e->kind == EXPR_BLANK)
-                continue;
-            if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "argument to abs() must be a number");
-            Number* n = (Number*)e;
-            n->value = __builtin_fabs(n->value);
-        }
-        return arg;
-    }
-    else {
-        if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "argument to abs() must be a number");
-        buff_set(ctx->a, bc);
-        Number* n = expr_alloc(ctx, EXPR_NUMBER);
-        if(!n) return NULL;
-        n->value = __builtin_fabs(((Number*)arg)->value);
-        return &n->e;
-    }
+    if(arg->kind == EXPR_BLANK) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "argument to abs() must be a number");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = __builtin_fabs(((Number*)arg)->value);
+    return &n->e;
 }
 
 DRSP_INTERNAL
 FORMULAFUNC(drsp_sqrt){
     if(argc != 1) return Error(ctx, "sqrt() requires 1 argument");
-    BuffCheckpoint bc = buff_checkpoint(ctx->a);
     Expression* arg = evaluate_expr(ctx, sd, argv[0], caller_row, caller_col);
     if(!arg || arg->kind == EXPR_ERROR) return arg;
-    if(expr_is_arraylike(arg)){
-        if(arg->kind != EXPR_COMPUTED_ARRAY){
-            arg = range_to_lazy(ctx, sd, arg, caller_row, caller_col);
-            if(!arg || arg->kind == EXPR_ERROR) return arg;
-            intptr_t len = arraylike_length(ctx, sd, arg, caller_row, caller_col);
-            if(len < 0) return Error(ctx, "Invalid range");
-            LazyArray* la = lazy_unary(ctx, drsp_sqrt_op, arg, len);
-            return la ? &la->e : NULL;
-        }
-        ComputedArray* c = (ComputedArray*)arg;
-        for(intptr_t i = 0; i < c->length; i++){
-            Expression* e = c->data[i];
-            if(e->kind == EXPR_BLANK)
-                continue;
-            if(e->kind != EXPR_NUMBER)
-                return Error(ctx, "argument to sqrt() must be a number");
-            Number* n = (Number*)e;
-            n->value = __builtin_sqrt(n->value);
-        }
-        return arg;
-    }
-    else {
-        if(arg->kind != EXPR_NUMBER)
-            return Error(ctx, "argument to sqrt() must be a number");
-        buff_set(ctx->a, bc);
-        Number* n = expr_alloc(ctx, EXPR_NUMBER);
-        if(!n) return NULL;
-        n->value = __builtin_sqrt(((Number*)arg)->value);
-        return &n->e;
-    }
+    if(arg->kind == EXPR_BLANK) return arg;
+    if(arg->kind != EXPR_NUMBER)
+        return Error(ctx, "argument to sqrt() must be a number");
+    Number* n = expr_alloc(ctx, EXPR_NUMBER);
+    if(!n) return NULL;
+    n->value = __builtin_sqrt(((Number*)arg)->value);
+    return &n->e;
 }
 
 DRSP_INTERNAL
@@ -1893,10 +1659,10 @@ FORMULAFUNC(drsp_call){
     if(!arg || arg->kind == EXPR_ERROR) return arg;
     if(arg->kind != EXPR_STRING)
         return Error(ctx, "first argument to call() must be a string");
-    FormulaFunc* func = lookup_func(((String*)arg)->str);
-    if(!func) return Error(ctx, "first argument to call() does not name a function");
+    const FuncInfo* fi = lookup_func(((String*)arg)->str);
+    if(!fi) return Error(ctx, "first argument to call() does not name a function");
     argc--, argv++;
-    return func(ctx, sd, caller_row, caller_col, argc, argv);
+    return fi->func(ctx, sd, caller_row, caller_col, argc, argv);
 }
 
 #ifdef DRSP_INTRINS
@@ -2319,59 +2085,59 @@ const FuncInfo FUNC1[] = {
 #endif
 DRSP_INTERNAL
 const FuncInfo FUNC2[] = {
-    {SVI("if"),    &drsp_if},
-    {SVI("lu"),    &drsp_tablelookup},
-    {SVI("ln"),    &drsp_log},
+    {SVI("if"),    &drsp_if,          0},
+    {SVI("lu"),    &drsp_tablelookup, 0},
+    {SVI("ln"),    &drsp_log,         1}, // broadcastable
 };
 DRSP_INTERNAL
 const FuncInfo FUNC3[] = {
-    {SVI("sum"),   &drsp_sum},
-    {SVI("tlu"),   &drsp_tablelookup},
-    {SVI("mod"),   &drsp_mod},
-    {SVI("avg"),   &drsp_avg},
-    {SVI("min"),   &drsp_min},
-    {SVI("max"),   &drsp_max},
-    {SVI("abs"),   &drsp_abs},
-    {SVI("num"),   &drsp_num},
-    {SVI("try"),   &drsp_try},
-    {SVI("pow"),   &drsp_pow},
-    {SVI("col"),   &drsp_col},
-    {SVI("cat"),   &drsp_cat},
-    {SVI("row"),   &drsp_row},
-    {SVI("log"),   &drsp_log},
+    {SVI("sum"),   &drsp_sum,         0},
+    {SVI("tlu"),   &drsp_tablelookup, 0},
+    {SVI("mod"),   &drsp_mod,         1}, // broadcastable
+    {SVI("avg"),   &drsp_avg,         0},
+    {SVI("min"),   &drsp_min,         0}, // NOT broadcastable (single arg aggregates)
+    {SVI("max"),   &drsp_max,         0}, // NOT broadcastable (single arg aggregates)
+    {SVI("abs"),   &drsp_abs,         1}, // broadcastable
+    {SVI("num"),   &drsp_num,         0},
+    {SVI("try"),   &drsp_try,         0},
+    {SVI("pow"),   &drsp_pow,         1}, // broadcastable
+    {SVI("col"),   &drsp_col,         0},
+    {SVI("cat"),   &drsp_cat,         0},
+    {SVI("row"),   &drsp_row,         0},
+    {SVI("log"),   &drsp_log,         1}, // broadcastable
 };
 DRSP_INTERNAL
 const FuncInfo FUNC4[] = {
-    {SVI("ceil"),  &drsp_ceil},
-    {SVI("find"),  &drsp_find},
-    {SVI("cell"),  &drsp_cell},
-    {SVI("eval"),  &drsp_eval},
-    {SVI("call"),  &drsp_call},
-    {SVI("sqrt"),  &drsp_sqrt},
-    {SVI("mean"),  &drsp_avg},
+    {SVI("ceil"),  &drsp_ceil,        1}, // broadcastable
+    {SVI("find"),  &drsp_find,        0},
+    {SVI("cell"),  &drsp_cell,        0},
+    {SVI("eval"),  &drsp_eval,        0},
+    {SVI("call"),  &drsp_call,        0},
+    {SVI("sqrt"),  &drsp_sqrt,        1}, // broadcastable
+    {SVI("mean"),  &drsp_avg,         0},
 #ifdef DRSPREAD_CLI_C
 #ifdef __APPLE__
-    {SVI("time"),  &drsp_time},
+    {SVI("time"),  &drsp_time,        0},
 #endif
 #endif
-    {SVI("prod"),  &drsp_prod},
+    {SVI("prod"),  &drsp_prod,        0},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC5[] = {
-    {SVI("count"), &drsp_count},
-    {SVI("floor"), &drsp_floor},
-    {SVI("trunc"), &drsp_trunc},
-    {SVI("round"), &drsp_round},
-    {SVI("array"), &drsp_array},
+    {SVI("count"), &drsp_count,       0},
+    {SVI("floor"), &drsp_floor,       1}, // broadcastable
+    {SVI("trunc"), &drsp_trunc,       1}, // broadcastable
+    {SVI("round"), &drsp_round,       1}, // broadcastable
+    {SVI("array"), &drsp_array,       0},
 };
 DRSP_INTERNAL
 const FuncInfo FUNC6[] = {
-    {SVI("column"), &drsp_col},
+    {SVI("column"), &drsp_col,        0},
 };
 
 
 DRSP_INTERNAL
-FormulaFunc*_Nullable
+const FuncInfo*_Nullable
 lookup_func(DrspAtom a){
     StringView name = {a->length, a->data};
     switch(name.length){
@@ -2379,7 +2145,7 @@ lookup_func(DrspAtom a){
         case 1:
             for(size_t i = 0; i < arrlen(FUNC1); i++){
                 if(sv_equals(FUNC1[i].name, name)){
-                    return FUNC1[i].func;
+                    return &FUNC1[i];
                 }
             }
             return NULL;
@@ -2387,35 +2153,35 @@ lookup_func(DrspAtom a){
         case 2:
             for(size_t i = 0; i < arrlen(FUNC2); i++){
                 if(sv_equals(FUNC2[i].name, name)){
-                    return FUNC2[i].func;
+                    return &FUNC2[i];
                 }
             }
             return NULL;
         case 3:
             for(size_t i = 0; i < arrlen(FUNC3); i++){
                 if(sv_equals(FUNC3[i].name, name)){
-                    return FUNC3[i].func;
+                    return &FUNC3[i];
                 }
             }
             return NULL;
         case 4:
             for(size_t i = 0; i < arrlen(FUNC4); i++){
                 if(sv_equals(FUNC4[i].name, name)){
-                    return FUNC4[i].func;
+                    return &FUNC4[i];
                 }
             }
             return NULL;
         case 5:
             for(size_t i = 0; i < arrlen(FUNC5); i++){
                 if(sv_equals(FUNC5[i].name, name)){
-                    return FUNC5[i].func;
+                    return &FUNC5[i];
                 }
             }
             return NULL;
         case 6:
             for(size_t i = 0; i < arrlen(FUNC6); i++){
                 if(sv_equals(FUNC6[i].name, name)){
-                    return FUNC6[i].func;
+                    return &FUNC6[i];
                 }
             }
             return NULL;

@@ -16,6 +16,7 @@ __import ldc.intrinsics;
 #include "drspread_parse.h"
 #include "stringview.h"
 #include "drspread_types.h"
+#include "drspread_utils.h"
 
 
 #ifdef __clang__
@@ -107,6 +108,17 @@ drsp_evaluate_formulas(DrSpreadCtx* ctx){
             }
             #endif
             if(!e) e = Error(ctx, "oom"); // Error doesn't alloc
+            // For LazyArray results, check if first element produces an error
+            // (auto-broadcast functions like floor(a('a')) should show errors)
+            // Note: EXPR_LAZY_ARRAY needs special handling because it can error on access
+            if(e->kind == EXPR_LAZY_ARRAY){
+                intptr_t len = arraylike_length(ctx, sd, e, row, col);
+                if(len > 0){
+                    Expression* first = arraylike_get(ctx, sd, e, 0, row, col);
+                    if(first && first->kind == EXPR_ERROR)
+                        e = first;  // Show the error instead of "[[array]]"
+                }
+            }
             CachedResult* cr = get_cached_output_result(&sd->output_result_cache, row, col);
             if(cr){
                 CachedResult tmp_cr;
@@ -248,6 +260,24 @@ drsp_evaluate_string(DrSpreadCtx* ctx, SheetHandle sheethandle, const char* txt,
         outval->s.text = "oom";
         outval->s.length = 3;
         goto finish;
+    }
+    // For array results, extract first element
+    if(expr_is_arraylike(e)){
+        intptr_t len = arraylike_length(ctx, sd, e, row, col);
+        if(len > 0){
+            e = arraylike_get(ctx, sd, e, 0, row, col);
+            if(!e){
+                outval->s.text = "oom";
+                outval->s.length = 3;
+                error = 1;
+                goto finish;
+            }
+        } else {
+            outval->s.text = "Empty array result";
+            outval->s.length = -1 + sizeof "Empty array result";
+            error = 1;
+            goto finish;
+        }
     }
     switch(e->kind){
         case EXPR_BLANK:

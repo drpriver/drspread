@@ -3439,11 +3439,11 @@ TestFunction(TestErrorMessages){
         },
         {
             SV("pow(a(1, 2), a(10))"),
-            SV("both arguments to pow() must have the same length"),
+            SV("Array arguments must be same length"),
         },
         {
             SV("pow(a(10), a(1, 2))"),
-            SV("both arguments to pow() must have the same length"),
+            SV("Array arguments must be same length"),
         },
         {
             SV("pow(a(10), 'a')"),

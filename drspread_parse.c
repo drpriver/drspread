@@ -921,7 +921,7 @@ PARSEFUNC(parse_func_call){
     rstrip(&name);
     DrspAtom a = drsp_intern_sv_lower(ctx, name);
     if(!a) return NULL;
-    FormulaFunc* func = lookup_func(a);
+    const FuncInfo* func_info = lookup_func(a);
     // This is pretty sloppy - always allocates space
     // for exactly 4 args - can't do less or more.
     enum {argmax=4};
@@ -939,10 +939,10 @@ PARSEFUNC(parse_func_call){
     if(!sv->length || sv->text[0] != ')')
         return Error(ctx, "end of input before closing ')'");
     sv->length--, sv->text++;
-    if(func){
+    if(func_info){
         FunctionCall* fc = parser_expr_alloc(ctx, EXPR_FUNCTION_CALL);
         if(!fc) return NULL;
-        fc->func = func;
+        fc->func_info = func_info;
         fc->argc = argc;
         fc->argv = argv;
         return &fc->e;
