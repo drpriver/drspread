@@ -2095,8 +2095,8 @@ const FuncInfo FUNC3[] = {
     {SVI("tlu"),   &drsp_tablelookup, 0},
     {SVI("mod"),   &drsp_mod,         1}, // broadcastable
     {SVI("avg"),   &drsp_avg,         0},
-    {SVI("min"),   &drsp_min,         0}, // NOT broadcastable (single arg aggregates)
-    {SVI("max"),   &drsp_max,         0}, // NOT broadcastable (single arg aggregates)
+    {SVI("min"),   &drsp_min,         2}, // broadcast with 2+ args, reduce with 1 arg
+    {SVI("max"),   &drsp_max,         2}, // broadcast with 2+ args, reduce with 1 arg
     {SVI("abs"),   &drsp_abs,         1}, // broadcastable
     {SVI("num"),   &drsp_num,         0},
     {SVI("try"),   &drsp_try,         0},

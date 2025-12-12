@@ -876,7 +876,7 @@ typedef struct FuncInfo FuncInfo;
 struct FuncInfo {
     StringView name;
     FormulaFunc* func;
-    _Bool broadcastable;
+    int broadcastable; // 0=never, 1=any argc, 2=argc>=2 (for min/max)
 };
 
 DRSP_INTERNAL

@@ -447,7 +447,9 @@ evaluate_expr(DrSpreadCtx* ctx, SheetData* sd, Expression* expr, intptr_t caller
             FunctionCall* fc = (FunctionCall*)expr;
             const FuncInfo* fi = fc->func_info;
             // Check for auto-broadcasting
-            if(fi->broadcastable){
+            // broadcastable field is minimum argc for broadcasting (0 = never, 1 = any, 2 = 2+ args)
+            // This allows min/max to reduce with 1 arg but broadcast with 2+ args
+            if(fi->broadcastable && fc->argc >= fi->broadcastable){
                 // Pre-evaluate args that aren't range expressions to check for arrays
                 Expression** eval_argv = NULL;
                 intptr_t broadcast_len = -1;
